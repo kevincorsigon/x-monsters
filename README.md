@@ -30,9 +30,9 @@ O objetivo principal é ser o único jogador com monstros em campo e/ou reduzir 
 
 A energia é o recurso principal, usado para invocar monstros e usar habilidades.
 
-* **Energia Inicial:** Cada jogador começa com **5 pontos de energia**.
-* **Aumento:** Na sua Fase de Energia, sua energia total aumenta em **1 ponto**, até um limite de **12**.
-* **Dado da Sorte:** Uma vez por jogo, cada jogador pode gastar **2 pontos de energia** para rolar um dado da sorte e ganhar de **1 a 6 pontos de energia** adicionais (sem ultrapassar o limite de 12).
+* **Energia Inicial:** Cada jogador começa com **6 pontos de energia**.
+* **Aumento:** Na sua Fase de Energia, sua energia total aumenta em **1 ponto**, até um limite de **20**.
+* **Dado da Sorte:** Uma vez por jogo, cada jogador pode gastar **2 pontos de energia** para rolar um dado da sorte e ganhar de **1 a 6 pontos de energia** adicionais (sem ultrapassar o limite de 20).
 
 #### 3. Fases do Turno
 
