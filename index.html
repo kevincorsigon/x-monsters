@@ -338,7 +338,7 @@
                     <span id="pv-p1" class="stat-value" onclick="editStatValue('pv', 'p1')">100</span>
                     <div class="plus-minus-row">
                         <button class="plus-minus-button" 
-                                onclick="changeStat('pv', 'p1', -1)" 
+                                onclick="handlePvClick('pv', 'p1', -1, event)" 
                                 onmousedown="startAutoDecrement('pv', 'p1', event)" 
                                 onmouseup="stopAutoDecrement()" 
                                 onmouseleave="stopAutoDecrement()"
@@ -366,7 +366,7 @@
                     <span id="pv-p2" class="stat-value" onclick="editStatValue('pv', 'p2')">100</span>
                     <div class="plus-minus-row">
                         <button class="plus-minus-button" 
-                                onclick="changeStat('pv', 'p2', -1)" 
+                                onclick="handlePvClick('pv', 'p2', -1, event)" 
                                 onmousedown="startAutoDecrement('pv', 'p2', event)" 
                                 onmouseup="stopAutoDecrement()" 
                                 onmouseleave="stopAutoDecrement()"
@@ -454,11 +454,15 @@
         // Variáveis para controle do auto-decremento
         let autoDecrementInterval = null;
         let autoDecrementTimeout = null;
+        let touchHandled = false;
 
         function startAutoDecrement(stat, player, event) {
             // Previne comportamento padrão em dispositivos touch para evitar conflitos
             if (event && event.type === 'touchstart') {
                 event.preventDefault();
+                // Para touch, executa imediatamente um clique e depois inicia o timer
+                changeStat(stat, player, -1);
+                touchHandled = true;
             }
             
             // Limpa qualquer intervalo anterior
@@ -481,6 +485,22 @@
             if (autoDecrementInterval) {
                 clearInterval(autoDecrementInterval);
                 autoDecrementInterval = null;
+            }
+            // Reset da flag de touch após um pequeno delay
+            setTimeout(() => {
+                touchHandled = false;
+            }, 100);
+        }
+
+        function handlePvClick(stat, player, amount, event) {
+            // Em dispositivos touch, o onclick só deve ser executado se não foi um touch longo
+            if (event && event.type === 'click' && touchHandled) {
+                return; // Não executa o click se foi um touch que já foi tratado
+            }
+            
+            // Se não há auto-decremento ativo, executa o clique único
+            if (!autoDecrementInterval && !autoDecrementTimeout) {
+                changeStat(stat, player, amount);
             }
         }
 
