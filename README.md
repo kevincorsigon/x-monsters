@@ -11,8 +11,10 @@ Um contador de pontos de vida (PV) e energia para o jogo de cartas de mesa "X Mo
 * **Edição Direta:** Clique nos valores de PV, energia ou nos nomes dos jogadores para editá-los manualmente.
 * **Animações:** Efeitos visuais para indicar o vencedor e o perdedor da partida.
 * **Fase de Energia:** Um botão único que aumenta a energia de ambos os jogadores simultaneamente.
+* **Dado da Sorte:** Cada jogador pode usar uma vez por jogo para gastar 2 energia e ganhar de 1 a 6 energia extra.
 * **Reiniciar Jogo:** Reseta todos os contadores para os valores iniciais.
 * **Regras do Jogo:** Um modal pop-up com todas as regras do jogo "X Monsters" para consulta rápida.
+* **Efeitos Sonoros:** Sons para todas as ações (punch.mp3, healing.mp3, energy.mp3, waste.mp3, victory.mp3).
 
 ---
 
@@ -30,6 +32,7 @@ A energia é o recurso principal, usado para invocar monstros e usar habilidades
 
 * **Energia Inicial:** Cada jogador começa com **5 pontos de energia**.
 * **Aumento:** Na sua Fase de Energia, sua energia total aumenta em **1 ponto**, até um limite de **12**.
+* **Dado da Sorte:** Uma vez por jogo, cada jogador pode gastar **2 pontos de energia** para rolar um dado da sorte e ganhar de **1 a 6 pontos de energia** adicionais (sem ultrapassar o limite de 12).
 
 #### 3. Fases do Turno
 

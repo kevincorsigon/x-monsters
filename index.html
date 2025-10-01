@@ -179,6 +179,54 @@
             transform: scale(0.95);
         }
 
+        .dice-button {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background-color: var(--primary-color);
+            color: var(--bg-color);
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.2em;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .dice-button:hover {
+            background-color: #b07d35;
+            transform: scale(1.05);
+        }
+        
+        .dice-button:disabled {
+            background-color: #666;
+            cursor: not-allowed;
+            opacity: 0.5;
+            transform: none;
+        }
+        
+        .dice-button:disabled:hover {
+            background-color: #666;
+            transform: none;
+        }
+
+        .dice-animation {
+            animation: diceRoll 0.8s ease-in-out;
+        }
+        
+        @keyframes diceRoll {
+            0% { transform: rotate(0deg) scale(1); }
+            25% { transform: rotate(90deg) scale(1.2); }
+            50% { transform: rotate(180deg) scale(1.1); }
+            75% { transform: rotate(270deg) scale(1.2); }
+            100% { transform: rotate(360deg) scale(1); }
+        }
+
         .players-container {
             display: flex;
             flex-direction: column;
@@ -331,6 +379,7 @@
 
     <div class="players-container">
         <div class="player-card" id="card-p1">
+            <button class="dice-button" id="dice-p1" onclick="rollDice('p1')" title="Dado da Sorte (2 energia)">🎲</button>
             <h2 id="name-p1" onclick="editName('p1')">Jogador 1</h2>
             <div class="stats-container">
                 <div class="stat-box">
@@ -359,6 +408,7 @@
         </div>
 
         <div class="player-card" id="card-p2">
+            <button class="dice-button" id="dice-p2" onclick="rollDice('p2')" title="Dado da Sorte (2 energia)">🎲</button>
             <h2 id="name-p2" onclick="editName('p2')">Jogador 2</h2>
             <div class="stats-container">
                 <div class="stat-box">
@@ -410,6 +460,7 @@
                 <p><strong>Energia Inicial:</strong> Você começa o jogo com 5 pontos de energia.</p>
                 <p><strong>Aumento de Energia:</strong> A cada turno, na sua Fase de Energia, sua energia aumenta em 1 ponto.</p>
                 <p><strong>Limite de Acúmulo:</strong> A energia máxima que você pode acumular é de 12 pontos.</p>
+                <p><strong>Dado da Sorte:</strong> Uma vez por jogo, cada jogador pode gastar 2 pontos de energia para rolar um dado da sorte e ganhar de 1 a 6 pontos de energia adicionais (sem ultrapassar o limite de 12).</p>
 
                 <h3>3. Fases do Turno</h3>
                 <p>Cada turno de um jogador é dividido em três fases obrigatórias, que devem ser seguidas em sequência:</p>
@@ -458,6 +509,12 @@
         let autoDecrementInterval = null;
         let autoDecrementTimeout = null;
         let touchHandled = false;
+
+        // Variáveis para controle do dado da sorte
+        let diceUsed = {
+            p1: false,
+            p2: false
+        };
 
         function startAutoDecrement(stat, player, event) {
             // Previne comportamento padrão em dispositivos touch para evitar conflitos
@@ -581,6 +638,54 @@
             changeStat('energy', 'p2', 1);
         }
 
+        function rollDice(player) {
+            // Verifica se o jogador já usou o dado
+            if (diceUsed[player]) {
+                alert('Você já usou o dado da sorte nesta partida!');
+                return;
+            }
+
+            // Verifica se o jogador tem energia suficiente (mínimo 2)
+            const energyElement = document.getElementById(`energy-${player}`);
+            const currentEnergy = parseInt(energyElement.innerText);
+            
+            if (currentEnergy < 2) {
+                alert('Você precisa de pelo menos 2 pontos de energia para usar o dado da sorte!');
+                return;
+            }
+
+            // Deduz 2 pontos de energia
+            changeStat('energy', player, -2);
+
+            // Adiciona animação ao botão do dado
+            const diceButton = document.getElementById(`dice-${player}`);
+            diceButton.classList.add('dice-animation');
+
+            // Simula o tempo de animação do dado
+            setTimeout(() => {
+                // Gera um número aleatório entre 1 e 6
+                const diceResult = Math.floor(Math.random() * 6) + 1; // 1 a 6
+                
+                // Adiciona a energia ganha, respeitando o limite de 12
+                const newEnergyValue = Math.min(currentEnergy - 2 + diceResult, MAX_ENERGY);
+                const actualGain = newEnergyValue - (currentEnergy - 2);
+                
+                if (actualGain > 0) {
+                    changeStat('energy', player, actualGain);
+                }
+                
+                alert(`🎲 Dado da Sorte! Você ganhou ${diceResult} pontos de energia!`);
+
+                // Marca que o jogador já usou o dado e desabilita o botão
+                diceUsed[player] = true;
+                diceButton.disabled = true;
+                diceButton.title = 'Dado da sorte já usado nesta partida';
+                
+                // Remove a animação
+                diceButton.classList.remove('dice-animation');
+            }, 800); // Tempo da animação
+        }
+
         function editName(player) {
             const nameElement = document.getElementById(`name-${player}`);
             const newName = prompt('Digite o novo nome do jogador:', nameElement.innerText);
@@ -630,6 +735,8 @@
             const energy2 = document.getElementById('energy-p2');
             const card1 = document.getElementById('card-p1');
             const card2 = document.getElementById('card-p2');
+            const dice1 = document.getElementById('dice-p1');
+            const dice2 = document.getElementById('dice-p2');
 
             document.getElementById('name-p1').innerText = "Jogador 1";
             pv1.innerText = INITIAL_PV;
@@ -642,6 +749,14 @@
             pv2.classList.remove('pv-zero');
             energy2.innerText = INITIAL_ENERGY;
             card2.classList.remove('winner-card', 'loser-card');
+
+            // Reset dos dados da sorte
+            diceUsed.p1 = false;
+            diceUsed.p2 = false;
+            dice1.disabled = false;
+            dice2.disabled = false;
+            dice1.title = 'Dado da Sorte (2 energia)';
+            dice2.title = 'Dado da Sorte (2 energia)';
         }
 
         function showRulesModal() {
