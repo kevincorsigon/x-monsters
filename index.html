@@ -337,7 +337,13 @@
                     <span class="stat-label">PV</span>
                     <span id="pv-p1" class="stat-value" onclick="editStatValue('pv', 'p1')">100</span>
                     <div class="plus-minus-row">
-                        <button class="plus-minus-button" onclick="changeStat('pv', 'p1', -1)">-</button>
+                        <button class="plus-minus-button" 
+                                onclick="changeStat('pv', 'p1', -1)" 
+                                onmousedown="startAutoDecrement('pv', 'p1', event)" 
+                                onmouseup="stopAutoDecrement()" 
+                                onmouseleave="stopAutoDecrement()"
+                                ontouchstart="startAutoDecrement('pv', 'p1', event)" 
+                                ontouchend="stopAutoDecrement()">-</button>
                         <button class="plus-minus-button" onclick="changeStat('pv', 'p1', 1)">+</button>
                     </div>
                 </div>
@@ -359,7 +365,13 @@
                     <span class="stat-label">PV</span>
                     <span id="pv-p2" class="stat-value" onclick="editStatValue('pv', 'p2')">100</span>
                     <div class="plus-minus-row">
-                        <button class="plus-minus-button" onclick="changeStat('pv', 'p2', -1)">-</button>
+                        <button class="plus-minus-button" 
+                                onclick="changeStat('pv', 'p2', -1)" 
+                                onmousedown="startAutoDecrement('pv', 'p2', event)" 
+                                onmouseup="stopAutoDecrement()" 
+                                onmouseleave="stopAutoDecrement()"
+                                ontouchstart="startAutoDecrement('pv', 'p2', event)" 
+                                ontouchend="stopAutoDecrement()">-</button>
                         <button class="plus-minus-button" onclick="changeStat('pv', 'p2', 1)">+</button>
                     </div>
                 </div>
@@ -420,10 +432,57 @@
         </div>
     </div>
 
+    <!-- Elementos de áudio -->
+    <audio id="punchSound" preload="auto">
+        <source src="punch.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="victorySound" preload="auto">
+        <source src="victory.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="energySound" preload="auto">
+        <source src="energy.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="healingSound" preload="auto">
+        <source src="healing.mp3" type="audio/mpeg">
+    </audio>
+
     <script>
         const INITIAL_PV = 100;
         const INITIAL_ENERGY = 5;
         const MAX_ENERGY = 12;
+
+        // Variáveis para controle do auto-decremento
+        let autoDecrementInterval = null;
+        let autoDecrementTimeout = null;
+
+        function startAutoDecrement(stat, player, event) {
+            // Previne comportamento padrão em dispositivos touch para evitar conflitos
+            if (event && event.type === 'touchstart') {
+                event.preventDefault();
+            }
+            
+            // Limpa qualquer intervalo anterior
+            stopAutoDecrement();
+            
+            // Aguarda 500ms antes de começar o auto-decremento (para não interferir com clique único)
+            autoDecrementTimeout = setTimeout(() => {
+                // Inicia o auto-decremento de 5 pontos por segundo (200ms por ponto)
+                autoDecrementInterval = setInterval(() => {
+                    changeStat(stat, player, -1);
+                }, 200); // 200ms = 5 vezes por segundo
+            }, 500);
+        }
+
+        function stopAutoDecrement() {
+            if (autoDecrementTimeout) {
+                clearTimeout(autoDecrementTimeout);
+                autoDecrementTimeout = null;
+            }
+            if (autoDecrementInterval) {
+                clearInterval(autoDecrementInterval);
+                autoDecrementInterval = null;
+            }
+        }
 
         function changeStat(stat, player, amount) {
             const element = document.getElementById(`${stat}-${player}`);
@@ -438,6 +497,27 @@
                 if (newValue > MAX_ENERGY) {
                     newValue = MAX_ENERGY;
                 }
+            }
+
+            // Tocar som de soco quando os pontos de vida são diminuídos
+            if (stat === 'pv' && amount < 0) {
+                const punchSound = document.getElementById('punchSound');
+                punchSound.currentTime = 0; // Reinicia o áudio para permitir múltiplos cliques rápidos
+                punchSound.play().catch(error => console.log('Erro ao tocar o som:', error));
+            }
+
+            // Tocar som de cura quando os pontos de vida são aumentados
+            if (stat === 'pv' && amount > 0) {
+                const healingSound = document.getElementById('healingSound');
+                healingSound.currentTime = 0;
+                healingSound.play().catch(error => console.log('Erro ao tocar o som de cura:', error));
+            }
+
+            // Tocar som de energia quando a energia é aumentada
+            if (stat === 'energy' && amount > 0) {
+                const energySound = document.getElementById('energySound');
+                energySound.currentTime = 0;
+                energySound.play().catch(error => console.log('Erro ao tocar o som de energia:', error));
             }
 
             element.innerText = newValue;
@@ -455,6 +535,11 @@
                     element.classList.add('pv-zero');
                     loserCard.classList.add('loser-card');
                     winnerCard.classList.add('winner-card');
+                    
+                    // Tocar som de vitória quando um jogador chega a 0 PV
+                    const victorySound = document.getElementById('victorySound');
+                    victorySound.currentTime = 0;
+                    victorySound.play().catch(error => console.log('Erro ao tocar o som de vitória:', error));
                 } else {
                     element.classList.remove('pv-zero');
                 }
@@ -484,8 +569,23 @@
                 }
                 element.innerText = parsedValue;
                 if (stat === 'pv') {
+                    const otherPlayer = player === 'p1' ? 'p2' : 'p1';
+                    const winnerCard = document.getElementById(`card-${otherPlayer}`);
+                    const loserCard = document.getElementById(`card-${player}`);
+                    
+                    // Limpa as classes de animação de ambos os cards
+                    winnerCard.classList.remove('winner-card', 'loser-card');
+                    loserCard.classList.remove('winner-card', 'loser-card');
+                    
                     if (parsedValue <= 0) {
                         element.classList.add('pv-zero');
+                        loserCard.classList.add('loser-card');
+                        winnerCard.classList.add('winner-card');
+                        
+                        // Tocar som de vitória quando PV é editado para 0
+                        const victorySound = document.getElementById('victorySound');
+                        victorySound.currentTime = 0;
+                        victorySound.play().catch(error => console.log('Erro ao tocar o som de vitória:', error));
                     } else {
                         element.classList.remove('pv-zero');
                     }
