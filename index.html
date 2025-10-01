@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X Monsters - Contador de PV e Energia</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #1a1e28;
+            --card-bg-color: #2b303d;
+            --text-color: #e2e8f0;
+            --primary-color: #c9a567; /* Dourado mais forte */
+            --secondary-color: #4b586e; /* Cinza metálico */
+            --pv-color: #5abf7a; /* Verde gema */
+            --energy-color: #f5c94a; /* Amarelo gema */
+            --pv-zero-color: #ff6b6b; /* Vermelho para PV 0 */
+            --border-radius: 10px;
+            --spacing: 20px;
+        }
+
+        body {
+            font-family: 'Cinzel', serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: var(--spacing);
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing);
+            box-sizing: border-box;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .player-card {
+            background-color: var(--card-bg-color);
+            padding: var(--spacing);
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            text-align: center;
+            border: 2px solid var(--primary-color);
+            position: relative;
+            width: 90%;
+            max-width: 450px;
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .player-card::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            right: -5px;
+            bottom: -5px;
+            border: 3px solid var(--secondary-color);
+            border-radius: var(--border-radius);
+            z-index: -1;
+        }
+
+        h2 {
+            margin: 0 0 10px 0;
+            color: var(--primary-color);
+            cursor: pointer;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .stats-container {
+            display: flex;
+            justify-content: space-around;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .stat-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+        }
+
+        .stat-label {
+            font-weight: bold;
+            font-size: 1em;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: var(--text-color);
+            cursor: pointer;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        #pv-p1, #pv-p2 {
+            color: var(--pv-color);
+        }
+        
+        .pv-zero {
+            color: var(--pv-zero-color) !important;
+        }
+
+        #energy-p1, #energy-p2 {
+            color: var(--energy-color);
+        }
+
+        .action-button {
+            background-color: var(--primary-color);
+            color: var(--bg-color);
+            border: none;
+            border-radius: 5px;
+            padding: 12px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+            width: 100%;
+            text-transform: uppercase;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            text-decoration: none;
+            text-align: center;
+        }
+        .action-button:hover {
+            background-color: #b07d35;
+            transform: scale(1.02);
+        }
+        .action-button:active {
+            transform: scale(0.98);
+        }
+        
+        .energy-button {
+            background-color: var(--energy-color);
+            color: var(--bg-color);
+        }
+        .energy-button:hover {
+            background-color: #e0b400;
+        }
+
+        .rules-button {
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+        }
+        .rules-button:hover {
+            background-color: #3b4252;
+        }
+
+        .reset-button {
+            background-color: #8c8c8c;
+        }
+        .reset-button:hover {
+            background-color: #7a7a7a;
+        }
+
+        .plus-minus-row {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .plus-minus-button {
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            border: 2px solid var(--primary-color);
+            width: 45px;
+            height: 45px;
+            font-size: 1.5em;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .plus-minus-button:hover {
+            background-color: #5d6d7e;
+            transform: scale(1.05);
+        }
+        .plus-minus-button:active {
+            transform: scale(0.95);
+        }
+
+        .players-container {
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing);
+            width: 100%;
+            margin: 0 auto;
+        }
+        
+        .main-controls-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+            max-width: 450px;
+            margin: 0 auto;
+        }
+
+        .secondary-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        /* --- Animações para os cards --- */
+        @keyframes pulse-winner {
+            0% { transform: scale(1); box-shadow: 0 0 10px var(--pv-color); }
+            50% { transform: scale(1.03); box-shadow: 0 0 20px var(--pv-color); }
+            100% { transform: scale(1); box-shadow: 0 0 10px var(--pv-color); }
+        }
+
+        @keyframes pulse-loser {
+            0% { transform: scale(1); box-shadow: 0 0 10px var(--pv-zero-color); }
+            50% { transform: scale(0.97); box-shadow: 0 0 20px var(--pv-zero-color); }
+            100% { transform: scale(1); box-shadow: 0 0 10px var(--pv-zero-color); }
+        }
+        
+        .winner-card {
+            animation: pulse-winner 1s infinite;
+            border-color: var(--pv-color);
+        }
+        
+        .loser-card {
+            animation: pulse-loser 1s infinite;
+            border-color: var(--pv-zero-color);
+        }
+
+        /* --- Pop-up de Regras (Modal) --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            visibility: hidden;
+            opacity: 0;
+            transition: visibility 0s, opacity 0.3s ease;
+            z-index: 1000;
+        }
+
+        .modal-overlay.visible {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .modal-content {
+            background-color: var(--card-bg-color);
+            padding: var(--spacing);
+            border-radius: var(--border-radius);
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+            border: 2px solid var(--primary-color);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 2em;
+            color: var(--primary-color);
+            text-decoration: none;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .modal-close:hover {
+            color: var(--energy-color);
+        }
+
+        .rules-text h3 {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 5px;
+            margin-top: 20px;
+        }
+        .rules-text h3:first-of-type {
+            margin-top: 0;
+        }
+
+        .rules-text p {
+            line-height: 1.6;
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        /* Layout para Telas maiores que 768px (sem limite de orientação) */
+        @media (min-width: 768px) {
+            body {
+                height: 100vh;
+                overflow-y: hidden;
+                padding: var(--spacing) 50px;
+            }
+            
+            .players-container {
+                flex-direction: row;
+                justify-content: center;
+                gap: 50px;
+                max-width: 900px;
+                width: 100%;
+            }
+
+            .player-card {
+                flex: 1;
+                max-width: none;
+            }
+            
+            .main-controls-container {
+                max-width: 600px;
+            }
+
+            .secondary-controls {
+                flex-direction: row;
+                justify-content: center;
+                gap: 20px;
+            }
+            
+            .secondary-controls .action-button {
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="players-container">
+        <div class="player-card" id="card-p1">
+            <h2 id="name-p1" onclick="editName('p1')">Jogador 1</h2>
+            <div class="stats-container">
+                <div class="stat-box">
+                    <span class="stat-label">PV</span>
+                    <span id="pv-p1" class="stat-value" onclick="editStatValue('pv', 'p1')">100</span>
+                    <div class="plus-minus-row">
+                        <button class="plus-minus-button" onclick="changeStat('pv', 'p1', -1)">-</button>
+                        <button class="plus-minus-button" onclick="changeStat('pv', 'p1', 1)">+</button>
+                    </div>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Energia</span>
+                    <span id="energy-p1" class="stat-value">5</span>
+                    <div class="plus-minus-row">
+                        <button class="plus-minus-button" onclick="changeStat('energy', 'p1', -1)">-</button>
+                        <button class="plus-minus-button" onclick="changeStat('energy', 'p1', 1)">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="player-card" id="card-p2">
+            <h2 id="name-p2" onclick="editName('p2')">Jogador 2</h2>
+            <div class="stats-container">
+                <div class="stat-box">
+                    <span class="stat-label">PV</span>
+                    <span id="pv-p2" class="stat-value" onclick="editStatValue('pv', 'p2')">100</span>
+                    <div class="plus-minus-row">
+                        <button class="plus-minus-button" onclick="changeStat('pv', 'p2', -1)">-</button>
+                        <button class="plus-minus-button" onclick="changeStat('pv', 'p2', 1)">+</button>
+                    </div>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Energia</span>
+                    <span id="energy-p2" class="stat-value">5</span>
+                    <div class="plus-minus-row">
+                        <button class="plus-minus-button" onclick="changeStat('energy', 'p2', -1)">-</button>
+                        <button class="plus-minus-button" onclick="changeStat('energy', 'p2', 1)">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-controls-container">
+        <button class="action-button energy-button" onclick="increaseEnergyForBoth()">Fase de Energia</button>
+        <div class="secondary-controls">
+            <button class="action-button reset-button" onclick="resetGame()">Reiniciar Jogo</button>
+            <button class="action-button rules-button" onclick="showRulesModal()">Regras do Jogo</button>
+        </div>
+    </div>
+
+    <div id="rules-modal" class="modal-overlay">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeRulesModal()">&times;</span>
+            <div class="rules-text">
+                <h2>Regras do Jogo X Monsters</h2>
+                
+                <h3>1. Objetivo e Condição de Vitória</h3>
+                <p>O objetivo principal do jogo é ser o único jogador com monstros em campo e/ou reduzir os pontos de vida do seu oponente a zero.</p>
+                <p><strong>Pontos de Vida (PV):</strong> Cada jogador começa com 100 pontos de vida. Se o seu PV chegar a zero ou menos, você perde a partida.</p>
+
+                <h3>2. Energia</h3>
+                <p>A energia é o recurso principal do jogo, usado para invocar monstros e equipar cartas de suporte.</p>
+                <p><strong>Energia Inicial:</strong> Você começa o jogo com 5 pontos de energia.</p>
+                <p><strong>Aumento de Energia:</strong> A cada turno, na sua Fase de Energia, sua energia aumenta em 1 ponto.</p>
+                <p><strong>Limite de Acúmulo:</strong> A energia máxima que você pode acumular é de 12 pontos.</p>
+
+                <h3>3. Fases do Turno</h3>
+                <p>Cada turno de um jogador é dividido em três fases obrigatórias, que devem ser seguidas em sequência:</p>
+                <ul>
+                    <li><strong>Fase de Energia:</strong> Sua energia total aumenta em 1 ponto, até o limite de 12.</li>
+                    <li><strong>Fase de Invocação:</strong> Nesta fase, você pode gastar sua energia para jogar cartas da sua mão. Você pode invocar qualquer número de monstros e equipar cartas de suporte, desde que tenha energia suficiente para pagar o custo de cada carta.</li>
+                    <li><strong>Fase de Combate:</strong> Você pode declarar ataques com seus monstros contra os monstros do oponente. Cada um dos seus monstros pode atacar uma vez por turno, a menos que sua habilidade especial diga o contrário.</li>
+                </ul>
+
+                <h3>4. Combate e Dano</h3>
+                <p><strong>Ataque:</strong> Para atacar, escolha um de seus monstros e declare-o como atacante, escolhendo um monstro do oponente como alvo.</p>
+                <p><strong>Cálculo de Dano:</strong> O dano de um ataque é calculado subtraindo a Defesa do monstro do oponente do Ataque do seu monstro.</p>
+                <p><strong>Derrota:</strong> Se a Defesa de um monstro chegar a 0 ou menos, ele é considerado derrotado e é removido do campo.</p>
+                <p><strong>Dano aos Pontos de Vida:</strong> Se o Ataque de um monstro for maior que a Defesa do monstro alvo, o dano restante é aplicado diretamente aos pontos de vida do oponente.</p>
+
+                <h3>5. Mecânicas Adicionais</h3>
+                <p><strong>Evolução:</strong> Alguns monstros têm uma forma evoluída. O custo para evoluir é a diferença de energia entre a criatura básica e sua versão evoluída. A carta evoluída substitui a criatura básica no campo.</p>
+                <p><strong>Cartas de Suporte:</strong> Essas cartas são itens equipáveis que fornecem bônus de Ataque e Defesa, além de habilidades especiais. Cada carta de suporte tem seu próprio custo de energia para ser equipada em um monstro.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const INITIAL_PV = 100;
+        const INITIAL_ENERGY = 5;
+        const MAX_ENERGY = 12;
+
+        function changeStat(stat, player, amount) {
+            const element = document.getElementById(`${stat}-${player}`);
+            let currentValue = parseInt(element.innerText);
+            let newValue = currentValue + amount;
+
+            if (newValue < 0) {
+                newValue = 0;
+            }
+
+            if (stat === 'energy') {
+                if (newValue > MAX_ENERGY) {
+                    newValue = MAX_ENERGY;
+                }
+            }
+
+            element.innerText = newValue;
+            
+            if (stat === 'pv') {
+                const otherPlayer = player === 'p1' ? 'p2' : 'p1';
+                const winnerCard = document.getElementById(`card-${otherPlayer}`);
+                const loserCard = document.getElementById(`card-${player}`);
+                
+                // Limpa as classes de animação de ambos os cards antes de aplicar as novas
+                winnerCard.classList.remove('winner-card', 'loser-card');
+                loserCard.classList.remove('winner-card', 'loser-card');
+
+                if (newValue <= 0) {
+                    element.classList.add('pv-zero');
+                    loserCard.classList.add('loser-card');
+                    winnerCard.classList.add('winner-card');
+                } else {
+                    element.classList.remove('pv-zero');
+                }
+            }
+        }
+
+        function increaseEnergyForBoth() {
+            changeStat('energy', 'p1', 1);
+            changeStat('energy', 'p2', 1);
+        }
+
+        function editName(player) {
+            const nameElement = document.getElementById(`name-${player}`);
+            const newName = prompt('Digite o novo nome do jogador:', nameElement.innerText);
+            if (newName !== null && newName.trim() !== '') {
+                nameElement.innerText = newName;
+            }
+        }
+
+        function editStatValue(stat, player) {
+            const element = document.getElementById(`${stat}-${player}`);
+            const newValue = prompt(`Digite o novo valor para ${element.innerText}:`);
+            if (newValue !== null && !isNaN(newValue) && newValue.trim() !== '') {
+                let parsedValue = parseInt(newValue);
+                if (parsedValue < 0) {
+                    parsedValue = 0;
+                }
+                element.innerText = parsedValue;
+                if (stat === 'pv') {
+                    if (parsedValue <= 0) {
+                        element.classList.add('pv-zero');
+                    } else {
+                        element.classList.remove('pv-zero');
+                    }
+                }
+            }
+        }
+
+        function resetGame() {
+            const pv1 = document.getElementById('pv-p1');
+            const energy1 = document.getElementById('energy-p1');
+            const pv2 = document.getElementById('pv-p2');
+            const energy2 = document.getElementById('energy-p2');
+            const card1 = document.getElementById('card-p1');
+            const card2 = document.getElementById('card-p2');
+
+            document.getElementById('name-p1').innerText = "Jogador 1";
+            pv1.innerText = INITIAL_PV;
+            pv1.classList.remove('pv-zero');
+            energy1.innerText = INITIAL_ENERGY;
+            card1.classList.remove('winner-card', 'loser-card');
+            
+            document.getElementById('name-p2').innerText = "Jogador 2";
+            pv2.innerText = INITIAL_PV;
+            pv2.classList.remove('pv-zero');
+            energy2.innerText = INITIAL_ENERGY;
+            card2.classList.remove('winner-card', 'loser-card');
+        }
+
+        function showRulesModal() {
+            const modal = document.getElementById('rules-modal');
+            modal.classList.add('visible');
+        }
+
+        function closeRulesModal() {
+            const modal = document.getElementById('rules-modal');
+            modal.classList.remove('visible');
+        }
+    </script>
+</body>
+</html>
