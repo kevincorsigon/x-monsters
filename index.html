@@ -445,6 +445,9 @@
     <audio id="healingSound" preload="auto">
         <source src="healing.mp3" type="audio/mpeg">
     </audio>
+    <audio id="wasteSound" preload="auto">
+        <source src="waste.mp3" type="audio/mpeg">
+    </audio>
 
     <script>
         const INITIAL_PV = 100;
@@ -538,6 +541,13 @@
                 const energySound = document.getElementById('energySound');
                 energySound.currentTime = 0;
                 energySound.play().catch(error => console.log('Erro ao tocar o som de energia:', error));
+            }
+
+            // Tocar som de waste quando a energia é diminuída
+            if (stat === 'energy' && amount < 0) {
+                const wasteSound = document.getElementById('wasteSound');
+                wasteSound.currentTime = 0;
+                wasteSound.play().catch(error => console.log('Erro ao tocar o som de waste:', error));
             }
 
             element.innerText = newValue;
