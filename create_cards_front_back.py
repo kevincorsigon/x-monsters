@@ -64,9 +64,9 @@ def create_cards_with_backs():
     # Verificar se existe imagem do verso
     back_image_path = None
     possible_backs = [
-        'verso_card_kevao.jpg',         # Arquivo original do usuário
+        'verso_card_kevao.png',         # Arquivo PNG preferido
+        'verso_card_kevao.jpg',         # Arquivo JPG alternativo
         'verso_card_kevao copiar.jpg',  # Nome alternativo
-        'verso_card_kevao.png',         # Arquivo gerado
         'verso_card.png', 
         'card_back.png'
     ]

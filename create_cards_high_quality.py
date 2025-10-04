@@ -72,9 +72,9 @@ def create_high_quality_documents():
     # Verificar verso
     back_image_path = None
     possible_backs = [
-        'verso_card_kevao.jpg',
-        'verso_card_kevao copiar.jpg',
-        'verso_card_kevao.png'
+        'verso_card_kevao.png',         # Arquivo PNG preferido
+        'verso_card_kevao.jpg',         # Arquivo JPG alternativo
+        'verso_card_kevao copiar.jpg'
     ]
     
     for back_name in possible_backs:
