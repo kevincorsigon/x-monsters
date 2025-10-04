@@ -1,0 +1,2631 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X Monsters - Jogo PVP</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #1a1e28;
+            --card-bg-color: #2b303d;
+            --text-color: #e2e8f0;
+            --primary-color: #c9a567;
+            --secondary-color: #4b586e;
+            --pv-color: #5abf7a;
+            --energy-color: #f5c94a;
+            --pv-zero-color: #ff6b6b;
+            --field-color: #6b5b47;
+            --border-radius: 10px;
+            --spacing: 15px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Cinzel', serif;
+            background: linear-gradient(135deg, var(--bg-color) 0%, #2d3748 100%);
+            color: var(--text-color);
+            height: 100vh;
+            width: 100vw;
+            overflow: visible;
+        }
+
+        /* Novo layout em grid */
+        .game-container {
+            display: grid;
+            grid-template-areas: 
+                "player2-discard player2-hand player2-deck"
+                "player2-stats player2-field player2-field"
+                "phase-buttons phase-buttons phase-buttons"
+                "player1-stats player1-field player1-field"
+                "player1-deck player1-hand player1-discard";
+            grid-template-columns: minmax(160px, 1fr) minmax(400px, 3fr) minmax(160px, 1fr);
+            grid-template-rows: minmax(120px, 1fr) minmax(200px, 2fr) minmax(80px, 0.8fr) minmax(200px, 2fr) minmax(120px, 1fr);
+            height: 100vh;
+            width: 100vw;
+            gap: clamp(4px, 1vw, 12px);
+            padding: clamp(4px, 1vw, 12px);
+            min-height: 600px;
+        }
+
+        /* Grid areas */
+        .player2-discard { grid-area: player2-discard; }
+        .player2-hand { grid-area: player2-hand; }
+        .player2-deck { grid-area: player2-deck; }
+        .player2-stats { grid-area: player2-stats; }
+        .player2-field { grid-area: player2-field; }
+        .phase-buttons { grid-area: phase-buttons; }
+        .player1-stats { grid-area: player1-stats; }
+        .player1-field { grid-area: player1-field; }
+        .player1-deck { grid-area: player1-deck; }
+        .player1-hand { grid-area: player1-hand; }
+        .player1-discard { grid-area: player1-discard; }
+
+        /* Estilos das áreas do grid */
+        .player2-discard, .player1-discard {
+            background-color: var(--card-bg-color);
+            border: 2px solid var(--secondary-color);
+            border-radius: var(--border-radius);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            text-align: center;
+            padding: 10px;
+        }
+
+        .player2-deck, .player1-deck {
+            background-color: var(--card-bg-color);
+            border: 2px solid var(--primary-color);
+            border-radius: var(--border-radius);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            text-align: center;
+            padding: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .player2-deck:hover, .player1-deck:hover {
+            border-color: var(--energy-color);
+            box-shadow: 0 0 15px rgba(201, 165, 103, 0.3);
+        }
+
+        .player2-stats, .player1-stats {
+            background-color: var(--field-color);
+            border: 2px solid var(--secondary-color);
+            border-radius: var(--border-radius);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: clamp(10px, 2vw, 18px);
+            gap: clamp(6px, 1vw, 12px);
+            font-size: clamp(12px, 1.5vw, 16px);
+        }
+
+
+
+        .player2-field, .player1-field {
+            background-color: var(--field-color);
+            border: 3px solid var(--secondary-color);
+            border-radius: var(--border-radius);
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: flex-start;
+            padding: clamp(10px, 2vw, 20px);
+            position: relative;
+            overflow-x: auto;
+            overflow-y: hidden;
+            font-size: clamp(14px, 2.5vw, 18px);
+            gap: clamp(8px, 1vw, 15px);
+        }
+
+        .player2-hand, .player1-hand {
+            background-color: var(--bg-color);
+            border: 2px solid var(--primary-color);
+            border-radius: var(--border-radius);
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            overflow: visible;
+        }
+
+        .player2-hand #hand-p2, .player1-hand #hand-p1 {
+            display: flex;
+            flex-direction: row;
+            gap: clamp(6px, 0.8vw, 12px);
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            align-items: flex-start;
+            overflow-x: auto;  
+            overflow-y: visible;
+            padding: clamp(4px, 0.5vw, 8px);
+            min-height: 0;
+        }
+
+        /* Área dos botões de fase centralizados */
+        .phase-buttons {
+            background-color: var(--card-bg-color);
+            border: 2px solid var(--primary-color);
+            border-radius: var(--border-radius);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            padding: 15px;
+            position: relative;
+        }
+
+        .phases-section {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+        }
+
+        .control-section {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .phase-button {
+            width: clamp(60px, 5vw, 80px);
+            height: clamp(60px, 5vw, 80px);
+            border-radius: 50%;
+            border: 3px solid var(--secondary-color);
+            background-color: var(--field-color);
+            color: var(--text-color);
+            font-weight: bold;
+            font-size: clamp(9px, 0.8vw, 12px);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .phase-button:hover {
+            transform: scale(1.1);
+            border-color: var(--primary-color);
+        }
+
+        .phase-button.active {
+            background-color: var(--energy-color);
+            border-color: var(--primary-color);
+            color: var(--bg-color);
+            box-shadow: 0 0 20px rgba(245, 201, 74, 0.5);
+            animation: phase-glow 2s infinite;
+        }
+
+        @keyframes phase-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(245, 201, 74, 0.5); }
+            50% { box-shadow: 0 0 30px rgba(245, 201, 74, 0.8); }
+        }
+
+        /* Painel de informações do jogo */
+        .game-info-panel {
+            background-color: rgba(26, 30, 40, 0.9);
+            border: 2px solid var(--secondary-color);
+            border-radius: clamp(6px, 0.8vw, 10px);
+            padding: clamp(6px, 1vw, 12px) clamp(8px, 1.5vw, 15px);
+            font-size: clamp(10px, 1.2vw, 14px);
+            font-weight: bold;
+            backdrop-filter: blur(5px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            min-width: clamp(120px, 15vw, 180px);
+            max-width: 200px;
+        }
+
+        .game-info-panel > div {
+            margin-bottom: 4px;
+        }
+
+        .game-info-panel > div:last-child {
+            margin-bottom: 0;
+        }
+
+        .game-info-panel #current-player {
+            color: var(--energy-color);
+            text-shadow: 0 0 5px rgba(245, 201, 74, 0.5);
+        }
+
+        .game-info-panel #current-phase {
+            color: var(--primary-color);
+            text-shadow: 0 0 5px rgba(201, 165, 103, 0.5);
+        }
+
+        .game-info-panel #combat-info {
+            display: none;
+            color: var(--pv-zero-color);
+            font-size: 11px;
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid var(--secondary-color);
+            text-shadow: 0 0 3px rgba(255, 107, 107, 0.5);
+        }
+
+        .game-info-panel #combat-info[style*="display: block"] {
+            display: block !important;
+        }
+
+        /* Animação para campo ativo */
+        .field-active {
+            border-color: var(--energy-color) !important;
+            animation: field-pulse 1.5s infinite;
+        }
+
+        @keyframes field-pulse {
+            0%, 100% { 
+                box-shadow: 0 0 0 0 rgba(245, 201, 74, 0.7);
+            }
+            50% { 
+                box-shadow: 0 0 0 10px rgba(245, 201, 74, 0);
+            }
+        }
+
+        /* Responsividade aprimorada */
+        @media (max-width: 1024px) {
+            .game-container {
+                grid-template-columns: minmax(140px, 1fr) minmax(350px, 3fr) minmax(140px, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .game-container {
+                grid-template-columns: minmax(120px, 1fr) minmax(300px, 3fr) minmax(120px, 1fr);
+                grid-template-rows: minmax(100px, 1fr) minmax(180px, 2fr) minmax(70px, 0.8fr) minmax(180px, 2fr) minmax(100px, 1fr);
+                min-height: 500px;
+            }
+            
+            .player2-field, .player1-field {
+                font-size: clamp(12px, 2vw, 16px);
+                padding: clamp(8px, 1.5vw, 15px);
+            }
+            
+            .player2-stats, .player1-stats,
+            .player2-info, .player1-info {
+                font-size: clamp(11px, 1.8vw, 14px);
+                padding: clamp(6px, 1vw, 12px);
+            }
+
+            .phase-buttons {
+                flex-direction: column;
+                gap: 8px;
+                padding: 10px;
+            }
+
+            .phases-section {
+                gap: 10px;
+            }
+
+            .control-section {
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 5px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .game-container {
+                grid-template-columns: minmax(100px, 1fr) minmax(250px, 3fr) minmax(100px, 1fr);
+                grid-template-rows: minmax(80px, 1fr) minmax(150px, 2fr) minmax(80px, 1fr) minmax(150px, 2fr) minmax(80px, 1fr);
+                min-height: 450px;
+            }
+            
+            .phase-buttons {
+                gap: clamp(5px, 1vw, 10px);
+                padding: 8px;
+            }
+
+            .phases-section {
+                gap: 5px;
+            }
+
+            .phase-button {
+                width: clamp(45px, 4vw, 60px);
+                height: clamp(45px, 4vw, 60px);
+                font-size: clamp(8px, 0.7vw, 10px);
+            }
+
+            .control-section .action-button {
+                font-size: 9px;
+                padding: 3px 6px;
+            }
+
+            .game-info-panel {
+                font-size: clamp(9px, 1vw, 12px);
+                padding: clamp(4px, 0.8vw, 8px) clamp(6px, 1.2vw, 10px);
+                min-width: clamp(100px, 12vw, 140px);
+            }
+        }
+
+        @media (orientation: landscape) and (max-height: 600px) {
+            .game-container {
+                grid-template-rows: minmax(60px, 1fr) minmax(120px, 2fr) minmax(50px, 0.6fr) minmax(120px, 2fr) minmax(60px, 1fr);
+                gap: clamp(2px, 0.5vw, 6px);
+                padding: clamp(2px, 0.5vw, 6px);
+            }
+        }
+
+        .player-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            min-width: 280px;
+            flex: 1;
+        }
+
+        .player-info.player2 {
+            flex-direction: row-reverse;
+        }
+
+        .player-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, var(--primary-color), var(--energy-color));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: var(--bg-color);
+            border: 2px solid var(--secondary-color);
+            flex-shrink: 0;
+        }
+
+        .player-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .player-name {
+            font-size: 1em;
+            font-weight: bold;
+            color: var(--primary-color);
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .stat-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background-color: var(--bg-color);
+            padding: 4px 8px;
+            border-radius: 15px;
+            border: 1px solid var(--secondary-color);
+            flex-shrink: 0;
+        }
+
+        .stat-label {
+            font-size: 0.8em;
+            opacity: 0.8;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            font-size: 1.1em;
+            cursor: pointer;
+        }
+
+        .pv-value {
+            color: var(--pv-color);
+        }
+
+        .energy-value {
+            color: var(--energy-color);
+        }
+
+        .pv-zero {
+            color: var(--pv-zero-color) !important;
+        }
+
+        .control-buttons {
+            display: flex;
+            gap: 5px;
+        }
+
+        .mini-button {
+            width: 25px;
+            height: 25px;
+            border: none;
+            border-radius: 50%;
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            cursor: pointer;
+            font-size: 0.8em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .mini-button:hover {
+            background-color: var(--primary-color);
+            transform: scale(1.1);
+        }
+
+        .dice-button {
+            background-color: var(--primary-color);
+            color: var(--bg-color);
+            width: 30px;
+            height: 30px;
+            font-size: 1em;
+        }
+
+        .dice-button:disabled {
+            background-color: #666;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        /* Controles centrais */
+        .center-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .action-button {
+            background-color: var(--primary-color);
+            color: var(--bg-color);
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 0.8em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Cinzel', serif;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .action-button:hover {
+            background-color: #b07d35;
+            transform: translateY(-2px);
+        }
+
+        .phase-button {
+            background-color: var(--energy-color);
+            color: var(--bg-color);
+        }
+
+        .phase-button:hover {
+            background-color: #e0b400;
+        }
+
+        /* Tabuleiro do jogo */
+        .game-board {
+            flex: 1;
+            display: grid;
+            grid-template-rows: 1fr auto 1fr;
+            gap: 8px;
+            padding: 8px;
+            background: linear-gradient(180deg, 
+                rgba(75, 88, 110, 0.3) 0%, 
+                rgba(58, 69, 86, 0.5) 50%, 
+                rgba(75, 88, 110, 0.3) 100%);
+            min-height: 0;
+            overflow: visible;
+        }
+
+        /* Áreas do tabuleiro */
+        .player-area {
+            display: grid;
+            grid-template-columns: minmax(180px, 220px) 1fr;
+            gap: 10px;
+            padding: 8px;
+            background-color: rgba(43, 48, 61, 0.6);
+            border-radius: var(--border-radius);
+            border: 2px solid var(--secondary-color);
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .player-area.player1 {
+            transform: rotate(180deg);
+        }
+
+        .player-area.player1 .card {
+            transform: rotate(180deg);
+        }
+
+        /* Mão do jogador */
+        .hand {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 8px;
+            background-color: var(--bg-color);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--primary-color);
+            overflow-y: auto;
+            height: 100%;
+            min-height: 0;
+        }
+
+        .hand-title {
+            font-size: 0.9em;
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        /* Container para mão com indicadores do player 2 */
+        .hand-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            height: 100%;
+        }
+
+        .player-info-local {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 8px;
+            background-color: var(--card-bg-color);
+            border-radius: var(--border-radius);
+            border: 1px solid var(--primary-color);
+            flex-shrink: 0;
+        }
+
+        .player-info-local .player-avatar {
+            width: 40px;
+            height: 40px;
+            font-size: 1em;
+        }
+
+        .player-info-local .player-name {
+            font-size: 0.9em;
+        }
+
+        .player-info-local .stat-group {
+            gap: 8px;
+        }
+
+        .player-info-local .stat {
+            padding: 3px 6px;
+        }
+
+        /* Campo de batalha */
+        .battlefield {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            padding: 10px;
+            background: radial-gradient(circle at center, 
+                rgba(201, 165, 103, 0.1) 0%, 
+                rgba(58, 69, 86, 0.3) 100%);
+            border-radius: var(--border-radius);
+            border: 2px dashed var(--primary-color);
+            min-height: 100px;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        /* Zona central */
+        .center-zone {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 15px;
+            background-color: rgba(43, 48, 61, 0.8);
+            border-radius: var(--border-radius);
+            border: 3px solid var(--primary-color);
+            position: relative;
+            min-height: 80px;
+            flex-shrink: 0;
+        }
+
+        .turn-indicator {
+            text-align: center;
+            flex: 1;
+        }
+
+        .current-turn {
+            font-size: 1em;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+
+        .phase-indicator {
+            font-size: 0.8em;
+            color: var(--energy-color);
+            margin-bottom: 10px;
+        }
+
+        /* Cartas */
+        .card {
+            width: clamp(70px, 8vw, 140px);
+            height: clamp(100px, 12vw, 220px);
+            border: 2px solid var(--primary-color);
+            border-radius: clamp(6px, 0.5vw, 10px);
+            cursor: grab;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+            flex-shrink: 0;
+            user-select: none;
+            -webkit-user-drag: element;
+        }
+
+        .card:active {
+            cursor: grabbing;
+        }
+
+        .card:hover {
+            transform: scale(1.05) translateY(-5px);
+            box-shadow: 0 8px 16px rgba(201, 165, 103, 0.4);
+            border-color: var(--energy-color);
+        }
+
+        /* Efeito hover especial para cartas na mão dos jogadores */
+        .player1-hand .card:hover,
+        .player2-hand .card:hover {
+            transform: scale(1.6) translateY(-20px);
+            z-index: 1000;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.6);
+            border-color: var(--energy-color);
+            transition: all 0.4s ease;
+            position: relative;
+        }
+
+        /* Efeito específico para mão do player 2 (parte superior) */
+        .player2-hand .card:hover {
+            transform: scale(1.6) translateY(20px);
+        }
+
+        .card.selected {
+            border-color: var(--energy-color);
+            box-shadow: 0 0 15px rgba(245, 201, 74, 0.6);
+            transform: scale(1.1);
+        }
+
+        .card.attacking {
+            border-color: #ff6b6b;
+            box-shadow: 0 0 15px rgba(255, 107, 107, 0.8);
+            animation: pulse-attack 1s infinite;
+        }
+
+        .card.can-attack {
+            border-color: #ffa500 !important;
+            box-shadow: 0 0 15px rgba(255, 165, 0, 0.8) !important;
+            cursor: pointer;
+            background: linear-gradient(135deg, var(--card-bg-color) 0%, rgba(255, 165, 0, 0.2) 100%) !important;
+            animation: pulse-attacker 2s infinite;
+        }
+
+        @keyframes pulse-attacker {
+            0% { 
+                box-shadow: 0 0 15px rgba(255, 165, 0, 0.8);
+                border-color: #ffa500;
+            }
+            50% { 
+                box-shadow: 0 0 25px rgba(255, 165, 0, 1);
+                border-color: #ff8c00;
+            }
+            100% { 
+                box-shadow: 0 0 15px rgba(255, 165, 0, 0.8);
+                border-color: #ffa500;
+            }
+        }
+
+        .card.can-be-targeted {
+            border-color: #ff4444 !important;
+            box-shadow: 0 0 15px rgba(255, 68, 68, 0.8) !important;
+            cursor: pointer;
+            background: linear-gradient(135deg, var(--card-bg-color) 0%, rgba(255, 68, 68, 0.2) 100%) !important;
+            animation: pulse-target 2s infinite;
+        }
+
+        @keyframes pulse-target {
+            0% { 
+                box-shadow: 0 0 15px rgba(255, 68, 68, 0.8);
+                border-color: #ff4444;
+            }
+            50% { 
+                box-shadow: 0 0 25px rgba(255, 68, 68, 1);
+                border-color: #ff2222;
+            }
+            100% { 
+                box-shadow: 0 0 15px rgba(255, 68, 68, 0.8);
+                border-color: #ff4444;
+            }
+        }
+
+        .card.already-attacked {
+            filter: grayscale(50%) brightness(0.7);
+            border-color: #666 !important;
+            opacity: 0.8;
+        }
+
+        .card.direct-attack {
+            border-color: #dc143c;
+            box-shadow: 0 0 20px rgba(220, 20, 60, 0.8);
+            animation: pulse-direct 1.5s infinite;
+        }
+
+        @keyframes pulse-attack {
+            0% { box-shadow: 0 0 15px rgba(255, 107, 107, 0.8); }
+            50% { box-shadow: 0 0 25px rgba(255, 107, 107, 1); }
+            100% { box-shadow: 0 0 15px rgba(255, 107, 107, 0.8); }
+        }
+
+        @keyframes pulse-direct {
+            0% { box-shadow: 0 0 20px rgba(220, 20, 60, 0.8); }
+            50% { box-shadow: 0 0 30px rgba(220, 20, 60, 1); }
+            100% { box-shadow: 0 0 20px rgba(220, 20, 60, 0.8); }
+        }
+
+        @keyframes cardDestroy {
+            0% { transform: scale(1) rotate(0deg); opacity: 1; }
+            50% { transform: scale(1.2) rotate(180deg); opacity: 0.5; }
+            100% { transform: scale(0) rotate(360deg); opacity: 0; }
+        }
+
+        .card.monster {
+            border-color: var(--primary-color);
+        }
+
+        .card.support {
+            border: 3px solid #c0c0c0 !important;
+            box-shadow: 0 0 10px rgba(192, 192, 192, 0.5), 0 0 20px rgba(192, 192, 192, 0.3) !important;
+        }
+
+        .card.support:hover {
+            border: 3px solid #e6e6e6 !important;
+            box-shadow: 0 0 15px rgba(192, 192, 192, 0.8), 0 0 30px rgba(192, 192, 192, 0.5) !important;
+            transform: scale(1.05) translateY(-5px) !important;
+        }
+
+        /* Regras específicas para cartas de suporte na mão do jogador */
+        .player1-hand .card.support:hover,
+        .player2-hand .card.support:hover {
+            border: 3px solid #e6e6e6 !important;
+            box-shadow: 0 0 15px rgba(192, 192, 192, 0.8), 0 0 30px rgba(192, 192, 192, 0.5) !important;
+        }
+
+        .player2-hand .card.support:hover {
+            transform: scale(1.6) translateY(20px) !important;
+        }
+
+        .player1-hand .card.support:hover {
+            transform: scale(1.6) translateY(-20px) !important;
+        }
+
+        /* Custo prateado para cartas de suporte */
+        .card.support .card-cost {
+            background-color: #c0c0c0 !important;
+            color: var(--bg-color) !important;
+            border: 2px solid #e6e6e6 !important;
+            box-shadow: 0 0 8px rgba(192, 192, 192, 0.6) !important;
+        }
+
+        .card.support:hover .card-cost {
+            background-color: #e6e6e6 !important;
+            box-shadow: 0 0 12px rgba(192, 192, 192, 0.8) !important;
+        }
+
+        .card-cost {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: clamp(22px, 2.2vw, 30px);
+            height: clamp(22px, 2.2vw, 30px);
+            background-color: var(--energy-color);
+            color: var(--bg-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(0.8em, 1vw, 1.1em);
+            font-weight: bold;
+            border: 2px solid var(--bg-color);
+            z-index: 3;
+        }
+
+        .card-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            border-radius: clamp(4px, 0.4vw, 8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+        }
+
+        .card-name {
+            position: absolute;
+            bottom: clamp(25px, 3vw, 35px);
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: clamp(0.6em, 0.8vw, 0.9em);
+            text-align: center;
+            color: white;
+            line-height: 1.1;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.6);
+            padding: 2px 6px;
+            border-radius: 4px;
+            z-index: 3;
+            max-width: 90%;
+        }
+
+        .card-stats {
+            position: absolute;
+            bottom: clamp(4px, 0.5vw, 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: clamp(4px, 0.5vw, 8px);
+            font-size: clamp(0.8em, 1vw, 1.2em);
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.6);
+            padding: 2px 8px;
+            border-radius: 4px;
+            z-index: 3;
+        }
+
+        .card-image-real {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: clamp(4px, 0.4vw, 8px);
+        }
+
+        .attack {
+            color: #ff6b6b;
+        }
+
+        .defense {
+            color: #4ecdc4;
+        }
+
+        /* Animações */
+        @keyframes cardPlay {
+            0% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(1.2) rotate(5deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+
+        .card-play-animation {
+            animation: cardPlay 0.5s ease-in-out;
+        }
+
+        /* Estados de drag-and-drop */
+        .card.dragging {
+            opacity: 0.6;
+            transform: rotate(5deg) scale(1.05);
+            z-index: 1000;
+            box-shadow: 0 8px 20px rgba(201, 165, 103, 0.6);
+        }
+
+        /* Sistema de equipamento de cartas de suporte */
+        .card.can-be-equipped {
+            border-color: #00ff00 !important;
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.8) !important;
+            animation: pulse-equip 2s infinite;
+        }
+
+        @keyframes pulse-equip {
+            0%, 100% { 
+                box-shadow: 0 0 15px rgba(0, 255, 0, 0.8);
+                border-color: #00ff00;
+            }
+            50% { 
+                box-shadow: 0 0 25px rgba(0, 255, 0, 1);
+                border-color: #00cc00;
+            }
+        }
+
+        /* Visual para criaturas equipadas - carta empilhada */
+        .card.equipped {
+            position: relative;
+            z-index: 2;
+            margin: 3px;
+            width: calc(100% - 6px);
+            height: calc(100% - 6px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }
+
+        /* Carta de suporte empilhada atrás - efeito como na foto */
+        .equipment-card {
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            transform: rotate(0deg);
+            opacity: 1;
+            pointer-events: none;
+            transition: all 0.3s ease;
+        }
+
+        /* Quando a criatura faz hover, as cartas de equipamento também se movem */
+        .card.equipped:hover .equipment-card {
+            transform: rotate(0deg) scale(1.6) translateY(-20px);
+        }
+
+        /* Para mão do player 2 */
+        .player2-hand .card.equipped:hover .equipment-card {
+            transform: rotate(0deg) scale(1.6) translateY(20px);
+        }
+
+
+
+        .equipment-card .card-image-real,
+        .equipment-card .card-image {
+            border-radius: clamp(4px, 0.4vw, 8px);
+        }
+
+        .equipment-card .card-cost {
+            background-color: #c0c0c0;
+            color: var(--bg-color);
+            border: 2px solid #e6e6e6;
+        }
+
+        .equipment-card .card-name,
+        .equipment-card .card-stats {
+            background: rgba(192, 192, 192, 0.9);
+            color: var(--bg-color);
+        }
+
+        /* Contador de equipamentos */
+        .equipment-counter {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(45deg, #c0c0c0, #e6e6e6);
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7em;
+            font-weight: bold;
+            color: var(--bg-color);
+            z-index: 100;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* Container para cartas equipadas */
+        .card-equipment-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .field-drop-zone {
+            border: 3px dashed var(--energy-color) !important;
+            background-color: rgba(245, 201, 74, 0.1) !important;
+            animation: field-pulse 1s infinite;
+        }
+
+        .field-invalid-drop {
+            border: 3px dashed var(--pv-zero-color) !important;
+            background-color: rgba(255, 107, 107, 0.1) !important;
+        }
+
+        .card.can-be-summoned {
+            border-color: var(--energy-color);
+            box-shadow: 0 0 15px rgba(245, 201, 74, 0.6);
+            animation: card-summon-ready 2s infinite;
+        }
+
+        @keyframes card-summon-ready {
+            0%, 100% { box-shadow: 0 0 15px rgba(245, 201, 74, 0.6); }
+            50% { box-shadow: 0 0 25px rgba(245, 201, 74, 0.9); }
+        }
+
+        @keyframes diceRoll {
+            0% { transform: rotate(0deg) scale(1); }
+            25% { transform: rotate(90deg) scale(1.2); }
+            50% { transform: rotate(180deg) scale(1.1); }
+            75% { transform: rotate(270deg) scale(1.2); }
+            100% { transform: rotate(360deg) scale(1); }
+        }
+
+        .dice-animation {
+            animation: diceRoll 0.8s ease-in-out;
+        }
+
+        /* Modal para visualizar carta */
+        .card-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .card-modal.visible {
+            display: flex;
+        }
+
+        .modal-card {
+            width: 200px;
+            height: 280px;
+            background: linear-gradient(135deg, var(--card-bg-color) 0%, var(--secondary-color) 100%);
+            border: 3px solid var(--primary-color);
+            border-radius: 15px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            width: 30px;
+            height: 30px;
+            background-color: var(--pv-zero-color);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* Responsividade */
+        @media (max-width: 1400px) {
+            .player-area {
+                grid-template-columns: minmax(160px, 200px) 1fr;
+            }
+            
+            .card {
+                width: 65px;
+                height: 90px;
+            }
+        }
+
+        @media (max-width: 1200px) {            
+            .player-area {
+                grid-template-columns: minmax(140px, 180px) 1fr;
+            }
+            
+            .card {
+                width: 60px;
+                height: 80px;
+            }
+            
+            .card-image {
+                width: 35px;
+                height: 35px;
+                font-size: 1em;
+            }
+        }
+
+        @media (max-width: 1000px) {
+            .game-header {
+                padding: 6px 10px;
+                min-height: 70px;
+            }
+            
+            .player-info {
+                gap: 10px;
+                min-width: 240px;
+            }
+            
+            .player-avatar {
+                width: 40px;
+                height: 40px;
+                font-size: 1em;
+            }
+            
+            .action-button {
+                padding: 5px 8px;
+                font-size: 0.75em;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .game-header {
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 8px;
+                padding: 8px;
+                min-height: auto;
+            }
+            
+            .player-info {
+                min-width: auto;
+                flex: none;
+            }
+            
+            .center-controls {
+                order: -1;
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .player-info-local {
+                flex-direction: column;
+                gap: 8px;
+                text-align: center;
+            }
+            
+            .hand-container {
+                gap: 8px;
+            }
+            
+            .player-area {
+                grid-template-columns: 120px 1fr;
+                gap: 8px;
+                padding: 6px;
+            }
+            
+            .card {
+                width: 50px;
+                height: 70px;
+            }
+            
+            .card-image {
+                width: 30px;
+                height: 30px;
+                font-size: 0.9em;
+            }
+            
+            .hand {
+                padding: 6px;
+                gap: 4px;
+            }
+            
+            .battlefield {
+                padding: 8px;
+                gap: 6px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .game-header {
+                flex-direction: column;
+            }
+            
+            .player-info {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .player-info-local {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .player-info-local .stat-group {
+                justify-content: center;
+            }
+            
+            .stat-group {
+                gap: 8px;
+            }
+            
+            .stat {
+                padding: 3px 6px;
+            }
+            
+            .player-area {
+                grid-template-columns: 100px 1fr;
+            }
+            
+            .card {
+                width: 45px;
+                height: 60px;
+                padding: 2px;
+            }
+            
+            .card-name {
+                font-size: 0.5em;
+            }
+            
+            .card-stats {
+                font-size: 0.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+        <!-- Header com informações dos jogadores -->
+    <div class="game-container">
+        <!-- Player 2 Areas (Top Row) -->
+        <div class="player2-discard">
+            <div>Pilha de descarte</div>
+            <div style="font-size: 12px; color: var(--primary-color);">Player 2</div>
+        </div>
+        
+        <div class="player2-hand">
+            <div class="hand-title">Mão - Jogador 2</div>
+            <div id="hand-p2"></div>
+        </div>
+        
+        <div class="player2-deck" onclick="addCardToHand('p2')">
+            <div>Deck Player 2</div>
+            <div style="font-size: 12px; color: var(--primary-color); margin-top: 5px;">Clique para sacar</div>
+        </div>
+        
+        <!-- Player 2 Stats and Field -->
+        <div class="player2-stats">
+            <div class="player-avatar">P2</div>
+            <div class="player-name" onclick="editName('p2')" style="color: var(--primary-color); cursor: pointer; margin: 5px 0;">Jogador 2</div>
+            <div class="stat">
+                <span class="stat-label">PV:</span>
+                <span class="stat-value pv-value" id="pv-p2" onclick="editStatValue('pv', 'p2')" style="cursor: pointer;">100</span>
+                <div class="control-buttons" style="display: flex; gap: 3px; margin-top: 3px;">
+                    <button class="mini-button" onclick="changeStat('pv', 'p2', -1)">-</button>
+                    <button class="mini-button" onclick="changeStat('pv', 'p2', 1)">+</button>
+                </div>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Energia:</span>
+                <span class="stat-value energy-value" id="energy-p2" onclick="editStatValue('energy', 'p2')" style="cursor: pointer;">6</span>
+                <div class="control-buttons" style="display: flex; gap: 3px; margin-top: 3px;">
+                    <button class="mini-button" onclick="changeStat('energy', 'p2', -1)">-</button>
+                    <button class="mini-button" onclick="changeStat('energy', 'p2', 1)">+</button>
+                    <button class="mini-button dice-button" id="dice-p2" onclick="rollDice('p2')" title="Dado da Sorte (2 energia)">🎲</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="player2-field" id="field-p2" data-player="p2" ondrop="dropCard(event)" ondragover="allowDrop(event)">
+            <!-- Cartas em campo do jogador 2 -->
+        </div>
+        
+        <!-- Phase Buttons (Center) -->
+        <div class="phase-buttons">
+            <div class="game-info-panel">
+                <div>Turno: <span id="current-player">Jogador 1</span></div>
+                <div>Fase: <span id="current-phase">Energia</span></div>
+                <div id="combat-info">
+                    <div id="combat-instruction">Selecione uma carta para atacar</div>
+                </div>
+            </div>
+            
+            <div class="phases-section">
+                <button class="phase-button active" id="energy-phase" onclick="setPhase('energy')">Energia</button>
+                <button class="phase-button" id="invocation-phase" onclick="setPhase('invocation')">Invocação</button>
+                <button class="phase-button" id="combat-phase" onclick="setPhase('combat')">Combate</button>
+            </div>
+            
+            <div class="control-section">
+                <button class="action-button" onclick="endTurn()" style="font-size: 11px; padding: 5px 8px; margin-bottom: 5px;">Fim Turno</button>
+                <button class="action-button" onclick="resetGame()" style="font-size: 11px; padding: 5px 8px; margin-bottom: 5px;">Reset</button>
+                <button class="action-button" onclick="showDeckInfo()" style="font-size: 11px; padding: 5px 8px; margin-bottom: 5px;">Decks</button>
+                <button class="action-button" id="direct-attack-btn" onclick="directAttack()" style="display: none; background-color: var(--pv-zero-color); font-size: 11px; padding: 5px 8px;">Ataque Direto</button>
+            </div>
+        </div>
+        
+        <!-- Player 1 Stats and Field -->
+        <div class="player1-stats">
+            <div class="player-avatar">P1</div>
+            <div class="player-name" onclick="editName('p1')" style="color: var(--primary-color); cursor: pointer; margin: 5px 0;">Jogador 1</div>
+            <div class="stat">
+                <span class="stat-label">PV:</span>
+                <span class="stat-value pv-value" id="pv-p1" onclick="editStatValue('pv', 'p1')" style="cursor: pointer;">100</span>
+                <div class="control-buttons" style="display: flex; gap: 3px; margin-top: 3px;">
+                    <button class="mini-button" onclick="changeStat('pv', 'p1', -1)">-</button>
+                    <button class="mini-button" onclick="changeStat('pv', 'p1', 1)">+</button>
+                </div>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Energia:</span>
+                <span class="stat-value energy-value" id="energy-p1" onclick="editStatValue('energy', 'p1')" style="cursor: pointer;">6</span>
+                <div class="control-buttons" style="display: flex; gap: 3px; margin-top: 3px;">
+                    <button class="mini-button" onclick="changeStat('energy', 'p1', -1)">-</button>
+                    <button class="mini-button" onclick="changeStat('energy', 'p1', 1)">+</button>
+                    <button class="mini-button dice-button" id="dice-p1" onclick="rollDice('p1')" title="Dado da Sorte (2 energia)">🎲</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="player1-field" id="field-p1" data-player="p1" ondrop="dropCard(event)" ondragover="allowDrop(event)">
+            <!-- Cartas em campo do jogador 1 -->
+        </div>
+        
+        <!-- Player 1 Areas (Bottom Row) -->
+        <div class="player1-deck" onclick="addCardToHand('p1')">
+            <div>Deck Player 1</div>
+            <div style="font-size: 12px; color: var(--primary-color); margin-top: 5px;">Clique para sacar</div>
+        </div>
+        
+        <div class="player1-hand">
+            <div class="hand-title">Mão - Jogador 1</div>
+            <div id="hand-p1"></div>
+        </div>
+        
+        <div class="player1-discard">
+            <div>Pilha de descarte</div>
+            <div style="font-size: 12px; color: var(--primary-color);">Player 1</div>
+        </div>
+    </div>
+
+    <!-- Modal para visualizar carta -->
+    <div class="card-modal" id="cardModal">
+        <div class="modal-card">
+            <button class="modal-close" onclick="closeCardModal()">&times;</button>
+            <div id="modalCardContent"></div>
+        </div>
+    </div>
+
+    <!-- Elementos de áudio -->
+    <audio id="punchSound" preload="auto"><source src="punch.mp3" type="audio/mpeg"></audio>
+    <audio id="victorySound" preload="auto"><source src="victory.mp3" type="audio/mpeg"></audio>
+    <audio id="energySound" preload="auto"><source src="energy.mp3" type="audio/mpeg"></audio>
+    <audio id="healingSound" preload="auto"><source src="healing.mp3" type="audio/mpeg"></audio>
+    <audio id="wasteSound" preload="auto"><source src="waste.mp3" type="audio/mpeg"></audio>
+
+    <script src="deck_system.js"></script>
+    <script>
+        // Constantes do jogo
+        const INITIAL_PV = 100;
+        const INITIAL_ENERGY = 6;
+        const MAX_ENERGY = 20;
+
+        // Estado do jogo
+        let gameState = {
+            currentPlayer: 'p1',
+            currentPhase: 'energy', // energy, summon, combat
+            turn: 1,
+            diceUsed: { p1: false, p2: false },
+            selectedCard: null,
+            attackingCard: null,
+            targetCard: null,
+            attackedThisTurn: [], // IDs das cartas que já atacaram este turno
+            cards: {
+                p1: { hand: [], field: [] },
+                p2: { hand: [], field: [] }
+            }
+        };
+
+        // Sistema de cartas será carregado do JSON
+        let cardsDatabase = null;
+        let deckBuilder = null;
+
+        // Funções de controle de stats (do contador original)
+        function changeStat(stat, player, amount) {
+            const element = document.getElementById(`${stat}-${player}`);
+            let currentValue = parseInt(element.innerText);
+            let newValue = currentValue + amount;
+
+            if (newValue < 0) newValue = 0;
+            if (stat === 'energy' && newValue > MAX_ENERGY) newValue = MAX_ENERGY;
+
+            // Sons
+            if (stat === 'pv' && amount < 0) playSound('punchSound');
+            if (stat === 'pv' && amount > 0) playSound('healingSound');
+            if (stat === 'energy' && amount > 0) playSound('energySound');
+            if (stat === 'energy' && amount < 0) playSound('wasteSound');
+
+            element.innerText = newValue;
+
+            // Verificar vitória
+            if (stat === 'pv' && newValue <= 0) {
+                element.classList.add('pv-zero');
+                playSound('victorySound');
+                setTimeout(() => {
+                    alert(`${player === 'p1' ? 'Jogador 2' : 'Jogador 1'} venceu!`);
+                }, 100);
+            } else if (stat === 'pv') {
+                element.classList.remove('pv-zero');
+            }
+        }
+
+        function editName(player) {
+            const nameElement = document.querySelector(`.player${player === 'p1' ? '1' : '2'}-stats .player-name`);
+            
+            const newName = prompt('Digite o novo nome do jogador:', nameElement.innerText);
+            if (newName && newName.trim()) {
+                nameElement.innerText = newName;
+            }
+        }
+
+        function editStatValue(stat, player) {
+            const element = document.getElementById(`${stat}-${player}`);
+            const newValue = prompt(`Digite o novo valor para ${stat}:`, element.innerText);
+            if (newValue && !isNaN(newValue)) {
+                let parsedValue = parseInt(newValue);
+                if (parsedValue < 0) parsedValue = 0;
+                if (stat === 'energy' && parsedValue > MAX_ENERGY) parsedValue = MAX_ENERGY;
+                
+                element.innerText = parsedValue;
+                
+                if (stat === 'pv') {
+                    if (parsedValue <= 0) {
+                        element.classList.add('pv-zero');
+                        playSound('victorySound');
+                    } else {
+                        element.classList.remove('pv-zero');
+                    }
+                }
+            }
+        }
+
+        function rollDice(player) {
+            if (gameState.diceUsed[player]) {
+                alert('Você já usou o dado da sorte nesta partida!');
+                return;
+            }
+
+            const currentEnergy = parseInt(document.getElementById(`energy-${player}`).innerText);
+            if (currentEnergy < 2) {
+                alert('Você precisa de pelo menos 2 pontos de energia para usar o dado da sorte!');
+                return;
+            }
+
+            changeStat('energy', player, -2);
+
+            const diceButton = document.getElementById(`dice-${player}`);
+            diceButton.classList.add('dice-animation');
+
+            setTimeout(() => {
+                const diceResult = Math.floor(Math.random() * 6) + 1;
+                changeStat('energy', player, diceResult);
+                alert(`🎲 Dado da Sorte! Você ganhou ${diceResult} pontos de energia!`);
+
+                gameState.diceUsed[player] = true;
+                diceButton.disabled = true;
+                diceButton.title = 'Dado da sorte já usado nesta partida';
+                diceButton.classList.remove('dice-animation');
+            }, 800);
+        }
+
+        function playSound(soundId) {
+            const sound = document.getElementById(soundId);
+            if (sound) {
+                sound.currentTime = 0;
+                sound.play().catch(e => console.log('Erro ao tocar som:', e));
+            }
+        }
+
+        // Funções do jogo
+        function nextPhase() {
+            const phases = ['energy', 'summon', 'combat'];
+            const currentIndex = phases.indexOf(gameState.currentPhase);
+            
+            // Limpar estado de combate ao sair da fase
+            if (gameState.currentPhase === 'combat') {
+                clearCombatHighlights();
+            }
+            
+            if (currentIndex < phases.length - 1) {
+                gameState.currentPhase = phases[currentIndex + 1];
+            } else {
+                endTurn();
+                return;
+            }
+
+            if (gameState.currentPhase === 'energy') {
+                changeStat('energy', gameState.currentPlayer, 1);
+            }
+
+            updateUI();
+        }
+
+        function updateAttackedCardsVisual() {
+            // Remover classe de todas as cartas
+            document.querySelectorAll('.card').forEach(card => {
+                card.classList.remove('already-attacked');
+            });
+            
+            // Adicionar classe para cartas que já atacaram
+            gameState.attackedThisTurn.forEach(cardId => {
+                const cardElement = document.getElementById(cardId);
+                if (cardElement) {
+                    cardElement.classList.add('already-attacked');
+                }
+            });
+        }
+
+        function endTurn() {
+            gameState.currentPlayer = gameState.currentPlayer === 'p1' ? 'p2' : 'p1';
+            gameState.currentPhase = 'energy';
+            gameState.turn++;
+            
+            // Limpar lista de cartas que atacaram
+            gameState.attackedThisTurn = [];
+            updateAttackedCardsVisual();
+            
+            changeStat('energy', gameState.currentPlayer, 1);
+            updateUI();
+        }
+
+        // Nova função para definir fase diretamente
+        function setPhase(phase) {
+            console.log('Mudando para fase:', phase);
+            
+            if (gameState.currentPhase === 'combat') {
+                clearCombatHighlights();
+            }
+            
+            gameState.currentPhase = phase;
+            updateUI();
+            
+            // Tocar som de confirmação
+            playSound('energySound');
+        }
+
+        function updateUI() {
+            document.getElementById('current-player').textContent = 
+                gameState.currentPlayer === 'p1' ? 'Jogador 1' : 'Jogador 2';
+            
+            const phaseNames = { energy: 'Energia', invocation: 'Invocação', combat: 'Combate' };
+            document.getElementById('current-phase').textContent = phaseNames[gameState.currentPhase];
+
+            // Atualizar botões de fase (semáforo)
+            document.querySelectorAll('.phase-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Mapear fases para IDs dos botões
+            const phaseButtonIds = {
+                'energy': 'energy-phase',
+                'invocation': 'invocation-phase', 
+                'combat': 'combat-phase'
+            };
+            
+            const activeButtonId = phaseButtonIds[gameState.currentPhase];
+            const activeButton = document.getElementById(activeButtonId);
+            if (activeButton) {
+                activeButton.classList.add('active');
+            }
+
+            // Atualizar campo ativo
+            document.getElementById('field-p1').classList.remove('field-active');
+            document.getElementById('field-p2').classList.remove('field-active');
+            document.getElementById(`field-${gameState.currentPlayer}`).classList.add('field-active');
+
+            // Mostrar/ocultar informações de combate e botão de ataque direto
+            const combatInfo = document.getElementById('combat-info');
+            const directAttackBtn = document.getElementById('direct-attack-btn');
+            
+            if (gameState.currentPhase === 'combat') {
+                combatInfo.style.display = 'block';
+                directAttackBtn.style.display = 'block';
+                updateCombatInstructions();
+            } else {
+                combatInfo.style.display = 'none';
+                directAttackBtn.style.display = 'none';
+            }
+
+            // Atualizar instruções baseadas na fase
+            updatePhaseInstructions();
+
+            // Destacar cartas invocáveis na fase de invocação
+            if (gameState.currentPhase === 'invocation') {
+                highlightSummonableCards();
+            } else {
+                clearSummonHighlights();
+            }
+        }
+
+        function updatePhaseInstructions() {
+            const instruction = document.getElementById('combat-instruction');
+            if (!instruction) return;
+
+            switch (gameState.currentPhase) {
+                case 'energy':
+                    instruction.textContent = 'Fase de Energia - Ganhe energia e use habilidades';
+                    break;
+                case 'invocation':
+                    instruction.textContent = 'Fase de Invocação - Baixe cartas da mão para o campo';
+                    break;
+                case 'combat':
+                    instruction.textContent = 'Fase de Combate - Selecione cartas para atacar';
+                    break;
+            }
+        }
+
+        function updateCombatInstructions() {
+            const instruction = document.getElementById('combat-instruction');
+            if (gameState.attackingCard) {
+                instruction.textContent = 'Selecione um alvo para atacar ou clique em Ataque Direto';
+            } else {
+                instruction.textContent = 'Selecione uma carta sua para atacar';
+            }
+        }
+
+        function updateInvocationInfo(message) {
+            const instruction = document.getElementById('combat-instruction');
+            if (instruction) {
+                instruction.textContent = message;
+            }
+        }
+
+        function highlightSummonableCards() {
+            const currentPlayer = gameState.currentPlayer;
+            const currentEnergy = parseInt(document.getElementById(`energy-${currentPlayer}`).innerText);
+            const playerHand = gameState.cards[currentPlayer].hand;
+            
+            // Destacar cartas que podem ser invocadas
+            playerHand.forEach(card => {
+                const cardElement = document.getElementById(card.id);
+                if (cardElement && card.data.cost <= currentEnergy) {
+                    cardElement.classList.add('can-be-summoned');
+                } else if (cardElement) {
+                    cardElement.classList.remove('can-be-summoned');
+                }
+            });
+        }
+
+        function clearSummonHighlights() {
+            document.querySelectorAll('.can-be-summoned').forEach(card => {
+                card.classList.remove('can-be-summoned');
+            });
+        }
+        
+        function setupCombatPhase() {
+            clearCombatHighlights();
+            
+            const myCards = gameState.cards[gameState.currentPlayer].field;
+            
+            if (myCards.length === 0) {
+                updateCombatInfo('Você não tem cartas no campo para atacar!');
+                return;
+            }
+            
+            // Destacar suas cartas como possíveis atacantes
+            myCards.forEach(card => {
+                const element = document.getElementById(card.id);
+                if (element) {
+                    element.classList.add('can-attack');
+                }
+            });
+            
+            updateCombatInfo('Selecione uma de suas cartas (destacadas em laranja) para atacar');
+        }
+
+        function highlightTargets() {
+            const opponent = gameState.currentPlayer === 'p1' ? 'p2' : 'p1';
+            const opponentCards = gameState.cards[opponent].field;
+            
+            console.log('Destacando alvos para', opponent, 'cartas:', opponentCards.length);
+            
+            // Destacar cartas inimigas
+            opponentCards.forEach(card => {
+                const element = document.getElementById(card.id);
+                if (element) {
+                    element.classList.add('can-be-targeted');
+                    console.log('Destacando carta:', card.id);
+                } else {
+                    console.log('Elemento não encontrado:', card.id);
+                }
+            });
+
+            // Controlar botão de ataque direto
+            const directAttackBtn = document.getElementById('direct-attack-btn');
+            if (opponentCards.length === 0) {
+                directAttackBtn.style.display = 'inline-block';
+                updateCombatInfo('Campo inimigo vazio! Use "Ataque Direto"');
+            } else {
+                directAttackBtn.style.display = 'inline-block';
+                updateCombatInfo('Agora clique em uma carta inimiga (vermelha) para atacar ou use "Ataque Direto"');
+            }
+        }
+
+        function updateCombatInfo(message) {
+            document.getElementById('combat-instruction').textContent = message;
+        }
+
+        function isCardInField(cardId) {
+            console.log('🏟️ Verificando se carta está em campo:', cardId);
+            for (let player of ['p1', 'p2']) {
+                const found = gameState.cards[player].field.find(c => c.id === cardId);
+                console.log(`🏟️ Player ${player} field:`, gameState.cards[player].field.length, 'cartas');
+                if (found) {
+                    console.log('🏟️ Carta encontrada em campo:', player);
+                    return true;
+                }
+            }
+            console.log('🏟️ Carta NÃO encontrada em campo');
+            return false;
+        }
+
+
+
+        function clearCombatHighlights() {
+            document.querySelectorAll('.card').forEach(card => {
+                card.classList.remove('attacking', 'can-attack', 'can-be-targeted', 'direct-attack');
+            });
+            
+            // Ocultar botão de ataque direto
+            const directAttackBtn = document.getElementById('direct-attack-btn');
+            directAttackBtn.style.display = 'none';
+            
+            gameState.attackingCard = null;
+            gameState.targetCard = null;
+        }
+
+        function performAttack(attackerId, targetId) {
+            console.log('Iniciando ataque:', attackerId, 'vs', targetId);
+            
+            const attacker = findCardData(attackerId);
+            const target = findCardData(targetId);
+            
+            if (!attacker || !target) {
+                console.log('Erro: dados das cartas não encontrados');
+                return;
+            }
+
+            console.log('Atacante:', attacker.data.name, attacker.data.attack + '/' + attacker.data.defense);
+            console.log('Alvo:', target.data.name, target.data.attack + '/' + target.data.defense);
+
+            const attackPower = attacker.data.attack;
+            const targetDefense = target.data.defense;
+            const targetAttack = target.data.attack;
+            const attackerDefense = attacker.data.defense;
+            
+            // Aplicar dano mútuo
+            target.data.defense -= attackPower;
+            attacker.data.defense -= targetAttack;
+
+            // Atualizar visualmente as cartas
+            updateCardDisplay(attackerId, attacker.data);
+            updateCardDisplay(targetId, target.data);
+
+            // Verificar se cartas foram destruídas
+            let message = `${attacker.data.name} (${attackPower} ATK) atacou ${target.data.name} (${targetAttack} ATK)!\n`;
+            
+            const targetDestroyed = target.data.defense <= 0;
+            const attackerDestroyed = attacker.data.defense <= 0;
+            
+            if (targetDestroyed) {
+                message += `${target.data.name} foi destruída! `;
+                // Calcular dano penetrante
+                const penetratingDamage = Math.max(0, attackPower - targetDefense);
+                if (penetratingDamage > 0) {
+                    changeStat('pv', target.player, -penetratingDamage);
+                    message += `${penetratingDamage} de dano penetrante! `;
+                }
+                setTimeout(() => destroyCard(targetId), 1000);
+            }
+            
+            if (attackerDestroyed) {
+                message += `${attacker.data.name} foi destruída no contra-ataque! `;
+                setTimeout(() => destroyCard(attackerId), 1000);
+            }
+
+            alert(message);
+            
+            // Marcar carta como tendo atacado neste turno
+            if (!gameState.attackedThisTurn.includes(attackerId)) {
+                gameState.attackedThisTurn.push(attackerId);
+                console.log('🗡️ Carta marcada como atacou:', attackerId);
+            }
+            
+            updateAttackedCardsVisual();
+            clearCombatHighlights();
+            setupCombatPhase();
+        }
+
+        function directAttack() {
+            console.log('Ataque direto iniciado');
+            
+            if (!gameState.attackingCard) {
+                alert('Primeiro selecione uma carta sua para atacar!');
+                return;
+            }
+            
+            // Verificar se a carta já atacou este turno
+            if (gameState.attackedThisTurn.includes(gameState.attackingCard)) {
+                showMessage('Esta carta já atacou neste turno!', 'warning');
+                return;
+            }
+            
+            const attacker = findCardData(gameState.attackingCard);
+            if (!attacker) {
+                console.log('Dados do atacante não encontrados');
+                return;
+            }
+
+            const opponent = gameState.currentPlayer === 'p1' ? 'p2' : 'p1';
+            const damage = attacker.data.attack;
+            
+            console.log(`${attacker.data.name} atacando diretamente ${opponent} por ${damage} de dano`);
+            
+            changeStat('pv', opponent, -damage);
+            alert(`💥 ${attacker.data.name} atacou diretamente!\n${damage} pontos de dano!`);
+            
+            // Marcar carta como tendo atacado neste turno
+            if (!gameState.attackedThisTurn.includes(gameState.attackingCard)) {
+                gameState.attackedThisTurn.push(gameState.attackingCard);
+                console.log('🗡️ Carta marcada como atacou (direto):', gameState.attackingCard);
+            }
+            
+            updateAttackedCardsVisual();
+            clearCombatHighlights();
+            setupCombatPhase();
+        }
+
+        function updateCardDisplay(cardId, cardData) {
+            const cardElement = document.getElementById(cardId);
+            if (cardElement) {
+                const statsElement = cardElement.querySelector('.card-stats');
+                statsElement.innerHTML = `
+                    <span class="attack">${cardData.attack}</span>
+                    <span>/</span>
+                    <span class="defense">${cardData.defense}</span>
+                `;
+            }
+        }
+
+        function destroyCard(cardId) {
+            const cardData = findCardData(cardId);
+            if (!cardData) return;
+
+            // Remover da lista do jogador
+            const fieldIndex = gameState.cards[cardData.player].field.findIndex(c => c.id === cardId);
+            if (fieldIndex !== -1) {
+                gameState.cards[cardData.player].field.splice(fieldIndex, 1);
+            }
+
+            // Remover do DOM com animação
+            const cardElement = document.getElementById(cardId);
+            if (cardElement) {
+                cardElement.style.animation = 'cardDestroy 0.5s ease-out forwards';
+                setTimeout(() => {
+                    cardElement.remove();
+                }, 500);
+            }
+        }
+
+        function resetGame() {
+            // Reset stats
+            ['p1', 'p2'].forEach(player => {
+                document.getElementById(`pv-${player}`).innerText = INITIAL_PV;
+                document.getElementById(`pv-${player}`).classList.remove('pv-zero');
+                document.getElementById(`energy-${player}`).innerText = INITIAL_ENERGY;
+                
+                // Reset dice
+                gameState.diceUsed[player] = false;
+                const diceButton = document.getElementById(`dice-${player}`);
+                diceButton.disabled = false;
+                diceButton.title = 'Dado da Sorte (2 energia)';
+                
+                // Reset names
+                const nameElement = document.querySelector(`.player${player === 'p1' ? '1' : '2'}-stats .player-name`);
+                nameElement.innerText = player === 'p1' ? 'Jogador 1' : 'Jogador 2';
+            });
+
+            // Reset game state
+            gameState.currentPlayer = 'p1';
+            gameState.currentPhase = 'energy';
+            gameState.turn = 1;
+            gameState.selectedCard = null;
+            gameState.attackingCard = null;
+            gameState.targetCard = null;
+            gameState.cards = { p1: { hand: [], field: [] }, p2: { hand: [], field: [] } };
+
+            // Clear fields and hands
+            ['p1', 'p2'].forEach(player => {
+                document.getElementById(`hand-${player}`).innerHTML = '';
+                document.getElementById(`field-${player}`).innerHTML = '';
+            });
+
+            // Reinicializar decks se sistema estiver carregado
+            if (typeof startNewMatch === 'function') {
+                startNewMatch();
+            } else {
+                // Fallback
+                for (let i = 0; i < 5; i++) {
+                    addCardToHand('p1');
+                    addCardToHand('p2');
+                }
+            }
+
+            updateUI();
+        }
+
+        // Funções de cartas
+        function createCard(cardData, player) {
+            const cardId = `card-${Date.now()}-${Math.random()}`;
+            const card = document.createElement('div');
+            
+            // Mapear tipos em português para inglês para as classes CSS
+            const typeMapping = {
+                'suporte': 'support',
+                'criatura': 'monster',
+                'monster': 'monster',
+                'support': 'support'
+            };
+            const cssType = typeMapping[cardData.type] || cardData.type;
+            
+            card.className = `card ${cssType}`;
+            card.draggable = true;
+            card.setAttribute('draggable', 'true');
+            card.id = cardId;
+            card.onclick = () => selectCard(cardId);
+            card.ondragstart = (e) => {
+                console.log('🔥 DRAGSTART CALLED!', cardId);
+                dragStart(e);
+            };
+            card.ondragend = (e) => dragEnd(e);
+            card.onmousedown = (e) => console.log('🖱️ Mouse down on card:', cardId);
+            
+            console.log('🃏 Card created:', cardId, 'draggable:', card.draggable);
+
+            // Criar cópia dos dados da carta para evitar modificação do original
+            const cardDataCopy = {
+                ...cardData,
+                attack: cardData.attack,
+                defense: cardData.defense
+            };
+
+            // Usar apenas imagem real, sem fallback de ícone
+            const cardImage = cardDataCopy.image ? 
+                `<img src="${cardDataCopy.image}" alt="${cardDataCopy.name}" class="card-image-real" style="pointer-events: none;">` :
+                `<div class="card-image" style="pointer-events: none;"></div>`;
+
+            card.innerHTML = `
+                <div class="card-cost" style="pointer-events: none;">${cardDataCopy.cost}</div>
+                ${cardImage}
+                <div class="card-name" style="pointer-events: none;">${cardDataCopy.name}</div>
+                <div class="card-stats" style="pointer-events: none;">
+                    <span class="attack">${cardDataCopy.attack}</span>
+                    <span>/</span>
+                    <span class="defense">${cardDataCopy.defense}</span>
+                </div>
+            `;
+
+            return { element: card, data: cardDataCopy, id: cardId, player: player };
+        }
+
+        function getCardIcon(type) {
+            const icons = {
+                'criatura': '🦄',
+                'suporte': '⚡',
+                'evolução': '⭐',
+                'monster': '🦄',
+                'support': '⚡',
+                'evolution': '⭐'
+            };
+            return icons[type] || '❓';
+        }
+
+        function addCardToHand(player) {
+            // Verificar limite de 7 cartas na mão usando DOM (mais confiável)
+            const handElement = document.getElementById(`hand-${player}`);
+            const currentCards = handElement ? handElement.children.length : 0;
+            
+            if (currentCards >= 7) {
+                console.log(`❌ Não é possível sacar: limite de 7 cartas na mão atingido (atual: ${currentCards})`);
+                showMessage('Limite de 7 cartas na mão atingido!', 'warning');
+                return;
+            }
+
+            // Usar sistema de deck se disponível
+            if (typeof drawCardFromDeck === 'function') {
+                const drawnCard = drawCardFromDeck(player);
+                if (drawnCard) {
+                    const newCard = createCard(drawnCard, player);
+                    gameState.cards[player].hand.push(newCard);
+                    document.getElementById(`hand-${player}`).appendChild(newCard.element);
+                    console.log('📜 Card added to gameState:', newCard.id, 'Player:', player);
+                    console.log('📜 Total cards in hand:', gameState.cards[player].hand.length);
+                }
+                return;
+            }
+            
+            // Fallback para sistema antigo se deck system não estiver carregado
+            const fallbackCards = [
+                { id: 'fallback1', name: 'Criatura Básica', type: 'criatura', cost: 3, attack: 3, defense: 3, icon: '🦄' }
+            ];
+            const randomCard = fallbackCards[0];
+            const newCard = createCard(randomCard, player);
+            
+            gameState.cards[player].hand.push(newCard);
+            document.getElementById(`hand-${player}`).appendChild(newCard.element);
+        }
+
+        function showMessage(text, type = 'info') {
+            // Criar elemento de mensagem
+            const messageElement = document.createElement('div');
+            messageElement.textContent = text;
+            messageElement.style.position = 'fixed';
+            messageElement.style.top = '50%';
+            messageElement.style.left = '50%';
+            messageElement.style.transform = 'translate(-50%, -50%)';
+            messageElement.style.padding = '15px 25px';
+            messageElement.style.borderRadius = '10px';
+            messageElement.style.color = 'white';
+            messageElement.style.fontWeight = 'bold';
+            messageElement.style.fontSize = '16px';
+            messageElement.style.zIndex = '1000';
+            messageElement.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+            
+            // Definir cor baseada no tipo
+            if (type === 'warning') {
+                messageElement.style.backgroundColor = '#ff6b6b';
+            } else if (type === 'success') {
+                messageElement.style.backgroundColor = '#5abf7a';
+            } else {
+                messageElement.style.backgroundColor = '#4b586e';
+            }
+            
+            // Adicionar ao body
+            document.body.appendChild(messageElement);
+            
+            // Remover após 2 segundos
+            setTimeout(() => {
+                document.body.removeChild(messageElement);
+            }, 2000);
+        }
+
+        function selectCard(cardId) {
+            console.log('Carta clicada:', cardId, 'Fase atual:', gameState.currentPhase);
+            const cardData = findCardData(cardId);
+            if (!cardData) {
+                console.log('Dados da carta não encontrados');
+                return;
+            }
+
+            console.log('Dados da carta:', cardData);
+
+            // Se estamos na fase de combate
+            if (gameState.currentPhase === 'combat') {
+                console.log('Entrando no modo de combate');
+                handleCombatCardClick(cardId, cardData);
+                return;
+            }
+
+            // Remove seleção anterior
+            document.querySelectorAll('.card.selected').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            // Seleciona nova carta
+            const cardElement = document.getElementById(cardId);
+            if (cardElement) {
+                cardElement.classList.add('selected');
+                gameState.selectedCard = cardId;
+            }
+        }
+
+        function handleCombatCardClick(cardId, cardData) {
+            console.log('🗡️ Clique em combate:', cardId);
+            console.log('🗡️ Player da carta:', cardData.player, 'Current Player:', gameState.currentPlayer);
+            console.log('🗡️ Atacante atual:', gameState.attackingCard);
+            console.log('🗡️ É carta em campo?', isCardInField(cardId));
+            console.log('🗡️ É carta inimiga?', cardData.player !== gameState.currentPlayer);
+            console.log('🗡️ Tem atacante selecionado?', !!gameState.attackingCard);
+            
+            const cardElement = document.getElementById(cardId);
+            
+            // Se clicou em uma carta inimiga e já tem atacante selecionado
+            if (gameState.attackingCard && cardData.player !== gameState.currentPlayer && isCardInField(cardId)) {
+                console.log('✅ CONDIÇÕES ATENDIDAS - Atacando carta inimiga!');
+                performAttack(gameState.attackingCard, cardId);
+                return;
+            } else {
+                console.log('❌ Condições não atendidas para ataque:');
+                console.log('   - Tem atacante?', !!gameState.attackingCard);
+                console.log('   - É inimiga?', cardData.player !== gameState.currentPlayer);
+                console.log('   - Está em campo?', isCardInField(cardId));
+            }
+            
+            // Se não há carta atacante selecionada OU clicou em outra carta sua
+            if (!gameState.attackingCard || (cardData.player === gameState.currentPlayer && isCardInField(cardId))) {
+                // Só pode selecionar cartas do jogador atual que estão em campo
+                if (cardData.player === gameState.currentPlayer && isCardInField(cardId)) {
+                    // Verificar se a carta já atacou este turno
+                    if (gameState.attackedThisTurn.includes(cardId)) {
+                        console.log('❌ Carta já atacou este turno:', cardId);
+                        showMessage('Esta carta já atacou neste turno!', 'warning');
+                        updateCombatInfo('Esta carta já atacou neste turno! Selecione outra carta.');
+                        return;
+                    }
+                    
+                    console.log('Selecionando nova carta atacante');
+                    // Limpar highlights visuais sem resetar o atacante
+                    document.querySelectorAll('.card').forEach(card => {
+                        card.classList.remove('attacking', 'can-attack', 'can-be-targeted', 'direct-attack');
+                    });
+                    
+                    gameState.attackingCard = cardId;
+                    cardElement.classList.add('attacking');
+                    highlightTargets();
+                    
+                    const attackerName = cardData.data.name;
+                    updateCombatInfo(`${attackerName} selecionada! Clique em uma carta inimiga para atacar ou use "Ataque Direto"`);
+                    return;
+                } else {
+                    updateCombatInfo('Selecione uma de suas cartas no campo para atacar');
+                    return;
+                }
+            }
+            
+            // Caso padrão
+            updateCombatInfo('Selecione uma de suas cartas primeiro, depois o alvo');
+        }
+
+        function dragStart(e) {
+            // Garantir que temos o elemento carta correto
+            let cardElement = e.target;
+            while (cardElement && !cardElement.classList.contains('card')) {
+                cardElement = cardElement.parentElement;
+            }
+            
+            if (!cardElement || !cardElement.id) {
+                console.log('❌ Elemento carta não encontrado ou sem ID');
+                return;
+            }
+            
+            const cardId = cardElement.id;
+            console.log('🎯 Drag started for card:', cardId);
+            console.log('🎯 Element draggable:', cardElement.draggable);
+            console.log('🎯 Current phase:', gameState.currentPhase);
+            
+            e.dataTransfer.setData('text/plain', cardId);
+            e.dataTransfer.effectAllowed = 'move';
+            cardElement.classList.add('dragging');
+            
+            // Sempre destacar que o drag começou, independente da fase
+            const cardData = findCardData(cardId);
+            console.log('🎯 Card data found:', cardData ? 'Yes' : 'No');
+            
+            if (cardData) {
+                console.log('🎯 Card player:', cardData.player);
+                console.log('🎯 Current player:', gameState.currentPlayer);
+                console.log('🎯 Card cost:', cardData.data.cost);
+                
+                if (gameState.currentPhase === 'invocation' && cardData.player === gameState.currentPlayer) {
+                    const currentEnergy = parseInt(document.getElementById(`energy-${gameState.currentPlayer}`).innerText);
+                    console.log('🎯 Current energy:', currentEnergy);
+                    
+                    // Verificar se é carta de suporte
+                    if (cardData.data.type === 'suporte') {
+                        // Destacar criaturas que podem ser equipadas
+                        if (currentEnergy >= cardData.data.cost) {
+                            highlightEquippableCreatures(cardData);
+                            updateInvocationInfo(`Arraste para uma criatura para equipar ou para o campo para invocar (Custo: ${cardData.data.cost})`);
+                            console.log('🎯 Support card - highlighting equippable creatures');
+                        }
+                    }
+                    
+                    // Destacar campos válidos para drop (sempre disponível para invocação normal)
+                    const playerField = document.getElementById(`field-${gameState.currentPlayer}`);
+                    if (currentEnergy >= cardData.data.cost) {
+                        playerField.classList.add('field-drop-zone');
+                        if (cardData.data.type !== 'suporte') {
+                            updateInvocationInfo(`Arraste para o campo para invocar (Custo: ${cardData.data.cost})`);
+                        }
+                        console.log('🎯 Field marked as valid drop zone');
+                    } else {
+                        playerField.classList.add('field-invalid-drop');
+                        updateInvocationInfo(`Energia insuficiente! Precisa de ${cardData.data.cost}, você tem ${currentEnergy}`);
+                        console.log('🎯 Field marked as invalid - insufficient energy');
+                    }
+                } else {
+                    console.log('🎯 Not in invocation phase or not current player');
+                }
+            }
+        }
+
+        function dragEnd(e) {
+            // Garantir que temos o elemento carta correto
+            let cardElement = e.target;
+            while (cardElement && !cardElement.classList.contains('card')) {
+                cardElement = cardElement.parentElement;
+            }
+            
+            if (cardElement) {
+                cardElement.classList.remove('dragging');
+            }
+            
+            // Limpar highlights
+            document.querySelectorAll('.field-drop-zone, .field-invalid-drop').forEach(field => {
+                field.classList.remove('field-drop-zone', 'field-invalid-drop');
+            });
+            
+            // Limpar highlights de equipamento
+            clearEquipmentHighlights();
+            
+            // Restaurar informações de fase
+            updatePhaseInstructions();
+        }
+
+        function allowDrop(e) {
+            e.preventDefault();
+        }
+
+        function dragOver(e) {
+            e.preventDefault();
+        }
+
+        function dropCard(e) {
+            e.preventDefault();
+            const cardId = e.dataTransfer.getData('text/plain');
+            const cardElement = document.getElementById(cardId);
+            
+            if (!cardElement) return;
+
+            // Verificar se é drop em campo ou em criatura
+            const isCreatureDrop = e.currentTarget.classList.contains('card');
+            
+            if (isCreatureDrop) {
+                handleEquipmentDrop(e, cardId);
+                return;
+            }
+
+            const targetPlayer = e.currentTarget.dataset.player;
+            const cardData = findCardData(cardId);
+            
+            if (!cardData || cardData.player !== targetPlayer) return;
+
+            // Verificar se é a fase correta
+            if (gameState.currentPhase !== 'invocation') {
+                alert('Você só pode invocar cartas na Fase de Invocação!');
+                return;
+            }
+
+            // Verificar se é o turno do jogador
+            if (gameState.currentPlayer !== targetPlayer) {
+                alert('Não é o seu turno!');
+                return;
+            }
+
+            // Verificar energia
+            const currentEnergy = parseInt(document.getElementById(`energy-${targetPlayer}`).innerText);
+            if (currentEnergy < cardData.data.cost) {
+                alert('Energia insuficiente para invocar esta carta!');
+                return;
+            }
+
+            // Gastar energia e mover carta
+            changeStat('energy', targetPlayer, -cardData.data.cost);
+            playSound('energySound');
+            
+            // Mover da mão para o campo
+            const handIndex = gameState.cards[targetPlayer].hand.findIndex(c => c.id === cardId);
+            if (handIndex !== -1) {
+                const card = gameState.cards[targetPlayer].hand.splice(handIndex, 1)[0];
+                gameState.cards[targetPlayer].field.push(card);
+                
+                // Remover da mão e adicionar ao campo
+                cardElement.remove();
+                e.currentTarget.appendChild(cardElement);
+                
+                // Animação de invocação
+                cardElement.classList.add('card-play-animation');
+                cardElement.classList.remove('can-be-summoned', 'dragging');
+                
+                setTimeout(() => {
+                    cardElement.classList.remove('card-play-animation');
+                    // Atualizar highlights após invocação
+                    if (gameState.currentPhase === 'invocation') {
+                        highlightSummonableCards();
+                    }
+                }, 500);
+                
+                // Feedback visual
+                updateInvocationInfo(`${cardData.data.name} foi invocada com sucesso!`);
+                setTimeout(() => {
+                    if (gameState.currentPhase === 'invocation') {
+                        updatePhaseInstructions();
+                    }
+                }, 2000);
+            }
+        }
+
+        function findCardData(cardId) {
+            console.log('🔍 Looking for card:', cardId);
+            console.log('🔍 GameState cards:', gameState.cards);
+            
+            for (let player of ['p1', 'p2']) {
+                console.log(`🔍 Checking ${player} hand:`, gameState.cards[player].hand.length, 'cards');
+                let card = gameState.cards[player].hand.find(c => c.id === cardId);
+                if (card) {
+                    console.log('🔍 Found in hand:', card);
+                    return card;
+                }
+                
+                console.log(`🔍 Checking ${player} field:`, gameState.cards[player].field.length, 'cards');
+                card = gameState.cards[player].field.find(c => c.id === cardId);
+                if (card) {
+                    console.log('🔍 Found in field:', card);
+                    return card;
+                }
+            }
+            console.log('🔍 Card not found anywhere!');
+            return null;
+        }
+
+        function closeCardModal() {
+            document.getElementById('cardModal').classList.remove('visible');
+        }
+
+        // Função para mostrar informações dos decks
+        function showDeckInfo() {
+            if (!gameState.decks || !window.deckBuilder) {
+                alert('Sistema de deck não carregado!');
+                return;
+            }
+            
+            const stats1 = window.deckBuilder.getDeckStats(gameState.decks.p1);
+            const stats2 = window.deckBuilder.getDeckStats(gameState.decks.p2);
+            
+            const info = `DECK PLAYER 1:
+• Total: ${stats1.total} cartas
+• Criaturas: ${stats1.criaturas}
+• Suportes: ${stats1.suportes}  
+• Evoluções: ${stats1.evolucoes}
+• Custo médio: ${stats1.custoMedio}
+
+DECK PLAYER 2:
+• Total: ${stats2.total} cartas
+• Criaturas: ${stats2.criaturas}
+• Suportes: ${stats2.suportes}
+• Evoluções: ${stats2.evolucoes}
+• Custo médio: ${stats2.custoMedio}
+
+Cartas restantes:
+• Player 1: ${gameState.decks.p1.length}
+• Player 2: ${gameState.decks.p2.length}`;
+            
+            alert(info);
+        }
+
+        // Função de teste para adicionar cartas ao campo
+
+
+        // Sistema de equipamento de cartas de suporte
+        function handleEquipmentDrop(e, supportCardId) {
+            const targetCreature = e.currentTarget;
+            const targetCreatureId = targetCreature.id;
+            
+            const supportCardData = findCardData(supportCardId);
+            const creatureCardData = findCardData(targetCreatureId);
+            
+            if (!supportCardData || !creatureCardData) return;
+            
+            // Verificar se é carta de suporte
+            if (supportCardData.data.type !== 'suporte') {
+                alert('Apenas cartas de suporte podem ser equipadas!');
+                return;
+            }
+            
+            // Verificar se é criatura
+            if (creatureCardData.data.type !== 'criatura') {
+                alert('Cartas de suporte só podem ser equipadas em criaturas!');
+                return;
+            }
+            
+            // Verificar se é o mesmo jogador
+            if (supportCardData.player !== creatureCardData.player) {
+                alert('Você só pode equipar suas próprias criaturas!');
+                return;
+            }
+            
+            // Verificar fase
+            if (gameState.currentPhase !== 'invocation') {
+                alert('Você só pode equipar cartas na Fase de Invocação!');
+                return;
+            }
+            
+            // Verificar turno
+            if (gameState.currentPlayer !== supportCardData.player) {
+                alert('Não é o seu turno!');
+                return;
+            }
+            
+            // Verificar energia
+            const currentEnergy = parseInt(document.getElementById(`energy-${supportCardData.player}`).innerText);
+            if (currentEnergy < supportCardData.data.cost) {
+                alert('Energia insuficiente para equipar esta carta!');
+                return;
+            }
+            
+            equipSupportCard(supportCardId, targetCreatureId);
+        }
+
+        function equipSupportCard(supportCardId, creatureCardId) {
+            const supportCardData = findCardData(supportCardId);
+            const creatureCardData = findCardData(creatureCardId);
+            
+            if (!supportCardData || !creatureCardData) return;
+            
+            // Gastar energia
+            changeStat('energy', supportCardData.player, -supportCardData.data.cost);
+            playSound('energySound');
+            
+            // Aplicar bônus da carta de suporte à criatura
+            creatureCardData.data.attack += supportCardData.data.attack || 0;
+            creatureCardData.data.defense += supportCardData.data.defense || 0;
+            
+            // Adicionar equipamento à criatura
+            if (!creatureCardData.data.equipment) {
+                creatureCardData.data.equipment = [];
+            }
+            creatureCardData.data.equipment.push(supportCardData.data);
+            
+            // Atualizar visual da criatura
+            updateCardDisplay(creatureCardId, creatureCardData.data);
+            const creatureElement = document.getElementById(creatureCardId);
+            
+            creatureElement.classList.add('equipped');
+            
+            // Criar carta de equipamento visual empilhada
+            createEquipmentVisual(creatureElement, supportCardData.data);
+            
+            // Atualizar contador de equipamentos
+            updateEquipmentCounter(creatureElement, creatureCardData.data.equipment.length);
+            
+            // Remover carta de suporte da mão
+            const handIndex = gameState.cards[supportCardData.player].hand.findIndex(c => c.id === supportCardId);
+            if (handIndex !== -1) {
+                gameState.cards[supportCardData.player].hand.splice(handIndex, 1);
+            }
+            
+            // Remover elemento visual da carta de suporte
+            const supportElement = document.getElementById(supportCardId);
+            if (supportElement) {
+                supportElement.remove();
+            }
+            
+            // Feedback
+            alert(`${supportCardData.data.name} foi equipada em ${creatureCardData.data.name}!\n+${supportCardData.data.attack || 0} ATK, +${supportCardData.data.defense || 0} DEF`);
+            
+            // Limpar highlights
+            clearEquipmentHighlights();
+            
+            // Atualizar highlights de invocação
+            if (gameState.currentPhase === 'invocation') {
+                highlightSummonableCards();
+            }
+        }
+
+        function highlightEquippableCreatures(supportCardData) {
+            // Destacar criaturas que podem receber equipamento
+            const playerCreatures = gameState.cards[supportCardData.player].field;
+            
+            playerCreatures.forEach(creature => {
+                if (creature.data.type === 'criatura') {
+                    const creatureElement = document.getElementById(creature.id);
+                    if (creatureElement) {
+                        creatureElement.classList.add('can-be-equipped');
+                        // Permitir drop na criatura
+                        creatureElement.ondrop = (e) => dropCard(e);
+                        creatureElement.ondragover = (e) => allowDrop(e);
+                    }
+                }
+            });
+        }
+
+        function clearEquipmentHighlights() {
+            document.querySelectorAll('.can-be-equipped').forEach(card => {
+                card.classList.remove('can-be-equipped');
+                card.ondrop = null;
+                card.ondragover = null;
+            });
+        }
+
+        function createEquipmentVisual(creatureElement, supportCardData) {
+            // Remover equipamentos visuais existentes se necessário para recriar com novo layout
+            const existingEquipments = creatureElement.querySelectorAll('.equipment-card');
+            const equipmentCount = existingEquipments.length;
+            
+            // Criar nova carta de equipamento
+            const equipmentCard = document.createElement('div');
+            equipmentCard.className = 'card equipment-card support';
+            
+            // Posicionar as cartas de equipamento como na foto - bordas visíveis
+            const offsetX = -5 - (equipmentCount * 2); // Múltiplos equipamentos com offset
+            const offsetY = -5 - (equipmentCount * 2);
+            const rotation = 0 + (equipmentCount * 1); // Rotação leve para múltiplos
+            
+            equipmentCard.style.top = `${offsetY}px`;
+            equipmentCard.style.left = `${offsetX}px`;
+            equipmentCard.style.transform = `rotate(${rotation}deg)`;
+            equipmentCard.style.zIndex = `${-1 - equipmentCount}`;
+            
+            // Usar apenas imagem real, sem fallback de ícone
+            const cardImage = supportCardData.image ? 
+                `<img src="${supportCardData.image}" alt="${supportCardData.name}" class="card-image-real" style="pointer-events: none;">` :
+                `<div class="card-image" style="pointer-events: none;"></div>`;
+
+            equipmentCard.innerHTML = `
+                <div class="card-cost" style="pointer-events: none;">${supportCardData.cost}</div>
+                ${cardImage}
+                <div class="card-name" style="pointer-events: none;">${supportCardData.name}</div>
+                <div class="card-stats" style="pointer-events: none;">
+                    <span class="attack">${supportCardData.attack}</span>
+                    <span>/</span>
+                    <span class="defense">${supportCardData.defense}</span>
+                </div>
+            `;
+            
+            // Adicionar a carta de equipamento atrás da criatura
+            creatureElement.appendChild(equipmentCard);
+        }
+
+        function updateEquipmentCounter(creatureElement, equipmentCount) {
+            // Remover contador existente
+            const existingCounter = creatureElement.querySelector('.equipment-counter');
+            if (existingCounter) {
+                existingCounter.remove();
+            }
+            
+            // Adicionar novo contador se houver equipamentos
+            if (equipmentCount > 0) {
+                const counter = document.createElement('div');
+                counter.className = 'equipment-counter';
+                counter.textContent = equipmentCount;
+                counter.title = `${equipmentCount} equipamento(s)`;
+                creatureElement.appendChild(counter);
+            }
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', async function() {
+            updateUI();
+            
+            // Carregar sistema de cartas
+            const cardsLoaded = await loadCardSystem();
+            
+            if (cardsLoaded) {
+                // Inicializar nova partida com decks balanceados
+                const matchDecks = startNewMatch();
+                console.log('Jogo iniciado com cartas reais!');
+            } else {
+                // Fallback para cartas básicas
+                console.log('Usando cartas básicas (fallback)');
+                for (let i = 0; i < 5; i++) {
+                    addCardToHand('p1');
+                    addCardToHand('p2');
+                }
+            }
+        });
+    </script>
+</body>
+</html>

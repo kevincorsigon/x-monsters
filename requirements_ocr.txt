@@ -1,0 +1,11 @@
+# Dependências para OCR e processamento de imagens
+opencv-python==4.8.1.78
+pytesseract==0.3.10
+Pillow==10.0.1
+numpy==1.24.3
+
+# Para matching de texto
+difflib  # Built-in do Python
+
+# Para manipulação de arquivos
+shutil  # Built-in do Python
