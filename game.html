@@ -134,26 +134,157 @@
         }
 
         .player2-hand, .player1-hand {
-            background-color: var(--bg-color);
+            background: linear-gradient(135deg, rgba(26, 30, 40, 0.9) 0%, rgba(43, 48, 61, 0.8) 100%);
             border: 2px solid var(--primary-color);
             border-radius: var(--border-radius);
             display: flex;
             flex-direction: column;
-            padding: 12px;
+            padding: 8px;
             overflow: visible;
+            position: relative;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .player2-hand {
+            z-index: 20;
+        }
+
+        .player1-hand {
+            z-index: 20;
+        }
+
+        /* Esconder mão quando não for o turno do jogador */
+        .player-hand-hidden {
+            opacity: 0.4;
+            pointer-events: none;
+            transform: scale(0.92);
+            transition: all 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        .player-hand-hidden #hand-p1,
+        .player-hand-hidden #hand-p2 {
+            filter: blur(6px) brightness(0.6);
+        }
+
+        .player-hand-hidden .card {
+            background: linear-gradient(135deg, #2b303d 0%, #4b586e 100%) !important;
+            border-color: #4b586e !important;
+            box-shadow: none !important;
+            transform: rotate(0deg) !important;
+        }
+
+        .player-hand-hidden .card .card-image-real,
+        .player-hand-hidden .card .card-image {
+            background: linear-gradient(135deg, #2b303d 0%, #4b586e 100%) !important;
+            filter: blur(8px) brightness(0.3);
+        }
+
+        .player-hand-hidden .card .card-name,
+        .player-hand-hidden .card .card-stats,
+        .player-hand-hidden .card .card-cost {
+            opacity: 0;
+        }
+
+        .player-hand-hidden .hand-title {
+            opacity: 0.8;
+            filter: none;
+            color: var(--secondary-color);
+        }
+
+        .player-hand-hidden .hand-title::after {
+            content: "🔒 Turno do oponente";
+            background: var(--secondary-color);
+            color: var(--text-color);
+        }
+
+        /* Botão para espiar a própria mão */
+        .peek-hand-btn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(201, 165, 103, 0.9);
+            color: var(--bg-color);
+            border: 2px solid var(--primary-color);
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 100;
+            opacity: 0;
+            transition: all 0.3s ease;
+            font-family: 'Cinzel', serif;
+        }
+
+        .player-hand-hidden .peek-hand-btn {
+            opacity: 0.8;
+        }
+
+        .peek-hand-btn:hover {
+            background: var(--primary-color);
+            transform: translate(-50%, -50%) scale(1.1);
+            box-shadow: 0 4px 15px rgba(201, 165, 103, 0.5);
+        }
+
+        .player-hand-peeking {
+            opacity: 1 !important;
+            filter: none !important;
+            transform: scale(1) !important;
+        }
+
+        .player-hand-peeking #hand-p1,
+        .player-hand-peeking #hand-p2 {
+            filter: none !important;
+        }
+
+        .player-hand-peeking .card {
+            background: unset !important;
+            border-color: unset !important;
+            box-shadow: unset !important;
+        }
+
+        .player-hand-peeking .card .card-image-real,
+        .player-hand-peeking .card .card-image {
+            background: unset !important;
+            filter: none !important;
+        }
+
+        .player-hand-peeking .card .card-name,
+        .player-hand-peeking .card .card-stats,
+        .player-hand-peeking .card .card-cost {
+            opacity: 1 !important;
         }
 
         .player2-hand #hand-p2, .player1-hand #hand-p1 {
             display: flex;
             flex-direction: row;
-            gap: clamp(6px, 0.8vw, 12px);
-            flex-wrap: wrap;
-            justify-content: flex-start;
+            justify-content: center;
+            align-items: flex-end;
+            overflow: visible;
+            padding: 20px 10px;
+            min-height: 120px;
+            position: relative;
+            perspective: 1000px;
+        }
+
+        .player2-hand #hand-p2 {
+            z-index: 25;
+        }
+
+        .player1-hand #hand-p1 {
+            z-index: 25;
+        }
+
+        /* Layout em arco para Player 1 (parte inferior) */
+        .player1-hand #hand-p1 {
+            align-items: flex-end;
+        }
+
+        /* Layout em arco para Player 2 (parte superior - invertido) */
+        .player2-hand #hand-p2 {
             align-items: flex-start;
-            overflow-x: auto;  
-            overflow-y: visible;
-            padding: clamp(4px, 0.5vw, 8px);
-            min-height: 0;
         }
 
         /* Área dos botões de fase centralizados */
@@ -442,6 +573,7 @@
 
         .energy-value {
             color: var(--energy-color);
+            transition: all 0.3s ease;
         }
 
         .pv-zero {
@@ -579,6 +711,27 @@
             text-align: center;
             margin-bottom: 5px;
             font-weight: bold;
+            background: linear-gradient(90deg, transparent 0%, rgba(201, 165, 103, 0.3) 50%, transparent 100%);
+            padding: 5px 10px;
+            border-radius: 20px;
+            text-shadow: 0 0 10px rgba(201, 165, 103, 0.5);
+            position: relative;
+        }
+
+        /* Contador de cartas na mão */
+        .hand-title::after {
+            content: attr(data-count) " cartas";
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.8em;
+            opacity: 0.8;
+            background: var(--energy-color);
+            color: var(--bg-color);
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: bold;
         }
 
         /* Container para mão com indicadores do player 2 */
@@ -692,20 +845,159 @@
             border-color: var(--energy-color);
         }
 
-        /* Efeito hover especial para cartas na mão dos jogadores */
-        .player1-hand .card:hover,
-        .player2-hand .card:hover {
-            transform: scale(1.6) translateY(-20px);
+        /* Sistema de posicionamento em arco - Player 1 */
+        .player1-hand .card {
+            margin: 0 -15px;
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            transform-origin: center bottom;
+            z-index: 1;
+        }
+
+        .player1-hand .card:nth-child(1) { transform: rotate(-20deg) translateY(10px); }
+        .player1-hand .card:nth-child(2) { transform: rotate(-15deg) translateY(5px); }
+        .player1-hand .card:nth-child(3) { transform: rotate(-10deg) translateY(2px); }
+        .player1-hand .card:nth-child(4) { transform: rotate(-5deg) translateY(0px); }
+        .player1-hand .card:nth-child(5) { transform: rotate(0deg) translateY(0px); }
+        .player1-hand .card:nth-child(6) { transform: rotate(5deg) translateY(0px); }
+        .player1-hand .card:nth-child(7) { transform: rotate(10deg) translateY(2px); }
+        .player1-hand .card:nth-child(8) { transform: rotate(15deg) translateY(5px); }
+        .player1-hand .card:nth-child(9) { transform: rotate(20deg) translateY(10px); }
+
+        /* Efeito hover para Player 1 */
+        .player1-hand .card:hover {
+            transform: rotate(0deg) scale(2.2) translateY(-60px) !important;
             z-index: 1000;
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.6);
+            box-shadow: 0 20px 40px rgba(201, 165, 103, 0.8), 0 0 30px rgba(245, 201, 74, 0.6);
             border-color: var(--energy-color);
-            transition: all 0.4s ease;
+            filter: brightness(1.2) drop-shadow(0 0 20px rgba(245, 201, 74, 0.8));
+        }
+
+        /* Sistema de posicionamento em arco - Player 2 (invertido) */
+        .player2-hand .card {
+            margin: 0 -15px;
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            transform-origin: center top;
+            z-index: 10;
+        }
+
+        .player2-hand .card:nth-child(1) { transform: rotate(20deg) translateY(-10px); }
+        .player2-hand .card:nth-child(2) { transform: rotate(15deg) translateY(-5px); }
+        .player2-hand .card:nth-child(3) { transform: rotate(10deg) translateY(-2px); }
+        .player2-hand .card:nth-child(4) { transform: rotate(5deg) translateY(0px); }
+        .player2-hand .card:nth-child(5) { transform: rotate(0deg) translateY(0px); }
+        .player2-hand .card:nth-child(6) { transform: rotate(-5deg) translateY(0px); }
+        .player2-hand .card:nth-child(7) { transform: rotate(-10deg) translateY(-2px); }
+        .player2-hand .card:nth-child(8) { transform: rotate(-15deg) translateY(-5px); }
+        .player2-hand .card:nth-child(9) { transform: rotate(-20deg) translateY(-10px); }
+
+        /* Efeito hover para Player 2 */
+        .player2-hand .card:hover {
+            transform: rotate(0deg) scale(2.2) translateY(60px) !important;
+            z-index: 1001;
+            box-shadow: 0 20px 40px rgba(201, 165, 103, 0.8), 0 0 30px rgba(245, 201, 74, 0.6);
+            border-color: var(--energy-color);
+            filter: brightness(1.2) drop-shadow(0 0 20px rgba(245, 201, 74, 0.8));
+        }
+
+        /* Efeito de afastamento das cartas vizinhas ao fazer hover */
+        .player1-hand .card:hover ~ .card {
+            transform: translateX(20px) !important;
+        }
+
+        .player1-hand .card:hover + .card + .card {
+            transform: translateX(10px) !important;
+        }
+
+        .player2-hand .card:hover ~ .card {
+            transform: translateX(20px) !important;
+        }
+
+        .player2-hand .card:hover + .card + .card {
+            transform: translateX(10px) !important;
+        }
+
+        /* Quando passa o mouse por cima de uma carta, as anteriores se afastam para a esquerda */
+        .player1-hand:hover .card:not(:hover) {
+            filter: brightness(0.7);
+            transform: scale(0.95) !important;
+        }
+
+        .player2-hand:hover .card:not(:hover) {
+            filter: brightness(0.7);
+            transform: scale(0.95) !important;
+        }
+
+        /* Efeitos especiais para cartas selecionáveis */
+        .card.can-be-summoned {
             position: relative;
         }
 
-        /* Efeito específico para mão do player 2 (parte superior) */
-        .player2-hand .card:hover {
-            transform: scale(1.6) translateY(20px);
+        .card.can-be-summoned::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            right: -5px;
+            bottom: -5px;
+            background: linear-gradient(45deg, var(--energy-color), transparent, var(--energy-color));
+            border-radius: inherit;
+            z-index: -1;
+            animation: summon-glow 2s infinite;
+        }
+
+        @keyframes summon-glow {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.7; }
+        }
+
+        /* Animação de entrada para cartas sacadas */
+        .card.new-card {
+            animation: card-draw 0.8s ease-out;
+            transform-origin: center bottom;
+        }
+
+        @keyframes card-draw {
+            0% { 
+                transform: scale(0) rotate(180deg);
+                opacity: 0;
+            }
+            50% { 
+                transform: scale(1.1) rotate(10deg);
+                opacity: 0.8;
+            }
+            100% { 
+                transform: scale(1) rotate(0deg);
+                opacity: 1;
+            }
+        }
+
+        /* Efeito de partículas ao invocar carta */
+        .card.summoning {
+            position: relative;
+            overflow: visible;
+        }
+
+        .card.summoning::after {
+            content: '✨';
+            position: absolute;
+            font-size: 1.5em;
+            animation: sparkle 0.6s ease-out;
+            pointer-events: none;
+        }
+
+        @keyframes sparkle {
+            0% { 
+                transform: translate(-50%, -50%) scale(0);
+                opacity: 0;
+            }
+            50% { 
+                transform: translate(-50%, -50%) scale(1.5);
+                opacity: 1;
+            }
+            100% { 
+                transform: translate(-50%, -50%) scale(0);
+                opacity: 0;
+            }
         }
 
         .card.selected {
@@ -766,6 +1058,30 @@
             }
         }
 
+        .card.cannot-be-targeted {
+            border-color: #888888 !important;
+            box-shadow: 0 0 10px rgba(136, 136, 136, 0.5) !important;
+            cursor: not-allowed;
+            background: linear-gradient(135deg, var(--card-bg-color) 0%, rgba(136, 136, 136, 0.3) 100%) !important;
+            opacity: 0.6;
+            position: relative;
+        }
+
+        .card.cannot-be-targeted::after {
+            content: "🛡️";
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 16px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         .card.already-attacked {
             filter: grayscale(50%) brightness(0.7);
             border-color: #666 !important;
@@ -812,18 +1128,19 @@
         }
 
         /* Regras específicas para cartas de suporte na mão do jogador */
-        .player1-hand .card.support:hover,
-        .player2-hand .card.support:hover {
-            border: 3px solid #e6e6e6 !important;
-            box-shadow: 0 0 15px rgba(192, 192, 192, 0.8), 0 0 30px rgba(192, 192, 192, 0.5) !important;
-        }
-
-        .player2-hand .card.support:hover {
-            transform: scale(1.6) translateY(20px) !important;
-        }
-
         .player1-hand .card.support:hover {
-            transform: scale(1.6) translateY(-20px) !important;
+            transform: rotate(0deg) scale(2.2) translateY(-60px) !important;
+            border: 3px solid #e6e6e6 !important;
+            box-shadow: 0 20px 40px rgba(192, 192, 192, 0.8), 0 0 30px rgba(230, 230, 230, 0.6) !important;
+            filter: brightness(1.2) drop-shadow(0 0 20px rgba(230, 230, 230, 0.8)) !important;
+        }
+
+        .player2-hand .card.support:hover {
+            transform: rotate(0deg) scale(2.2) translateY(60px) !important;
+            border: 3px solid #e6e6e6 !important;
+            box-shadow: 0 20px 40px rgba(192, 192, 192, 0.8), 0 0 30px rgba(230, 230, 230, 0.6) !important;
+            filter: brightness(1.2) drop-shadow(0 0 20px rgba(230, 230, 230, 0.8)) !important;
+            z-index: 1001 !important;
         }
 
         /* Custo prateado para cartas de suporte */
@@ -964,35 +1281,204 @@
         /* Visual para criaturas equipadas - carta empilhada */
         .card.equipped {
             position: relative;
-            z-index: 2;
-            margin: 3px;
-            width: calc(100% - 6px);
-            height: calc(100% - 6px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+            z-index: 1;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+            cursor: pointer;
         }
 
-        /* Carta de suporte empilhada atrás - efeito como na foto */
-        .equipment-card {
+        /* Indicador visual para criaturas equipadas - círculo prateado */
+        .card.equipped::after {
+            content: "⚡";
             position: absolute;
             top: -5px;
-            left: -5px;
+            right: -5px;
+            background: linear-gradient(45deg, #c0c0c0, #e6e6e6);
+            color: var(--bg-color);
+            border-radius: 50%;
+            width: 22px;
+            height: 22px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            z-index: 10;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5), 0 0 10px rgba(192, 192, 192, 0.6);
+            border: 2px solid #ffffff;
+            animation: equipment-indicator-glow 2s infinite;
+        }
+
+        /* Brilho sutil na carta principal equipada */
+        .card.equipped {
+            box-shadow: 0 3px 6px rgba(0,0,0,0.4), 0 0 12px rgba(201, 165, 103, 0.2);
+            border: 3px solid var(--primary-color);
+            outline: 2px solid #c0c0c0;
+            outline-offset: 1px;
+            animation: silver-border-blink 2s infinite;
+        }
+
+        .card.equipped:hover::after {
+            animation: equipment-indicator-glow-fast 0.8s infinite;
+        }
+
+        /* Animação mais rápida para o indicador no hover */
+        @keyframes equipment-indicator-glow-fast {
+            0%, 100% { 
+                background: linear-gradient(45deg, #e6e6e6, #ffffff);
+                border-color: #f0f0f0;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 0 15px rgba(255, 255, 255, 0.8);
+                transform: scale(1);
+            }
+            50% { 
+                background: linear-gradient(45deg, #ffffff, #f0f0f0);
+                border-color: #ffffff;
+                box-shadow: 0 3px 10px rgba(0,0,0,0.7), 0 0 20px rgba(255, 255, 255, 1);
+                transform: scale(1.1);
+            }
+        }
+
+        .card.equipped:hover {
+            animation: silver-border-blink-fast 0.8s infinite;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.6), 0 0 20px rgba(201, 165, 103, 0.4), 0 0 30px rgba(192, 192, 192, 0.3);
+        }
+
+        /* Animação mais rápida no hover */
+        @keyframes silver-border-blink-fast {
+            0%, 100% { 
+                outline-color: #e6e6e6;
+                outline-width: 3px;
+            }
+            50% { 
+                outline-color: #ffffff;
+                outline-width: 4px;
+            }
+        }
+
+        /* Animação para o indicador de equipamento */
+        @keyframes equipment-indicator-glow {
+            0%, 100% { 
+                background: linear-gradient(45deg, #c0c0c0, #e6e6e6);
+                border-color: #ffffff;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.5), 0 0 10px rgba(192, 192, 192, 0.6);
+            }
+            50% { 
+                background: linear-gradient(45deg, #e6e6e6, #ffffff);
+                border-color: #f0f0f0;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 0 15px rgba(255, 255, 255, 0.8);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+
+        /* Animação de piscar para a borda prateada */
+        @keyframes silver-border-blink {
+            0%, 100% { 
+                outline-color: #c0c0c0;
+                outline-width: 2px;
+            }
+            25% { 
+                outline-color: #e6e6e6;
+                outline-width: 2px;
+            }
+            50% { 
+                outline-color: #ffffff;
+                outline-width: 3px;
+            }
+            75% { 
+                outline-color: #e6e6e6;
+                outline-width: 2px;
+            }
+        }
+
+        /* Sistema de notificação para mudanças de turno */
+        .turn-notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, var(--primary-color), var(--energy-color));
+            color: var(--bg-color);
+            padding: 20px 30px;
+            border-radius: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            z-index: 2000;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.8);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            backdrop-filter: blur(4px);
+            border: 3px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .turn-notification.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .turn-notification.hide {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.9);
+        }
+
+        /* Carta de suporte empilhada atrás - efeito mais sutil */
+        .equipment-card {
+            position: absolute;
+            top: -3px;
+            left: -3px;
             width: 100%;
             height: 100%;
-            z-index: 0;
-            transform: rotate(0deg);
-            opacity: 1;
-            pointer-events: none;
+            z-index: -1;
+            transform: rotate(-2deg);
+            opacity: 0.7;
+            pointer-events: auto;
+            cursor: pointer;
             transition: all 0.3s ease;
+            border: 2px solid rgba(192, 192, 192, 0.6);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            filter: brightness(0.8);
         }
 
-        /* Quando a criatura faz hover, as cartas de equipamento também se movem */
-        .card.equipped:hover .equipment-card {
-            transform: rotate(0deg) scale(1.6) translateY(-20px);
+        .equipment-card:hover {
+            opacity: 0.9;
+            z-index: -1;
+            transform: rotate(-2deg) scale(1.02);
+            box-shadow: 0 2px 8px rgba(192, 192, 192, 0.5);
+            filter: brightness(0.9);
         }
 
-        /* Para mão do player 2 */
+        /* Múltiplos equipamentos - offsets menores e mais sutis */
+        .equipment-card:nth-child(n+2) {
+            top: -2px;
+            left: -2px;
+            transform: rotate(1deg);
+            z-index: -2;
+            opacity: 0.6;
+        }
+
+        .equipment-card:nth-child(n+3) {
+            top: -1px;
+            left: -1px;
+            transform: rotate(-0.5deg);
+            z-index: -3;
+            opacity: 0.5;
+        }
+
+        /* Quando a criatura equipada faz hover na mão, as cartas de equipamento também se movem */
+        .player1-hand .card.equipped:hover .equipment-card {
+            transform: rotate(-5deg) scale(2.1) translateY(-55px) translateX(-10px);
+            opacity: 0.8;
+            z-index: 999;
+        }
+
         .player2-hand .card.equipped:hover .equipment-card {
-            transform: rotate(0deg) scale(1.6) translateY(20px);
+            transform: rotate(5deg) scale(2.1) translateY(55px) translateX(-10px);
+            opacity: 0.8;
+            z-index: 999;
         }
 
 
@@ -1014,25 +1500,7 @@
             color: var(--bg-color);
         }
 
-        /* Contador de equipamentos */
-        .equipment-counter {
-            position: absolute;
-            top: -8px;
-            right: -8px;
-            width: 20px;
-            height: 20px;
-            background: linear-gradient(45deg, #c0c0c0, #e6e6e6);
-            border: 2px solid #ffffff;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.7em;
-            font-weight: bold;
-            color: var(--bg-color);
-            z-index: 100;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
+
 
         /* Container para cartas equipadas */
         .card-equipment-container {
@@ -1081,29 +1549,47 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.9);
             display: none;
             align-items: center;
             justify-content: center;
             z-index: 1000;
+            backdrop-filter: blur(4px);
         }
 
         .card-modal.visible {
             display: flex;
+            animation: modalFadeIn 0.3s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from { 
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to { 
+                opacity: 1;
+                transform: scale(1);
+            }
         }
 
         .modal-card {
-            width: 200px;
-            height: 280px;
             background: linear-gradient(135deg, var(--card-bg-color) 0%, var(--secondary-color) 100%);
             border: 3px solid var(--primary-color);
-            border-radius: 15px;
-            padding: 15px;
+            border-radius: 20px;
+            padding: 20px;
+            position: relative;
+            max-width: 90vw;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+        }
+
+        .modal-card-content {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 10px;
-            position: relative;
+            gap: 0;
         }
 
         .modal-close {
@@ -1118,6 +1604,85 @@
             border-radius: 50%;
             cursor: pointer;
             font-weight: bold;
+        }
+
+        /* Modal de Descarte */
+        .discard-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+
+        .discard-modal.visible {
+            display: flex;
+            animation: modalFadeIn 0.3s ease-out;
+        }
+
+        .discard-modal-content {
+            background: linear-gradient(135deg, var(--card-bg-color) 0%, var(--secondary-color) 100%);
+            border: 3px solid var(--primary-color);
+            border-radius: 20px;
+            padding: 20px;
+            position: relative;
+            width: 80vw;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+        }
+
+        .discard-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 10px;
+        }
+
+        .discard-modal-header h3 {
+            color: var(--primary-color);
+            margin: 0;
+        }
+
+        .discard-cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 15px;
+            max-height: 60vh;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .discard-cards-grid::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .discard-cards-grid::-webkit-scrollbar-track {
+            background: var(--bg-color);
+            border-radius: 4px;
+        }
+
+        .discard-cards-grid::-webkit-scrollbar-thumb {
+            background: var(--primary-color);
+            border-radius: 4px;
+        }
+
+        .discard-card-item {
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .discard-card-item:hover {
+            transform: scale(1.05);
         }
 
         /* Responsividade */
@@ -1281,14 +1846,16 @@
         <!-- Header com informações dos jogadores -->
     <div class="game-container">
         <!-- Player 2 Areas (Top Row) -->
-        <div class="player2-discard">
+        <div class="player2-discard" onclick="viewDiscard('p2')" style="cursor: pointer;">
             <div>Pilha de descarte</div>
             <div style="font-size: 12px; color: var(--primary-color);">Player 2</div>
+            <div id="discard-count-p2" style="font-size: 10px; margin-top: 5px;">0 cartas</div>
         </div>
         
         <div class="player2-hand">
-            <div class="hand-title">Mão - Jogador 2</div>
+            <div class="hand-title" id="hand-title-p2" data-count="0">Mão - Jogador 2</div>
             <div id="hand-p2"></div>
+            <button class="peek-hand-btn" onclick="peekHand('p2')" onmouseleave="stopPeeking('p2')">👁️ Espiar Mão</button>
         </div>
         
         <div class="player2-deck" onclick="addCardToHand('p2')">
@@ -1381,13 +1948,15 @@
         </div>
         
         <div class="player1-hand">
-            <div class="hand-title">Mão - Jogador 1</div>
+            <div class="hand-title" id="hand-title-p1" data-count="0">Mão - Jogador 1</div>
             <div id="hand-p1"></div>
+            <button class="peek-hand-btn" onclick="peekHand('p1')" onmouseleave="stopPeeking('p1')">👁️ Espiar Mão</button>
         </div>
         
-        <div class="player1-discard">
+        <div class="player1-discard" onclick="viewDiscard('p1')" style="cursor: pointer;">
             <div>Pilha de descarte</div>
             <div style="font-size: 12px; color: var(--primary-color);">Player 1</div>
+            <div id="discard-count-p1" style="font-size: 10px; margin-top: 5px;">0 cartas</div>
         </div>
     </div>
 
@@ -1399,6 +1968,24 @@
         </div>
     </div>
 
+    <!-- Modal para visualizar descarte -->
+    <div class="discard-modal" id="discardModal">
+        <div class="discard-modal-content">
+            <div class="discard-modal-header">
+                <h3 id="discardModalTitle">Pilha de Descarte</h3>
+                <button class="modal-close" onclick="closeDiscardModal()">&times;</button>
+            </div>
+            <div class="discard-cards-grid" id="discardCardsGrid">
+                <!-- Cartas descartadas aparecerão aqui -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Notificação de mudança de turno -->
+    <div class="turn-notification" id="turnNotification">
+        <div id="notificationText"></div>
+    </div>
+
     <!-- Elementos de áudio -->
     <audio id="punchSound" preload="auto"><source src="punch.mp3" type="audio/mpeg"></audio>
     <audio id="victorySound" preload="auto"><source src="victory.mp3" type="audio/mpeg"></audio>
@@ -1406,7 +1993,17 @@
     <audio id="healingSound" preload="auto"><source src="healing.mp3" type="audio/mpeg"></audio>
     <audio id="wasteSound" preload="auto"><source src="waste.mp3" type="audio/mpeg"></audio>
 
+    <!-- Sistema de Habilidades das Cartas -->
+    <script src="card-abilities.js"></script>
     <script src="deck_system.js"></script>
+    <script src="test_features.js"></script>
+    <script src="ability_guide.js"></script>
+    <script src="test_tobinha.js"></script>
+    <script src="test_all_protections.js"></script>
+    <script src="test_attack_calculation.js"></script>
+    <script src="ability_audit.js"></script>
+    <script src="manual_abilities.js"></script>
+    <script src="test_mago_arcano.js"></script>
     <script>
         // Constantes do jogo
         const INITIAL_PV = 100;
@@ -1424,8 +2021,8 @@
             targetCard: null,
             attackedThisTurn: [], // IDs das cartas que já atacaram este turno
             cards: {
-                p1: { hand: [], field: [] },
-                p2: { hand: [], field: [] }
+                p1: { hand: [], field: [], discard: [] },
+                p2: { hand: [], field: [], discard: [] }
             }
         };
 
@@ -1449,6 +2046,16 @@
             if (stat === 'energy' && amount < 0) playSound('wasteSound');
 
             element.innerText = newValue;
+
+            // Efeito visual para energia ganha automaticamente no turno
+            if (stat === 'energy' && amount > 0) {
+                element.style.transform = 'scale(1.3)';
+                element.style.boxShadow = '0 0 20px var(--energy-color)';
+                setTimeout(() => {
+                    element.style.transform = '';
+                    element.style.boxShadow = '';
+                }, 600);
+            }
 
             // Verificar vitória
             if (stat === 'pv' && newValue <= 0) {
@@ -1573,12 +2180,36 @@
             gameState.currentPhase = 'energy';
             gameState.turn++;
             
+            // Processar efeitos temporários das habilidades
+            if (window.cardAbilities) {
+                window.cardAbilities.processTurnEffects();
+            }
+            
             // Limpar lista de cartas que atacaram
             gameState.attackedThisTurn = [];
             updateAttackedCardsVisual();
             
+            // Obter nome do jogador atual
+            const currentPlayerName = gameState.currentPlayer === 'p1' ? 'Jogador 1' : 'Jogador 2';
+            
+            // Adicionar +1 energia automaticamente
             changeStat('energy', gameState.currentPlayer, 1);
+            
+            // Mostrar notificação de energia
+            showTurnNotification(`⚡ ${currentPlayerName}<br/>+1 Energia`, 1000);
+            
             updateUI();
+            
+            // Automaticamente mudar para fase de invocação após delay
+            setTimeout(() => {
+                gameState.currentPhase = 'invocation';
+                updateUI();
+                
+                // Mostrar segunda notificação da fase
+                showTurnNotification(`🃏 ${currentPlayerName}<br/>Fase de Invocação`, 1500);
+                
+                console.log(`🔄 Turno de ${gameState.currentPlayer}: +1 Energia → Fase de Invocação`);
+            }, 1200);
         }
 
         // Nova função para definir fase diretamente
@@ -1625,6 +2256,9 @@
             document.getElementById('field-p1').classList.remove('field-active');
             document.getElementById('field-p2').classList.remove('field-active');
             document.getElementById(`field-${gameState.currentPlayer}`).classList.add('field-active');
+
+            // Controlar visibilidade das mãos baseado no turno
+            updateHandVisibility();
 
             // Mostrar/ocultar informações de combate e botão de ataque direto
             const combatInfo = document.getElementById('combat-info');
@@ -1704,6 +2338,39 @@
                 card.classList.remove('can-be-summoned');
             });
         }
+
+        function updateHandVisibility() {
+            const player1Hand = document.querySelector('.player1-hand');
+            const player2Hand = document.querySelector('.player2-hand');
+            
+            // Remover classes anteriores
+            player1Hand.classList.remove('player-hand-hidden', 'player-hand-peeking');
+            player2Hand.classList.remove('player-hand-hidden', 'player-hand-peeking');
+            
+            // Esconder a mão do jogador que não está no turno
+            if (gameState.currentPlayer === 'p1') {
+                player2Hand.classList.add('player-hand-hidden');
+                console.log('🎮 Turno do Player 1 - Escondendo mão do Player 2');
+            } else {
+                player1Hand.classList.add('player-hand-hidden');
+                console.log('🎮 Turno do Player 2 - Escondendo mão do Player 1');
+            }
+        }
+
+        function peekHand(player) {
+            // Só permite espiar se não for o turno do jogador
+            if (gameState.currentPlayer !== player) {
+                const handElement = document.querySelector(`.player${player === 'p1' ? '1' : '2'}-hand`);
+                handElement.classList.add('player-hand-peeking');
+                console.log(`👁️ Espiando mão do ${player}`);
+            }
+        }
+
+        function stopPeeking(player) {
+            const handElement = document.querySelector(`.player${player === 'p1' ? '1' : '2'}-hand`);
+            handElement.classList.remove('player-hand-peeking');
+            console.log(`🙈 Parando de espiar mão do ${player}`);
+        }
         
         function setupCombatPhase() {
             clearCombatHighlights();
@@ -1729,15 +2396,27 @@
         function highlightTargets() {
             const opponent = gameState.currentPlayer === 'p1' ? 'p2' : 'p1';
             const opponentCards = gameState.cards[opponent].field;
+            const attackerId = gameState.attackingCard;
             
             console.log('Destacando alvos para', opponent, 'cartas:', opponentCards.length);
             
-            // Destacar cartas inimigas
+            let validTargets = 0;
+            
+            // Verificar e destacar apenas cartas que podem ser atacadas
             opponentCards.forEach(card => {
                 const element = document.getElementById(card.id);
                 if (element) {
-                    element.classList.add('can-be-targeted');
-                    console.log('Destacando carta:', card.id);
+                    // Verificar se o atacante pode atacar este alvo
+                    const attackCheck = canAttackTarget(attackerId, card.id);
+                    
+                    if (attackCheck.canAttack) {
+                        element.classList.add('can-be-targeted');
+                        validTargets++;
+                        console.log('✅ Destacando carta válida:', card.id);
+                    } else {
+                        element.classList.add('cannot-be-targeted');
+                        console.log('❌ Carta protegida:', card.id, '-', attackCheck.reason);
+                    }
                 } else {
                     console.log('Elemento não encontrado:', card.id);
                 }
@@ -1745,12 +2424,22 @@
 
             // Controlar botão de ataque direto
             const directAttackBtn = document.getElementById('direct-attack-btn');
+            const protectedCards = opponentCards.length - validTargets;
+            
             if (opponentCards.length === 0) {
                 directAttackBtn.style.display = 'inline-block';
                 updateCombatInfo('Campo inimigo vazio! Use "Ataque Direto"');
+            } else if (validTargets === 0) {
+                directAttackBtn.style.display = 'inline-block';
+                updateCombatInfo(`Todas as cartas inimigas estão protegidas! Use "Ataque Direto"`);
             } else {
                 directAttackBtn.style.display = 'inline-block';
-                updateCombatInfo('Agora clique em uma carta inimiga (vermelha) para atacar ou use "Ataque Direto"');
+                let message = `Clique em uma carta inimiga (vermelha) para atacar`;
+                if (protectedCards > 0) {
+                    message += ` - ${protectedCards} carta(s) protegida(s) 🛡️`;
+                }
+                message += ` ou use "Ataque Direto"`;
+                updateCombatInfo(message);
             }
         }
 
@@ -1760,14 +2449,34 @@
 
         function isCardInField(cardId) {
             console.log('🏟️ Verificando se carta está em campo:', cardId);
+            
+            // Verificar no gameState primeiro
             for (let player of ['p1', 'p2']) {
                 const found = gameState.cards[player].field.find(c => c.id === cardId);
                 console.log(`🏟️ Player ${player} field:`, gameState.cards[player].field.length, 'cartas');
                 if (found) {
-                    console.log('🏟️ Carta encontrada em campo:', player);
+                    console.log('🏟️ Carta encontrada em gameState campo:', player);
                     return true;
                 }
             }
+            
+            // Verificar no DOM também (para cartas equipadas ou outras situações)
+            const cardElement = document.getElementById(cardId);
+            if (cardElement) {
+                const fieldP1 = document.getElementById('field-p1');
+                const fieldP2 = document.getElementById('field-p2');
+                
+                const isInP1Field = fieldP1.contains(cardElement);
+                const isInP2Field = fieldP2.contains(cardElement);
+                
+                if (isInP1Field || isInP2Field) {
+                    console.log('🏟️ Carta encontrada no DOM campo:', isInP1Field ? 'p1' : 'p2');
+                    console.log('🏟️ Elemento da carta:', cardElement);
+                    console.log('🏟️ Classes da carta:', cardElement.className);
+                    return true;
+                }
+            }
+            
             console.log('🏟️ Carta NÃO encontrada em campo');
             return false;
         }
@@ -1775,8 +2484,9 @@
 
 
         function clearCombatHighlights() {
+            console.log('🧹 Limpando highlights de combate');
             document.querySelectorAll('.card').forEach(card => {
-                card.classList.remove('attacking', 'can-attack', 'can-be-targeted', 'direct-attack');
+                card.classList.remove('attacking', 'can-attack', 'can-be-targeted', 'cannot-be-targeted', 'direct-attack');
             });
             
             // Ocultar botão de ataque direto
@@ -1787,56 +2497,189 @@
             gameState.targetCard = null;
         }
 
+        function canAttackTarget(attackerId, targetId) {
+            const attacker = findCardData(attackerId);
+            const target = findCardData(targetId);
+            
+            if (!attacker || !target) {
+                return { canAttack: false, reason: 'Cartas não encontradas' };
+            }
+
+            // Verificar proteções do alvo via sistema de habilidades
+            if (window.cardAbilities) {
+                const targetProtections = window.cardAbilities.permanentEffects.get(targetId);
+                
+                if (targetProtections) {
+                    // Verificar proteção de fofura (Tobinha e Boguinha)
+                    if (targetProtections.has('cuteness_protection')) {
+                        const protection = targetProtections.get('cuteness_protection');
+                        if (protection.immuneToHighCostAttacks && attacker.data.cost > protection.maxAttackerCost) {
+                            return { 
+                                canAttack: false, 
+                                reason: `${target.data.name} está protegido contra criaturas com custo > ${protection.maxAttackerCost}! (${attacker.data.name} tem custo ${attacker.data.cost})` 
+                            };
+                        }
+                    }
+                    
+                    // Verificar imunidade a habilidades fracas (Turtol)
+                    if (targetProtections.has('ability_immunity')) {
+                        const protection = targetProtections.get('ability_immunity');
+                        if (protection.immuneToLowCostAbilities && attacker.data.cost < protection.maxAbilityCost) {
+                            return { 
+                                canAttack: false, 
+                                reason: `${target.data.name} é imune a habilidades de criaturas com custo < ${protection.maxAbilityCost}! (${attacker.data.name} tem custo ${attacker.data.cost})` 
+                            };
+                        }
+                    }
+                    
+                    // Verificar imunidade total a habilidades (Iron Dragon)
+                    if (targetProtections.has('total_ability_immunity')) {
+                        const protection = targetProtections.get('total_ability_immunity');
+                        if (protection.immuneToAllAbilities) {
+                            return { 
+                                canAttack: false, 
+                                reason: `${target.data.name} é completamente imune a todas as habilidades inimigas!` 
+                            };
+                        }
+                    }
+                    
+                    // Verificar pele de pedra (Golem de Pedra)
+                    if (targetProtections.has('stone_immunity')) {
+                        const protection = targetProtections.get('stone_immunity');
+                        if (protection.immuneToAbilityDamage) {
+                            return { 
+                                canAttack: false, 
+                                reason: `${target.data.name} tem Pele de Pedra e é imune a danos de habilidades especiais!` 
+                            };
+                        }
+                    }
+                    
+                    // Verificar evasão da montanha (Sábio da Montanha)
+                    if (targetProtections.has('mountain_evasion')) {
+                        const protection = targetProtections.get('mountain_evasion');
+                        if (protection.immuneToLowCostAttacks && attacker.data.cost <= protection.maxAttackerCost) {
+                            return { 
+                                canAttack: false, 
+                                reason: `${target.data.name} usa evasão contra criaturas com custo ≤ ${protection.maxAttackerCost}! (${attacker.data.name} tem custo ${attacker.data.cost})` 
+                            };
+                        }
+                    }
+                    
+                    // Verificar proteção de licantropia (O Lica)
+                    if (targetProtections.has('lycanthropy_protection')) {
+                        const protection = targetProtections.get('lycanthropy_protection');
+                        if (protection.cannotBeTargeted) {
+                            return { 
+                                canAttack: false, 
+                                reason: `${target.data.name} não pode ser atacado devido à Licantropia (oponente tem apenas 1 criatura)!` 
+                            };
+                        }
+                    }
+                }
+            }
+
+            return { canAttack: true, reason: 'Ataque permitido' };
+        }
+
         function performAttack(attackerId, targetId) {
             console.log('Iniciando ataque:', attackerId, 'vs', targetId);
             
             const attacker = findCardData(attackerId);
             const target = findCardData(targetId);
             
+            console.log('🔍 Dados do atacante:', attacker);
+            console.log('🔍 Dados do alvo:', target);
+            
             if (!attacker || !target) {
                 console.log('Erro: dados das cartas não encontrados');
+                console.log('Atacante encontrado:', !!attacker);
+                console.log('Alvo encontrado:', !!target);
+                return;
+            }
+
+            // Verificar se o ataque é permitido
+            const attackCheck = canAttackTarget(attackerId, targetId);
+            if (!attackCheck.canAttack) {
+                console.log('❌ Ataque bloqueado:', attackCheck.reason);
+                showMessage(attackCheck.reason, 'warning');
+                clearCombatHighlights();
+                setupCombatPhase();
                 return;
             }
 
             console.log('Atacante:', attacker.data.name, attacker.data.attack + '/' + attacker.data.defense);
             console.log('Alvo:', target.data.name, target.data.attack + '/' + target.data.defense);
 
+            // Processar habilidades antes do ataque
+            if (window.cardAbilities && window.cardAbilities.onBeforeAttack) {
+                window.cardAbilities.onBeforeAttack(attackerId, targetId);
+            }
+
             const attackPower = attacker.data.attack;
-            const targetDefense = target.data.defense;
+            const targetDefenseOriginal = target.data.defense;
             const targetAttack = target.data.attack;
-            const attackerDefense = attacker.data.defense;
+            const attackerDefenseOriginal = attacker.data.defense;
             
             // Aplicar dano mútuo
             target.data.defense -= attackPower;
             attacker.data.defense -= targetAttack;
 
-            // Atualizar visualmente as cartas
-            updateCardDisplay(attackerId, attacker.data);
-            updateCardDisplay(targetId, target.data);
-
-            // Verificar se cartas foram destruídas
-            let message = `${attacker.data.name} (${attackPower} ATK) atacou ${target.data.name} (${targetAttack} ATK)!\n`;
-            
+            // Verificar se cartas foram destruídas ANTES de modificar para exibição
             const targetDestroyed = target.data.defense <= 0;
             const attackerDestroyed = attacker.data.defense <= 0;
+
+            // Garantir que defesa não fique abaixo de 0 para exibição
+            const targetFinalDefense = Math.max(0, target.data.defense);
+            const attackerFinalDefense = Math.max(0, attacker.data.defense);
+
+            // Atualizar dados das cartas para exibição
+            const targetDisplayData = { ...target.data, defense: targetFinalDefense };
+            const attackerDisplayData = { ...attacker.data, defense: attackerFinalDefense };
+
+            // Atualizar visualmente as cartas
+            updateCardDisplay(attackerId, attackerDisplayData);
+            updateCardDisplay(targetId, targetDisplayData);
+
+            // Preparar mensagem de combate
+            let message = `${attacker.data.name} (${attackPower} ATK) atacou ${target.data.name} (${targetAttack} ATK)!\n`;
             
             if (targetDestroyed) {
+                console.log('🔥 Alvo será destruído:', target.data.name, 'Defesa final:', target.data.defense);
                 message += `${target.data.name} foi destruída! `;
-                // Calcular dano penetrante
-                const penetratingDamage = Math.max(0, attackPower - targetDefense);
+                // Calcular dano penetrante corretamente
+                const penetratingDamage = Math.max(0, attackPower - targetDefenseOriginal);
                 if (penetratingDamage > 0) {
                     changeStat('pv', target.player, -penetratingDamage);
                     message += `${penetratingDamage} de dano penetrante! `;
                 }
-                setTimeout(() => destroyCard(targetId), 1000);
+                setTimeout(() => {
+                    console.log('🔥 Executando destruição do alvo:', targetId);
+                    destroyCard(targetId);
+                }, 1000);
             }
             
             if (attackerDestroyed) {
+                console.log('🔥 Atacante será destruído:', attacker.data.name, 'Defesa final:', attacker.data.defense);
                 message += `${attacker.data.name} foi destruída no contra-ataque! `;
-                setTimeout(() => destroyCard(attackerId), 1000);
+                setTimeout(() => {
+                    console.log('🔥 Executando destruição do atacante:', attackerId);
+                    destroyCard(attackerId);
+                }, 1000);
             }
 
+            // Log detalhado para debug
+            console.log(`💥 Resultado do combate:`);
+            console.log(`   ${attacker.data.name}: ${attackerDefenseOriginal} → ${attacker.data.defense} DEF`);
+            console.log(`   ${target.data.name}: ${targetDefenseOriginal} → ${target.data.defense} DEF`);
+            console.log(`   Atacante destruído: ${attackerDestroyed}`);
+            console.log(`   Alvo destruído: ${targetDestroyed}`);
+
             alert(message);
+            
+            // Processar habilidades após o ataque
+            if (window.cardAbilities && window.cardAbilities.onAfterAttack) {
+                window.cardAbilities.onAfterAttack(attackerId, targetId);
+            }
             
             // Marcar carta como tendo atacado neste turno
             if (!gameState.attackedThisTurn.includes(attackerId)) {
@@ -1874,6 +2717,11 @@
             
             console.log(`${attacker.data.name} atacando diretamente ${opponent} por ${damage} de dano`);
             
+            // Processar habilidades antes do ataque direto (se a função existir)
+            if (window.cardAbilities && window.cardAbilities.onBeforeDirectAttack) {
+                window.cardAbilities.onBeforeDirectAttack(gameState.attackingCard, opponent);
+            }
+            
             changeStat('pv', opponent, -damage);
             alert(`💥 ${attacker.data.name} atacou diretamente!\n${damage} pontos de dano!`);
             
@@ -1901,22 +2749,77 @@
         }
 
         function destroyCard(cardId) {
+            console.log('💥 DESTROY CARD CHAMADA para:', cardId);
+            
             const cardData = findCardData(cardId);
-            if (!cardData) return;
+            if (!cardData) {
+                console.log('💥 ERRO: Dados da carta não encontrados para:', cardId);
+                return;
+            }
+
+            console.log('💥 Dados completos da carta:', cardData);
+            
+            if (!cardData.player) {
+                console.log('💥 ERRO CRÍTICO: cardData.player é undefined!');
+                console.log('💥 Estrutura cardData:', Object.keys(cardData));
+                console.log('💥 Tentando determinar player pela posição no DOM...');
+                
+                // Tentar determinar o player pela posição no DOM como fallback
+                const cardElement = document.getElementById(cardId);
+                if (cardElement) {
+                    const fieldP1 = document.getElementById('field-p1');
+                    const fieldP2 = document.getElementById('field-p2');
+                    
+                    if (fieldP1.contains(cardElement)) {
+                        cardData.player = 'p1';
+                        console.log('💥 Player determinado pelo DOM: p1');
+                    } else if (fieldP2.contains(cardElement)) {
+                        cardData.player = 'p2';
+                        console.log('💥 Player determinado pelo DOM: p2');
+                    } else {
+                        console.log('💥 ERRO: Não foi possível determinar o player');
+                        return;
+                    }
+                } else {
+                    console.log('💥 ERRO: Elemento DOM não encontrado');
+                    return;
+                }
+            }
+
+            console.log('💥 Destruindo carta:', cardData.data.name, 'do jogador', cardData.player);
+            console.log('💥 Estado antes da destruição - Field:', gameState.cards[cardData.player] ? gameState.cards[cardData.player].field.length : 'PLAYER UNDEFINED', 'cartas');
+
+            // Adicionar ao descarte antes de remover do campo
+            addToDiscard(cardData.player, cardData.data);
 
             // Remover da lista do jogador
             const fieldIndex = gameState.cards[cardData.player].field.findIndex(c => c.id === cardId);
+            console.log('💥 Índice da carta no campo:', fieldIndex);
+            
             if (fieldIndex !== -1) {
                 gameState.cards[cardData.player].field.splice(fieldIndex, 1);
+                console.log('💥 Carta removida do gameState. Field agora tem:', gameState.cards[cardData.player].field.length, 'cartas');
+            } else {
+                console.log('💥 ERRO: Carta não encontrada no campo!');
             }
 
             // Remover do DOM com animação
             const cardElement = document.getElementById(cardId);
             if (cardElement) {
+                console.log('💥 Elemento DOM encontrado, iniciando animação');
+                
+                // Efeito visual de destruição
                 cardElement.style.animation = 'cardDestroy 0.5s ease-out forwards';
+                
+                // Mostrar feedback visual de descarte
+                showMessage(`${cardData.data.name} foi para o descarte!`, 'info');
+                
                 setTimeout(() => {
+                    console.log('💥 Removendo elemento do DOM');
                     cardElement.remove();
                 }, 500);
+            } else {
+                console.log('💥 ERRO: Elemento DOM não encontrado para carta:', cardId);
             }
         }
 
@@ -1945,12 +2848,14 @@
             gameState.selectedCard = null;
             gameState.attackingCard = null;
             gameState.targetCard = null;
-            gameState.cards = { p1: { hand: [], field: [] }, p2: { hand: [], field: [] } };
+            gameState.cards = { p1: { hand: [], field: [], discard: [] }, p2: { hand: [], field: [], discard: [] } };
 
             // Clear fields and hands
             ['p1', 'p2'].forEach(player => {
                 document.getElementById(`hand-${player}`).innerHTML = '';
                 document.getElementById(`field-${player}`).innerHTML = '';
+                updateHandCounter(player); // Reset contador de cartas
+                updateDiscardCount(player); // Reset contador de descarte
             });
 
             // Reinicializar decks se sistema estiver carregado
@@ -1965,6 +2870,11 @@
             }
 
             updateUI();
+            
+            // Inicializar visibilidade das mãos
+            setTimeout(() => {
+                updateHandVisibility();
+            }, 100);
         }
 
         // Funções de cartas
@@ -1992,6 +2902,13 @@
             };
             card.ondragend = (e) => dragEnd(e);
             card.onmousedown = (e) => console.log('🖱️ Mouse down on card:', cardId);
+            
+            // Adicionar duplo clique para criaturas equipadas
+            card.ondblclick = () => handleCardDoubleClick(cardId, cardDataCopy);
+            
+            // Adicionar tooltip para criaturas equipadas
+            card.onmouseenter = () => updateTooltipForEquippedCard(cardId);
+            card.onmouseleave = () => clearTooltip(cardId);
             
             console.log('🃏 Card created:', cardId, 'draggable:', card.draggable);
 
@@ -2033,6 +2950,17 @@
             return icons[type] || '❓';
         }
 
+        // Função para atualizar contador de cartas na mão
+        function updateHandCounter(player) {
+            const handElement = document.getElementById(`hand-${player}`);
+            const titleElement = document.getElementById(`hand-title-${player}`);
+            const cardCount = handElement ? handElement.children.length : 0;
+            
+            if (titleElement) {
+                titleElement.setAttribute('data-count', cardCount);
+            }
+        }
+
         function addCardToHand(player) {
             // Verificar limite de 7 cartas na mão usando DOM (mais confiável)
             const handElement = document.getElementById(`hand-${player}`);
@@ -2050,7 +2978,18 @@
                 if (drawnCard) {
                     const newCard = createCard(drawnCard, player);
                     gameState.cards[player].hand.push(newCard);
+                    
+                    // Adicionar animação de entrada
+                    newCard.element.classList.add('new-card');
+                    
                     document.getElementById(`hand-${player}`).appendChild(newCard.element);
+                    updateHandCounter(player); // Atualizar contador
+                    
+                    // Remover classe de animação após completar
+                    setTimeout(() => {
+                        newCard.element.classList.remove('new-card');
+                    }, 800);
+                    
                     console.log('📜 Card added to gameState:', newCard.id, 'Player:', player);
                     console.log('📜 Total cards in hand:', gameState.cards[player].hand.length);
                 }
@@ -2133,18 +3072,55 @@
         }
 
         function handleCombatCardClick(cardId, cardData) {
-            console.log('🗡️ Clique em combate:', cardId);
+            console.log('🗡️ ===== CLIQUE EM COMBATE =====');
+            console.log('🗡️ Carta clicada:', cardId);
+            console.log('🗡️ Dados da carta:', cardData);
             console.log('🗡️ Player da carta:', cardData.player, 'Current Player:', gameState.currentPlayer);
             console.log('🗡️ Atacante atual:', gameState.attackingCard);
             console.log('🗡️ É carta em campo?', isCardInField(cardId));
             console.log('🗡️ É carta inimiga?', cardData.player !== gameState.currentPlayer);
             console.log('🗡️ Tem atacante selecionado?', !!gameState.attackingCard);
+            console.log('🗡️ Estado do gameState:', {
+                currentPlayer: gameState.currentPlayer,
+                currentPhase: gameState.currentPhase,
+                attackingCard: gameState.attackingCard,
+                attackedThisTurn: gameState.attackedThisTurn
+            });
             
             const cardElement = document.getElementById(cardId);
             
             // Se clicou em uma carta inimiga e já tem atacante selecionado
             if (gameState.attackingCard && cardData.player !== gameState.currentPlayer && isCardInField(cardId)) {
                 console.log('✅ CONDIÇÕES ATENDIDAS - Atacando carta inimiga!');
+                console.log('🔄 Atacante:', gameState.attackingCard, '→ Alvo:', cardId);
+                
+                // Verificar se o atacante ainda existe e pode atacar
+                const attackerData = findCardData(gameState.attackingCard);
+                if (!attackerData) {
+                    console.log('❌ Atacante não encontrado');
+                    clearCombatHighlights();
+                    gameState.attackingCard = null;
+                    updateCombatInfo('Selecione uma carta para atacar');
+                    return;
+                }
+                
+                // Verificar se atacante já atacou
+                if (gameState.attackedThisTurn.includes(gameState.attackingCard)) {
+                    console.log('❌ Atacante já atacou este turno');
+                    showMessage('Esta carta já atacou neste turno!', 'warning');
+                    clearCombatHighlights();
+                    gameState.attackingCard = null;
+                    return;
+                }
+
+                // Verificar se o alvo pode ser atacado
+                const attackCheck = canAttackTarget(gameState.attackingCard, cardId);
+                if (!attackCheck.canAttack) {
+                    console.log('❌ Ataque impedido:', attackCheck.reason);
+                    showMessage(attackCheck.reason, 'warning');
+                    return;
+                }
+                
                 performAttack(gameState.attackingCard, cardId);
                 return;
             } else {
@@ -2152,6 +3128,9 @@
                 console.log('   - Tem atacante?', !!gameState.attackingCard);
                 console.log('   - É inimiga?', cardData.player !== gameState.currentPlayer);
                 console.log('   - Está em campo?', isCardInField(cardId));
+                if (gameState.attackingCard) {
+                    console.log('   - Dados do atacante:', findCardData(gameState.attackingCard));
+                }
             }
             
             // Se não há carta atacante selecionada OU clicou em outra carta sua
@@ -2169,7 +3148,7 @@
                     console.log('Selecionando nova carta atacante');
                     // Limpar highlights visuais sem resetar o atacante
                     document.querySelectorAll('.card').forEach(card => {
-                        card.classList.remove('attacking', 'can-attack', 'can-be-targeted', 'direct-attack');
+                        card.classList.remove('attacking', 'can-attack', 'can-be-targeted', 'cannot-be-targeted', 'direct-attack');
                     });
                     
                     gameState.attackingCard = cardId;
@@ -2336,6 +3315,9 @@
                 cardElement.remove();
                 e.currentTarget.appendChild(cardElement);
                 
+                // Atualizar contador de cartas na mão
+                updateHandCounter(targetPlayer);
+                
                 // Animação de invocação
                 cardElement.classList.add('card-play-animation');
                 cardElement.classList.remove('can-be-summoned', 'dragging');
@@ -2347,6 +3329,11 @@
                         highlightSummonableCards();
                     }
                 }, 500);
+                
+                // Ativar habilidades da carta invocada
+                if (window.cardAbilities && window.cardAbilities.onCardSummoned && cardData.data.type === 'criatura') {
+                    window.cardAbilities.onCardSummoned(cardId, cardData.data, targetPlayer);
+                }
                 
                 // Feedback visual
                 updateInvocationInfo(`${cardData.data.name} foi invocada com sucesso!`);
@@ -2381,8 +3368,250 @@
             return null;
         }
 
+        function showCardModal(cardData) {
+            const modal = document.getElementById('cardModal');
+            const modalCard = modal.querySelector('.modal-card');
+            
+            // Limpar conteúdo anterior
+            const existingContent = modalCard.querySelector('.modal-card-content');
+            if (existingContent) {
+                existingContent.remove();
+            }
+            
+            // Criar conteúdo do modal
+            const cardContent = document.createElement('div');
+            cardContent.className = 'modal-card-content';
+            
+            const typeMapping = {
+                'suporte': 'support',
+                'criatura': 'monster',
+                'monster': 'monster',
+                'support': 'support'
+            };
+            const cssType = typeMapping[cardData.type] || cardData.type;
+            
+            const cardImage = cardData.image ? 
+                `<img src="${cardData.image}" alt="${cardData.name}" class="card-image-real" style="width: 100%; height: auto; border-radius: 8px;">` :
+                `<div class="card-image" style="width: 100%; height: 200px; background: var(--secondary-color); border-radius: 8px;"></div>`;
+
+            cardContent.innerHTML = `
+                <div class="card ${cssType}" style="width: 300px; height: 420px; margin: 0 auto; position: relative;">
+                    <div class="card-cost">${cardData.cost}</div>
+                    ${cardImage}
+                    <div class="card-name">${cardData.name}</div>
+                    <div class="card-stats">
+                        <span class="attack">${cardData.attack}</span>
+                        <span>/</span>
+                        <span class="defense">${cardData.defense}</span>
+                    </div>
+                </div>
+                <div style="margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 8px;">
+                    <h3 style="color: var(--primary-color); margin-bottom: 10px; text-align: center;">Habilidade:</h3>
+                    <p style="font-size: 16px; line-height: 1.4; text-align: center; color: var(--text-color);">${cardData.hability}</p>
+                </div>
+            `;
+            
+            // Adicionar conteúdo ao modal
+            modalCard.appendChild(cardContent);
+            
+            // Mostrar modal
+            modal.classList.add('visible');
+        }
+
         function closeCardModal() {
             document.getElementById('cardModal').classList.remove('visible');
+        }
+
+        // ===== SISTEMA DE DESCARTE =====
+        
+        function viewDiscard(player) {
+            const discardPile = gameState.cards[player].discard;
+            const modal = document.getElementById('discardModal');
+            const title = document.getElementById('discardModalTitle');
+            const grid = document.getElementById('discardCardsGrid');
+            
+            // Configurar título
+            const playerName = player === 'p1' ? 'Jogador 1' : 'Jogador 2';
+            title.textContent = `Pilha de Descarte - ${playerName} (${discardPile.length} cartas)`;
+            
+            // Limpar grid
+            grid.innerHTML = '';
+            
+            if (discardPile.length === 0) {
+                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--secondary-color); padding: 40px;">Nenhuma carta descartada</div>';
+            } else {
+                // Mostrar cartas descartadas (mais recentes primeiro)
+                const sortedDiscard = [...discardPile].reverse();
+                
+                sortedDiscard.forEach((cardData, index) => {
+                    const cardElement = createCard(cardData, player);
+                    cardElement.classList.add('discard-card-item');
+                    
+                    // Adicionar indicador de ordem
+                    const orderBadge = document.createElement('div');
+                    orderBadge.textContent = discardPile.length - index;
+                    orderBadge.style.cssText = `
+                        position: absolute;
+                        top: -5px;
+                        right: -5px;
+                        background: var(--pv-zero-color);
+                        color: white;
+                        border-radius: 50%;
+                        width: 20px;
+                        height: 20px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 10px;
+                        font-weight: bold;
+                    `;
+                    cardElement.appendChild(orderBadge);
+                    
+                    // Clique para ver carta em detalhe
+                    cardElement.addEventListener('click', () => {
+                        closeDiscardModal();
+                        showCardModal(cardData);
+                    });
+                    
+                    grid.appendChild(cardElement);
+                });
+            }
+            
+            // Mostrar modal
+            modal.classList.add('visible');
+        }
+
+        function closeDiscardModal() {
+            document.getElementById('discardModal').classList.remove('visible');
+        }
+
+        function addToDiscard(player, cardData) {
+            console.log(`📥 Tentando adicionar carta ao descarte de ${player}:`, cardData ? cardData.name : 'CARTA UNDEFINED');
+            
+            // Validar parâmetros
+            if (!player) {
+                console.log('💥 ERRO: Player é undefined em addToDiscard');
+                return;
+            }
+            
+            if (!cardData) {
+                console.log('💥 ERRO: cardData é undefined em addToDiscard');
+                return;
+            }
+            
+            if (!gameState.cards[player]) {
+                console.log(`💥 ERRO: gameState.cards[${player}] não existe`);
+                return;
+            }
+            
+            if (!gameState.cards[player].discard) {
+                console.log(`💥 ERRO: gameState.cards[${player}].discard não existe, criando...`);
+                gameState.cards[player].discard = [];
+            }
+            
+            gameState.cards[player].discard.push(cardData);
+            updateDiscardCount(player);
+            console.log(`📥 ✅ Carta adicionada com sucesso ao descarte de ${player}`);
+        }
+
+        function updateDiscardCount(player) {
+            if (!player || !gameState.cards[player] || !gameState.cards[player].discard) {
+                console.log('💥 ERRO em updateDiscardCount: parâmetros inválidos', {player, gameState: gameState.cards});
+                return;
+            }
+            
+            const count = gameState.cards[player].discard.length;
+            const countElement = document.getElementById(`discard-count-${player}`);
+            if (countElement) {
+                countElement.textContent = `${count} cartas`;
+                
+                // Efeito visual de atualização
+                if (count > 0) {
+                    countElement.style.color = 'var(--pv-zero-color)';
+                    setTimeout(() => {
+                        countElement.style.color = 'var(--primary-color)';
+                    }, 1000);
+                }
+            }
+        }
+
+        function handleCardDoubleClick(cardId, cardData) {
+            // Não executar duplo clique durante a fase de combate
+            if (gameState.currentPhase === 'combat') {
+                console.log('🚫 Duplo clique desabilitado durante a fase de combate');
+                return;
+            }
+            
+            const cardElement = document.getElementById(cardId);
+            
+            // Feedback visual de duplo clique
+            if (cardElement) {
+                cardElement.style.transform = 'scale(1.05)';
+                setTimeout(() => {
+                    cardElement.style.transform = '';
+                }, 200);
+            }
+            
+            // Verificar se a carta está equipada (tem cartas de suporte)
+            if (cardElement && cardElement.classList.contains('equipped')) {
+                const equipmentCards = cardElement.querySelectorAll('.equipment-card');
+                
+                if (equipmentCards.length > 0) {
+                    // Se há múltiplos equipamentos, mostrar o primeiro (mais recente)
+                    const latestEquipment = equipmentCards[equipmentCards.length - 1];
+                    const supportCardData = JSON.parse(latestEquipment.getAttribute('data-support-card'));
+                    
+                    // Efeito visual na carta de equipamento
+                    latestEquipment.style.transform = 'scale(1.1) rotate(0deg)';
+                    setTimeout(() => {
+                        latestEquipment.style.transform = '';
+                    }, 300);
+                    
+                    // Mostrar modal com a carta de suporte
+                    showCardModal(supportCardData);
+                    
+                    console.log('🔍 Showing equipment modal for:', supportCardData.name);
+                } else {
+                    console.log('⚠️ Creature is marked as equipped but no equipment cards found');
+                }
+            } else if (cardElement) {
+                // Se não está equipada, mostrar a própria carta
+                showCardModal(cardData);
+                console.log('🔍 Showing creature modal for:', cardData.name);
+            }
+        }
+
+        function updateTooltipForEquippedCard(cardId) {
+            const cardElement = document.getElementById(cardId);
+            if (cardElement && cardElement.classList.contains('equipped')) {
+                const equipmentCards = cardElement.querySelectorAll('.equipment-card');
+                if (equipmentCards.length > 0) {
+                    cardElement.title = `Duplo-clique para ver equipamentos (${equipmentCards.length})`;
+                }
+            }
+        }
+
+        function clearTooltip(cardId) {
+            const cardElement = document.getElementById(cardId);
+            if (cardElement) {
+                cardElement.title = '';
+            }
+        }
+
+        // Sistema de notificação para mudanças de turno
+        function showTurnNotification(message, duration = 2000) {
+            const notification = document.getElementById('turnNotification');
+            const text = document.getElementById('notificationText');
+            
+            text.innerHTML = message;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.add('hide');
+                setTimeout(() => {
+                    notification.classList.remove('show', 'hide');
+                }, 400);
+            }, duration);
         }
 
         // Função para mostrar informações dos decks
@@ -2441,11 +3670,8 @@ Cartas restantes:
                 return;
             }
             
-            // Verificar se é o mesmo jogador
-            if (supportCardData.player !== creatureCardData.player) {
-                alert('Você só pode equipar suas próprias criaturas!');
-                return;
-            }
+            // Cartas de suporte podem ser aplicadas em qualquer criatura
+            // (Tanto aliadas quanto inimigas)
             
             // Verificar fase
             if (gameState.currentPhase !== 'invocation') {
@@ -2498,8 +3724,10 @@ Cartas restantes:
             // Criar carta de equipamento visual empilhada
             createEquipmentVisual(creatureElement, supportCardData.data);
             
-            // Atualizar contador de equipamentos
-            updateEquipmentCounter(creatureElement, creatureCardData.data.equipment.length);
+            // Ativar habilidades do equipamento
+            if (window.cardAbilities) {
+                window.cardAbilities.onCardEquipped(supportCardId, supportCardData.data, creatureCardId);
+            }
             
             // Remover carta de suporte da mão
             const handIndex = gameState.cards[supportCardData.player].hand.findIndex(c => c.id === supportCardId);
@@ -2559,52 +3787,59 @@ Cartas restantes:
             const equipmentCard = document.createElement('div');
             equipmentCard.className = 'card equipment-card support';
             
-            // Posicionar as cartas de equipamento como na foto - bordas visíveis
-            const offsetX = -5 - (equipmentCount * 2); // Múltiplos equipamentos com offset
-            const offsetY = -5 - (equipmentCount * 2);
-            const rotation = 0 + (equipmentCount * 1); // Rotação leve para múltiplos
+            // Efeito de empilhamento mais sutil e elegante
+            const baseOffsetX = -3;
+            const baseOffsetY = -3;
+            const offsetIncrement = 1; // Menor incremento para efeito mais sutil
+            const rotationVariation = [-2, 1, -1, 1.5, -0.5]; // Rotações mais suaves
+            const opacityLevels = [0.7, 0.6, 0.5, 0.4, 0.3]; // Opacidade decrescente
+            
+            const offsetX = baseOffsetX - (equipmentCount * offsetIncrement);
+            const offsetY = baseOffsetY - (equipmentCount * offsetIncrement);
+            const rotation = rotationVariation[equipmentCount % rotationVariation.length];
+            const opacity = opacityLevels[equipmentCount] || 0.3;
             
             equipmentCard.style.top = `${offsetY}px`;
             equipmentCard.style.left = `${offsetX}px`;
             equipmentCard.style.transform = `rotate(${rotation}deg)`;
             equipmentCard.style.zIndex = `${-1 - equipmentCount}`;
+            equipmentCard.style.opacity = opacity;
+            
+            // Armazenar dados da carta de suporte para acesso no duplo clique
+            equipmentCard.setAttribute('data-support-card', JSON.stringify(supportCardData));
             
             // Usar apenas imagem real, sem fallback de ícone
             const cardImage = supportCardData.image ? 
                 `<img src="${supportCardData.image}" alt="${supportCardData.name}" class="card-image-real" style="pointer-events: none;">` :
                 `<div class="card-image" style="pointer-events: none;"></div>`;
 
+            const cardImageClickable = supportCardData.image ? 
+                `<img src="${supportCardData.image}" alt="${supportCardData.name}" class="card-image-real">` :
+                `<div class="card-image"></div>`;
+
             equipmentCard.innerHTML = `
-                <div class="card-cost" style="pointer-events: none;">${supportCardData.cost}</div>
-                ${cardImage}
-                <div class="card-name" style="pointer-events: none;">${supportCardData.name}</div>
-                <div class="card-stats" style="pointer-events: none;">
+                <div class="card-cost">${supportCardData.cost}</div>
+                ${cardImageClickable}
+                <div class="card-name">${supportCardData.name}</div>
+                <div class="card-stats">
                     <span class="attack">${supportCardData.attack}</span>
                     <span>/</span>
                     <span class="defense">${supportCardData.defense}</span>
                 </div>
             `;
             
+            // Adicionar clique na carta de equipamento para mostrar modal
+            equipmentCard.onclick = (e) => {
+                e.stopPropagation();
+                showCardModal(supportCardData);
+                console.log('🔍 Clicked on equipment card:', supportCardData.name);
+            };
+            
             // Adicionar a carta de equipamento atrás da criatura
             creatureElement.appendChild(equipmentCard);
         }
 
-        function updateEquipmentCounter(creatureElement, equipmentCount) {
-            // Remover contador existente
-            const existingCounter = creatureElement.querySelector('.equipment-counter');
-            if (existingCounter) {
-                existingCounter.remove();
-            }
-            
-            // Adicionar novo contador se houver equipamentos
-            if (equipmentCount > 0) {
-                const counter = document.createElement('div');
-                counter.className = 'equipment-counter';
-                counter.textContent = equipmentCount;
-                counter.title = `${equipmentCount} equipamento(s)`;
-                creatureElement.appendChild(counter);
-            }
-        }
+
 
         // Inicialização
         document.addEventListener('DOMContentLoaded', async function() {

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste do Sistema de Habilidades</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+        }
+        .test-card {
+            background: #333;
+            border: 2px solid gold;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px;
+            display: inline-block;
+            min-width: 200px;
+        }
+        .card-stats {
+            font-weight: bold;
+            color: #ffcc00;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #log {
+            background: #222;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            height: 300px;
+            overflow-y: auto;
+        }
+        .ability-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #ffcc00;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 Teste do Sistema de Habilidades - X-Monsters</h1>
+    
+    <div>
+        <h2>Cartas de Teste</h2>
+        <div class="test-card" id="card_chocolicia">
+            <h3>Chocolicia</h3>
+            <div class="card-stats">ATK: 8 / DEF: 12</div>
+            <p>Habilidade: Aplica -10 ATK/DEF</p>
+        </div>
+        
+        <div class="test-card" id="card_natalino">
+            <h3>Natalino</h3>
+            <div class="card-stats">ATK: 5 / DEF: 15</div>
+            <p>Habilidade: Cura aliados +10 DEF</p>
+        </div>
+        
+        <div class="test-card" id="card_diabrete">
+            <h3>Diabrete Alado</h3>
+            <div class="card-stats">ATK: 12 / DEF: 8</div>
+            <p>Habilidade: Voo Veloz</p>
+        </div>
+        
+        <div class="test-card" id="card_target">
+            <h3>Alvo de Teste</h3>
+            <div class="card-stats">ATK: 10 / DEF: 10</div>
+            <p>Carta para testar efeitos</p>
+        </div>
+    </div>
+    
+    <div>
+        <h2>Testes de Habilidades</h2>
+        <button onclick="testChocolicia()">Testar Chocolicia (Enfraquecer)</button>
+        <button onclick="testNatalino()">Testar Natalino (Cura Aliados)</button>
+        <button onclick="testDiabrete()">Testar Diabrete (Voo)</button>
+        <button onclick="testEspada()">Testar Espada Mágica</button>
+        <button onclick="testEstrela()">Testar Estrela Mágica</button>
+        <button onclick="clearLog()">Limpar Log</button>
+    </div>
+    
+    <div id="log">
+        <h3>📝 Log de Testes</h3>
+    </div>
+
+    <script>
+        // Simular gameState básico
+        window.gameState = {
+            currentPlayer: 'p1',
+            turn: 1,
+            cards: {
+                p1: {
+                    field: [
+                        { id: 'card_chocolicia', data: { name: 'Chocolicia', attack: 8, defense: 12, type: 'criatura' } },
+                        { id: 'card_natalino', data: { name: 'Natalino', attack: 5, defense: 15, type: 'criatura' } },
+                        { id: 'card_diabrete', data: { name: 'Diabrete Alado', attack: 12, defense: 8, type: 'criatura' } }
+                    ],
+                    hand: []
+                },
+                p2: {
+                    field: [
+                        { id: 'card_target', data: { name: 'Alvo de Teste', attack: 10, defense: 10, type: 'criatura' } }
+                    ],
+                    hand: []
+                }
+            }
+        };
+        
+        // Funções auxiliares para o teste
+        window.updateCardDisplay = function(cardId, cardData) {
+            const cardElement = document.getElementById(cardId);
+            if (cardElement) {
+                const statsElement = cardElement.querySelector('.card-stats');
+                if (statsElement) {
+                    statsElement.textContent = `ATK: ${cardData.attack} / DEF: ${cardData.defense}`;
+                }
+            }
+            log(`🔄 Carta ${cardData.name} atualizada: ${cardData.attack}/${cardData.defense}`);
+        };
+        
+        window.changeStat = function(stat, player, value) {
+            log(`📊 ${player} ${stat}: ${value > 0 ? '+' : ''}${value}`);
+        };
+        
+        function log(message) {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '<h3>📝 Log de Testes</h3>';
+        }
+        
+        // Funções de teste
+        function testChocolicia() {
+            log('🧪 Iniciando teste: Chocolicia - Enfraquecer Criatura');
+            if (window.cardAbilities) {
+                window.cardAbilities.chocolicia_weaken('card_target');
+            } else {
+                log('❌ Sistema de habilidades não carregado');
+            }
+        }
+        
+        function testNatalino() {
+            log('🧪 Iniciando teste: Natalino - Cura Aliados');
+            if (window.cardAbilities) {
+                window.cardAbilities.natalino_healAllies('p1');
+            } else {
+                log('❌ Sistema de habilidades não carregado');
+            }
+        }
+        
+        function testDiabrete() {
+            log('🧪 Iniciando teste: Diabrete Alado - Voo Veloz');
+            if (window.cardAbilities) {
+                window.cardAbilities.diabrete_directAttack('card_diabrete');
+            } else {
+                log('❌ Sistema de habilidades não carregado');
+            }
+        }
+        
+        function testEspada() {
+            log('🧪 Iniciando teste: Espada Mágica - Boost +5/+5');
+            if (window.cardAbilities) {
+                window.cardAbilities.espadaMagica_boost('card_target');
+            } else {
+                log('❌ Sistema de habilidades não carregado');
+            }
+        }
+        
+        function testEstrela() {
+            log('🧪 Iniciando teste: Estrela Mágica - Escudo Protetor');
+            if (window.cardAbilities) {
+                window.cardAbilities.estrelaMagica_shield('card_target');
+            } else {
+                log('❌ Sistema de habilidades não carregado');
+            }
+        }
+        
+        log('✅ Sistema de teste inicializado');
+        log('🎯 Clique nos botões acima para testar as habilidades');
+    </script>
+    
+    <!-- Carregar o sistema de habilidades -->
+    <script src="card-abilities.js"></script>
+    
+    <script>
+        // Verificar se o sistema foi carregado
+        setTimeout(() => {
+            if (window.cardAbilities) {
+                log('✅ Sistema de Habilidades carregado com sucesso!');
+                log('📋 Habilidades disponíveis: ' + Object.keys(window.cardAbilities).length + ' métodos');
+            } else {
+                log('❌ Falha ao carregar o Sistema de Habilidades');
+            }
+        }, 100);
+    </script>
+</body>
+</html>

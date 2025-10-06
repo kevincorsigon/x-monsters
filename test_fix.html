@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Teste Sistema Habilidades</title>
+</head>
+<body>
+    <h1>Teste do Sistema de Habilidades</h1>
+    
+    <script>
+        // Simular gameState
+        window.gameState = {
+            cards: {
+                p1: { field: [{ id: 'test1', data: { name: 'Teste1', type: 'criatura' } }] },
+                p2: { field: [{ id: 'test2', data: { name: 'Teste2', type: 'criatura' } }] }
+            }
+        };
+        
+        // Simular findCardData
+        window.findCardData = function(cardId) {
+            for (const player of ['p1', 'p2']) {
+                const card = window.gameState.cards[player].field.find(c => c.id === cardId);
+                if (card) return { ...card, player };
+            }
+            return null;
+        };
+        
+        console.log('🧪 Ambiente de teste carregado');
+    </script>
+    
+    <script src="card-abilities.js"></script>
+    
+    <script>
+        // Testar o sistema
+        setTimeout(() => {
+            if (window.cardAbilities) {
+                console.log('✅ Sistema carregado com sucesso');
+                
+                // Testar findCardById
+                const card = window.cardAbilities.findCardById('test1');
+                console.log('🎯 Teste findCardById:', card);
+                
+                // Testar getCardById
+                const card2 = window.cardAbilities.getCardById('test2');
+                console.log('🎯 Teste getCardById:', card2);
+                
+                // Testar getAllyCreatures
+                const allies = window.cardAbilities.getAllyCreatures('p1');
+                console.log('🎯 Teste getAllyCreatures:', allies);
+                
+            } else {
+                console.log('❌ Sistema não carregou');
+            }
+        }, 100);
+    </script>
+</body>
+</html>
