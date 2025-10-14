@@ -2020,6 +2020,7 @@
             attackingCard: null,
             targetCard: null,
             attackedThisTurn: [], // IDs das cartas que já atacaram este turno
+            maxEnergy: { p1: INITIAL_ENERGY, p2: INITIAL_ENERGY }, // Máximo de energia atual de cada jogador
             cards: {
                 p1: { hand: [], field: [], discard: [] },
                 p2: { hand: [], field: [], discard: [] }
@@ -2192,11 +2193,17 @@
             // Obter nome do jogador atual
             const currentPlayerName = gameState.currentPlayer === 'p1' ? 'Jogador 1' : 'Jogador 2';
             
-            // Adicionar +1 energia automaticamente
-            changeStat('energy', gameState.currentPlayer, 1);
+            // Aumentar o máximo de energia do jogador atual em 1 (até o limite)
+            if (gameState.maxEnergy[gameState.currentPlayer] < MAX_ENERGY) {
+                gameState.maxEnergy[gameState.currentPlayer]++;
+            }
+            
+            // Restaurar energia para o novo máximo
+            const energyElement = document.getElementById(`energy-${gameState.currentPlayer}`);
+            energyElement.innerText = gameState.maxEnergy[gameState.currentPlayer];
             
             // Mostrar notificação de energia
-            showTurnNotification(`⚡ ${currentPlayerName}<br/>+1 Energia`, 1000);
+            showTurnNotification(`⚡ ${currentPlayerName}<br/>Energia: ${gameState.maxEnergy[gameState.currentPlayer]}`, 1000);
             
             updateUI();
             
@@ -2848,6 +2855,7 @@
             gameState.selectedCard = null;
             gameState.attackingCard = null;
             gameState.targetCard = null;
+            gameState.maxEnergy = { p1: INITIAL_ENERGY, p2: INITIAL_ENERGY }; // Reset dos máximos de energia
             gameState.cards = { p1: { hand: [], field: [], discard: [] }, p2: { hand: [], field: [], discard: [] } };
 
             // Clear fields and hands

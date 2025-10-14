@@ -518,6 +518,12 @@
             p2: false
         };
 
+        // Variáveis para acompanhar o máximo de energia atual de cada jogador
+        let maxEnergy = {
+            p1: INITIAL_ENERGY,
+            p2: INITIAL_ENERGY
+        };
+
         function startAutoDecrement(stat, player, event) {
             // Previne comportamento padrão em dispositivos touch para evitar conflitos
             if (event && event.type === 'touchstart') {
@@ -636,8 +642,25 @@
         }
 
         function increaseEnergyForBoth() {
-            changeStat('energy', 'p1', 1);
-            changeStat('energy', 'p2', 1);
+            // Aumenta o máximo de energia de cada jogador em 1 (até o limite)
+            if (maxEnergy.p1 < MAX_ENERGY) {
+                maxEnergy.p1++;
+            }
+            if (maxEnergy.p2 < MAX_ENERGY) {
+                maxEnergy.p2++;
+            }
+            
+            // Restaura a energia atual para o novo máximo
+            const energy1Element = document.getElementById('energy-p1');
+            const energy2Element = document.getElementById('energy-p2');
+            
+            energy1Element.innerText = maxEnergy.p1;
+            energy2Element.innerText = maxEnergy.p2;
+            
+            // Toca o som de energia
+            const energySound = document.getElementById('energySound');
+            energySound.currentTime = 0;
+            energySound.play().catch(error => console.log('Erro ao tocar o som de energia:', error));
         }
 
         function rollDice(player) {
@@ -759,6 +782,10 @@
             dice2.disabled = false;
             dice1.title = 'Dado da Sorte (2 energia)';
             dice2.title = 'Dado da Sorte (2 energia)';
+            
+            // Reset dos máximos de energia
+            maxEnergy.p1 = INITIAL_ENERGY;
+            maxEnergy.p2 = INITIAL_ENERGY;
         }
 
         function showRulesModal() {
