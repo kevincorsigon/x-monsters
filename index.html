@@ -838,7 +838,39 @@
                     if (finalValue < 0) {
                         finalValue = 0;
                     }
+                    
+                    // Determinar tipo de alteração para som apropriado
+                    const isIncrease = finalValue > currentValue;
+                    const isDecrease = finalValue < currentValue;
+                    
                     element.innerText = finalValue;
+                    
+                    // Tocar sons baseados no tipo de stat e operação
+                    if (stat === 'pv') {
+                        if (isDecrease) {
+                            // Som de soco quando PV diminui
+                            const punchSound = document.getElementById('punchSound');
+                            punchSound.currentTime = 0;
+                            punchSound.play().catch(error => console.log('Erro ao tocar o som:', error));
+                        } else if (isIncrease) {
+                            // Som de cura quando PV aumenta
+                            const healingSound = document.getElementById('healingSound');
+                            healingSound.currentTime = 0;
+                            healingSound.play().catch(error => console.log('Erro ao tocar o som de cura:', error));
+                        }
+                    } else if (stat === 'energy') {
+                        if (isIncrease) {
+                            // Som de energia quando energia aumenta
+                            const energySound = document.getElementById('energySound');
+                            energySound.currentTime = 0;
+                            energySound.play().catch(error => console.log('Erro ao tocar o som de energia:', error));
+                        } else if (isDecrease) {
+                            // Som de waste quando energia diminui
+                            const wasteSound = document.getElementById('wasteSound');
+                            wasteSound.currentTime = 0;
+                            wasteSound.play().catch(error => console.log('Erro ao tocar o som de waste:', error));
+                        }
+                    }
                     
                     if (stat === 'pv') {
                         const otherPlayer = player === 'p1' ? 'p2' : 'p1';
