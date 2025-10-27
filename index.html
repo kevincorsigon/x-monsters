@@ -711,6 +711,90 @@
             }, 800); // Tempo da animação
         }
 
+        // Função para criar prompt customizado com teclado numérico para mobile
+        function numericPrompt(message, defaultValue = '') {
+            return new Promise((resolve) => {
+                // Criar overlay
+                const overlay = document.createElement('div');
+                overlay.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.8);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 10000;
+                `;
+
+                // Criar modal
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    background: var(--card-bg-color);
+                    padding: 20px;
+                    border-radius: 10px;
+                    border: 2px solid var(--primary-color);
+                    max-width: 90%;
+                    width: 300px;
+                `;
+
+                // Criar elementos do modal
+                modal.innerHTML = `
+                    <div style="color: var(--text-color); margin-bottom: 15px; font-size: 14px; line-height: 1.4;">
+                        ${message.replace(/\n/g, '<br>')}
+                    </div>
+                    <input type="text" inputmode="numeric" pattern="[0-9+\\-]*" 
+                           style="width: 100%; padding: 10px; margin-bottom: 15px; 
+                                  border: 1px solid var(--secondary-color); 
+                                  border-radius: 5px; font-size: 16px; 
+                                  background: var(--bg-color); 
+                                  color: var(--text-color);"
+                           value="${defaultValue}" 
+                           placeholder="Digite o valor...">
+                    <div style="display: flex; gap: 10px;">
+                        <button style="flex: 1; padding: 10px; background: var(--secondary-color); 
+                                       color: var(--text-color); border: none; 
+                                       border-radius: 5px; cursor: pointer;">Cancelar</button>
+                        <button style="flex: 1; padding: 10px; background: var(--primary-color); 
+                                       color: var(--bg-color); border: none; 
+                                       border-radius: 5px; cursor: pointer;">OK</button>
+                    </div>
+                `;
+
+                const input = modal.querySelector('input');
+                const cancelBtn = modal.querySelectorAll('button')[0];
+                const okBtn = modal.querySelectorAll('button')[1];
+
+                // Eventos
+                cancelBtn.onclick = () => {
+                    document.body.removeChild(overlay);
+                    resolve(null);
+                };
+
+                okBtn.onclick = () => {
+                    const value = input.value.trim();
+                    document.body.removeChild(overlay);
+                    resolve(value || null);
+                };
+
+                input.onkeydown = (e) => {
+                    if (e.key === 'Enter') {
+                        okBtn.click();
+                    } else if (e.key === 'Escape') {
+                        cancelBtn.click();
+                    }
+                };
+
+                overlay.appendChild(modal);
+                document.body.appendChild(overlay);
+                
+                // Focar no input após um pequeno delay
+                setTimeout(() => input.focus(), 100);
+            });
+        }
+
         function editName(player) {
             const nameElement = document.getElementById(`name-${player}`);
             const newName = prompt('Digite o novo nome do jogador:', nameElement.innerText);
@@ -719,35 +803,64 @@
             }
         }
 
-        function editStatValue(stat, player) {
+        async function editStatValue(stat, player) {
             const element = document.getElementById(`${stat}-${player}`);
-            const newValue = prompt(`Digite o novo valor para ${element.innerText}:`);
-            if (newValue !== null && !isNaN(newValue) && newValue.trim() !== '') {
-                let parsedValue = parseInt(newValue);
-                if (parsedValue < 0) {
-                    parsedValue = 0;
+            const currentValue = parseInt(element.innerText);
+            const input = await numericPrompt(`Digite o novo valor para ${stat.toUpperCase()} (atual: ${currentValue}):\nUse +10 para somar, -20 para subtrair, ou 150 para definir valor absoluto:`);
+            
+            if (input !== null && input.trim() !== '') {
+                let finalValue;
+                const trimmedInput = input.trim();
+                
+                // Verifica se começa com + ou -
+                if (trimmedInput.startsWith('+')) {
+                    // Somar ao valor atual
+                    const addValue = parseInt(trimmedInput.substring(1));
+                    if (!isNaN(addValue)) {
+                        finalValue = currentValue + addValue;
+                    }
+                } else if (trimmedInput.startsWith('-')) {
+                    // Subtrair do valor atual
+                    const subtractValue = parseInt(trimmedInput.substring(1));
+                    if (!isNaN(subtractValue)) {
+                        finalValue = currentValue - subtractValue;
+                    }
+                } else {
+                    // Definir valor absoluto
+                    const absoluteValue = parseInt(trimmedInput);
+                    if (!isNaN(absoluteValue)) {
+                        finalValue = absoluteValue;
+                    }
                 }
-                element.innerText = parsedValue;
-                if (stat === 'pv') {
-                    const otherPlayer = player === 'p1' ? 'p2' : 'p1';
-                    const winnerCard = document.getElementById(`card-${otherPlayer}`);
-                    const loserCard = document.getElementById(`card-${player}`);
+                
+                // Aplicar o valor final se foi calculado com sucesso
+                if (finalValue !== undefined) {
+                    if (finalValue < 0) {
+                        finalValue = 0;
+                    }
+                    element.innerText = finalValue;
                     
-                    // Limpa as classes de animação de ambos os cards
-                    winnerCard.classList.remove('winner-card', 'loser-card');
-                    loserCard.classList.remove('winner-card', 'loser-card');
-                    
-                    if (parsedValue <= 0) {
-                        element.classList.add('pv-zero');
-                        loserCard.classList.add('loser-card');
-                        winnerCard.classList.add('winner-card');
+                    if (stat === 'pv') {
+                        const otherPlayer = player === 'p1' ? 'p2' : 'p1';
+                        const winnerCard = document.getElementById(`card-${otherPlayer}`);
+                        const loserCard = document.getElementById(`card-${player}`);
                         
-                        // Tocar som de vitória quando PV é editado para 0
-                        const victorySound = document.getElementById('victorySound');
-                        victorySound.currentTime = 0;
-                        victorySound.play().catch(error => console.log('Erro ao tocar o som de vitória:', error));
-                    } else {
-                        element.classList.remove('pv-zero');
+                        // Limpa as classes de animação de ambos os cards
+                        winnerCard.classList.remove('winner-card', 'loser-card');
+                        loserCard.classList.remove('winner-card', 'loser-card');
+                        
+                        if (finalValue <= 0) {
+                            element.classList.add('pv-zero');
+                            loserCard.classList.add('loser-card');
+                            winnerCard.classList.add('winner-card');
+                            
+                            // Tocar som de vitória quando PV é editado para 0
+                            const victorySound = document.getElementById('victorySound');
+                            victorySound.currentTime = 0;
+                            victorySound.play().catch(error => console.log('Erro ao tocar o som de vitória:', error));
+                        } else {
+                            element.classList.remove('pv-zero');
+                        }
                     }
                 }
             }
