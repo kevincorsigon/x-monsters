@@ -126,7 +126,7 @@ class DeckBuilder {
 async function loadCardSystem() {
     try {
         // Tentar carregar via fetch primeiro (servidor)
-        const response = await fetch('cards_database.json');
+        const response = await fetch('data/cards_database.json');
         const cardsData = await response.json();
         
         window.deckBuilder = new DeckBuilder(cardsData);
@@ -174,7 +174,7 @@ function getFallbackCardData() {
                 "defense": 4,
                 "description": "Criatura dragão poderosa que domina os céus sombrios",
                 "id": "card_001",
-                "image": "cards/dragão_sombrio.png"
+                "image": "assets/cards/dragão_sombrio.png"
             },
             {
                 "name": "Lobo Selvagem",
@@ -184,7 +184,7 @@ function getFallbackCardData() {
                 "defense": 2,
                 "description": "Predador ágil das florestas antigas",
                 "id": "card_002",
-                "image": "cards/lobo_selvagem.png"
+                "image": "assets/cards/lobo_selvagem.png"
             },
             {
                 "name": "Golem de Pedra",
@@ -194,7 +194,7 @@ function getFallbackCardData() {
                 "defense": 6,
                 "description": "Guardião ancestral feito de pedra mágica",
                 "id": "card_003",
-                "image": "cards/golem_de_pedra.png"
+                "image": "assets/cards/golem_de_pedra.png"
             },
             {
                 "name": "Fênix Ardente",
@@ -204,7 +204,7 @@ function getFallbackCardData() {
                 "defense": 3,
                 "description": "Ave lendária que renasce das cinzas",
                 "id": "card_004",
-                "image": "cards/fênix_ardente.png"
+                "image": "assets/cards/fênix_ardente.png"
             },
             {
                 "name": "Espada Flamejante",
@@ -214,7 +214,7 @@ function getFallbackCardData() {
                 "defense": 0,
                 "description": "Arma mágica que aumenta o poder de ataque",
                 "id": "card_005",
-                "image": "cards/espada_flamejante.png"
+                "image": "assets/cards/espada_flamejante.png"
             },
             {
                 "name": "Escudo Sagrado",
@@ -224,7 +224,7 @@ function getFallbackCardData() {
                 "defense": 4,
                 "description": "Proteção divina contra ataques",
                 "id": "card_006",
-                "image": "cards/escudo_sagrado.png"
+                "image": "assets/cards/escudo_sagrado.png"
             },
             {
                 "name": "Mago Elemental",
@@ -234,7 +234,7 @@ function getFallbackCardData() {
                 "defense": 3,
                 "description": "Conjurador dos elementos primordiais",
                 "id": "card_007",
-                "image": "cards/mago_elemental.png"
+                "image": "assets/cards/mago_elemental.png"
             },
             {
                 "name": "Cavaleiro Real",
@@ -244,7 +244,7 @@ function getFallbackCardData() {
                 "defense": 5,
                 "description": "Nobre guerreiro do reino dourado",
                 "id": "card_008",
-                "image": "cards/cavaleiro_real.png"
+                "image": "assets/cards/cavaleiro_real.png"
             },
             {
                 "name": "Arqueiro Élfico",
@@ -254,7 +254,7 @@ function getFallbackCardData() {
                 "defense": 2,
                 "description": "Atirador preciso das florestas élficas",
                 "id": "card_009",
-                "image": "cards/arqueiro_élfico.png"
+                "image": "assets/cards/arqueiro_élfico.png"
             },
             {
                 "name": "Troll das Montanhas",
@@ -264,7 +264,7 @@ function getFallbackCardData() {
                 "defense": 6,
                 "description": "Gigante brutal dos picos gelados",
                 "id": "card_010",
-                "image": "cards/troll_das_montanhas.png"
+                "image": "assets/cards/troll_das_montanhas.png"
             },
             {
                 "name": "Necromante",
@@ -274,7 +274,7 @@ function getFallbackCardData() {
                 "defense": 4,
                 "description": "Mestre das artes sombrias da morte",
                 "id": "card_011",
-                "image": "cards/necromante.png"
+                "image": "assets/cards/necromante.png"
             },
             {
                 "name": "Poção de Cura",
@@ -284,7 +284,7 @@ function getFallbackCardData() {
                 "defense": 0,
                 "description": "Restaura pontos de vida",
                 "id": "card_012",
-                "image": "cards/poção_de_cura.png"
+                "image": "assets/cards/poção_de_cura.png"
             },
             {
                 "name": "Armadura de Ferro",
@@ -294,7 +294,7 @@ function getFallbackCardData() {
                 "defense": 3,
                 "description": "Proteção metálica resistente",
                 "id": "card_013",
-                "image": "cards/armadura_de_ferro.png"
+                "image": "assets/cards/armadura_de_ferro.png"
             },
             {
                 "name": "Orc Guerreiro",
@@ -304,7 +304,7 @@ function getFallbackCardData() {
                 "defense": 2,
                 "description": "Bárbaro feroz das terras devastadas",
                 "id": "card_014",
-                "image": "cards/orc_guerreiro.png"
+                "image": "assets/cards/orc_guerreiro.png"
             },
             {
                 "name": "Fada Curadora",
@@ -314,7 +314,7 @@ function getFallbackCardData() {
                 "defense": 2,
                 "description": "Ser mágico com poderes de cura",
                 "id": "card_015",
-                "image": "cards/fada_curadora.png"
+                "image": "assets/cards/fada_curadora.png"
             },
             {
                 "name": "Tempestade de Raios",
@@ -324,7 +324,7 @@ function getFallbackCardData() {
                 "defense": 0,
                 "description": "Magia devastadora dos céus",
                 "id": "card_016",
-                "image": "cards/tempestade_de_raios.png"
+                "image": "assets/cards/tempestade_de_raios.png"
             },
             {
                 "name": "Vampiro Sanguinário",
@@ -334,7 +334,7 @@ function getFallbackCardData() {
                 "defense": 3,
                 "description": "Morto-vivo sedento por sangue",
                 "id": "card_017",
-                "image": "cards/vampiro_sanguinário.png"
+                "image": "assets/cards/vampiro_sanguinário.png"
             },
             {
                 "name": "Anjo Guardião",
@@ -344,7 +344,7 @@ function getFallbackCardData() {
                 "defense": 6,
                 "description": "Celestial protetor da luz divina",
                 "id": "card_018",
-                "image": "cards/anjo_guardião.png"
+                "image": "assets/cards/anjo_guardião.png"
             },
             {
                 "name": "Machado Bárbaro",
@@ -354,7 +354,7 @@ function getFallbackCardData() {
                 "defense": 0,
                 "description": "Arma brutal dos clãs selvagens",
                 "id": "card_019",
-                "image": "cards/machado_bárbaro.png"
+                "image": "assets/cards/machado_bárbaro.png"
             },
             {
                 "name": "Esqueleto Guerreiro",
@@ -364,7 +364,7 @@ function getFallbackCardData() {
                 "defense": 3,
                 "description": "Soldado morto-vivo incansável",
                 "id": "card_020",
-                "image": "cards/esqueleto_guerreiro.png"
+                "image": "assets/cards/esqueleto_guerreiro.png"
             },
             {
                 "name": "Marik 2",
@@ -374,7 +374,7 @@ function getFallbackCardData() {
                 "defense": 7,
                 "description": "Evolução suprema do lendário Marik",
                 "id": "card_021",
-                "image": "cards/marik_2.png"
+                "image": "assets/cards/marik_2.png"
             },
             {
                 "name": "Turtol Maximus",
@@ -384,7 +384,7 @@ function getFallbackCardData() {
                 "defense": 9,
                 "description": "Forma evoluída definitiva de Turtol",
                 "id": "card_022",
-                "image": "cards/turtol_maximus.png"
+                "image": "assets/cards/turtol_maximus.png"
             },
             {
                 "name": "Elemental de Fogo",
@@ -394,7 +394,7 @@ function getFallbackCardData() {
                 "defense": 2,
                 "description": "Espírito flamejante dos vulcões",
                 "id": "card_023",
-                "image": "cards/elemental_de_fogo.png"
+                "image": "assets/cards/elemental_de_fogo.png"
             },
             {
                 "name": "Elemental de Água",
@@ -404,7 +404,7 @@ function getFallbackCardData() {
                 "defense": 5,
                 "description": "Guardião dos oceanos profundos",
                 "id": "card_024",
-                "image": "cards/elemental_de_água.png"
+                "image": "assets/cards/elemental_de_água.png"
             },
             {
                 "name": "Báculo Mágico",
@@ -414,7 +414,7 @@ function getFallbackCardData() {
                 "defense": 1,
                 "description": "Amplifica poderes arcanos",
                 "id": "card_025",
-                "image": "cards/báculo_mágico.png"
+                "image": "assets/cards/báculo_mágico.png"
             },
             {
                 "name": "Centauro Caçador",
@@ -424,7 +424,7 @@ function getFallbackCardData() {
                 "defense": 4,
                 "description": "Arqueiro híbrido das planícies",
                 "id": "card_026",
-                "image": "cards/centauro_caçador.png"
+                "image": "assets/cards/centauro_caçador.png"
             },
             {
                 "name": "Dragão de Gelo",
@@ -434,7 +434,7 @@ function getFallbackCardData() {
                 "defense": 5,
                 "description": "Dragão das terras congeladas",
                 "id": "card_027",
-                "image": "cards/dragão_de_gelo.png"
+                "image": "assets/cards/dragão_de_gelo.png"
             },
             {
                 "name": "Capa da Invisibilidade",
@@ -444,7 +444,7 @@ function getFallbackCardData() {
                 "defense": 2,
                 "description": "Permite ataques furtivos",
                 "id": "card_028",
-                "image": "cards/capa_da_invisibilidade.png"
+                "image": "assets/cards/capa_da_invisibilidade.png"
             },
             {
                 "name": "Minotauro",
@@ -454,7 +454,7 @@ function getFallbackCardData() {
                 "defense": 4,
                 "description": "Guardião bestial do labirinto",
                 "id": "card_029",
-                "image": "cards/minotauro.png"
+                "image": "assets/cards/minotauro.png"
             },
             {
                 "name": "Cristal de Energia",
@@ -464,7 +464,7 @@ function getFallbackCardData() {
                 "defense": 0,
                 "description": "Aumenta energia disponível",
                 "id": "card_030",
-                "image": "cards/cristal_de_energia.png"
+                "image": "assets/cards/cristal_de_energia.png"
             }
         ]
     };

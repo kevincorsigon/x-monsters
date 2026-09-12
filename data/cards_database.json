@@ -8,7 +8,7 @@
       "defense": 5,
       "hability": "Equipa +5 de ataque e +5 defesa a um monstro.",
       "id": "card_001",
-      "image": "cards/espada_mágica.png"
+      "image": "assets/cards/espada_mágica.png"
     },
     {
       "name": "Estrela Mágica",
@@ -18,7 +18,7 @@
       "defense": 7,
       "hability": "Anula o próximo ataque contra um aliado.",
       "id": "card_002",
-      "image": "cards/estrela_mágica.png"
+      "image": "assets/cards/estrela_mágica.png"
     },
     {
       "name": "ETC",
@@ -28,7 +28,7 @@
       "defense": 3,
       "hability": "Remove monstros com custo abaixo de 3 do campo inimigo para sua mão.",
       "id": "card_003",
-      "image": "cards/etc.png"
+      "image": "assets/cards/etc.png"
     },
     {
       "name": "Chocolicia",
@@ -38,7 +38,7 @@
       "defense": 10,
       "hability": "Aplica - 10 de Ataque e defesa em uma criatura oponente.",
       "id": "card_004",
-      "image": "cards/chocolicia.png"
+      "image": "assets/cards/chocolicia.png"
     },
     {
       "name": "Zica do pantano",
@@ -48,7 +48,7 @@
       "defense": 5,
       "hability": "A criatura equipada fica imobilizada por 3 turnos, cada turno perde 5 pontos de defesa.",
       "id": "card_005",
-      "image": "cards/zica_do_pantano.png"
+      "image": "assets/cards/zica_do_pantano.png"
     },
     {
       "name": "Adubaram",
@@ -58,7 +58,7 @@
       "defense": 0,
       "hability": "Permite jogar fora uma criatura do oponente e sacar uma carta nova",
       "id": "card_006",
-      "image": "cards/adubaram.png"
+      "image": "assets/cards/adubaram.png"
     },
     {
       "name": "Camisa 14 do América",
@@ -68,7 +68,7 @@
       "defense": 0,
       "hability": "Equipa a criatura com 10 de ataque por 2 turnos e permite \"aliciar\" uma criatura do opnente com custo 3 ou inferior para seu lado do campo.",
       "id": "card_007",
-      "image": "cards/camisa_14_do_américa.png"
+      "image": "assets/cards/camisa_14_do_américa.png"
     },
     {
       "name": "Cara de cu estourado",
@@ -78,7 +78,7 @@
       "defense": 0,
       "hability": "Paralisa a criatura oponente por 2 turnos ela não pode atacar nem defender.",
       "id": "card_008",
-      "image": "cards/cara_de_cu_estourado.png"
+      "image": "assets/cards/cara_de_cu_estourado.png"
     },
     {
       "name": "Abutuaram",
@@ -88,7 +88,7 @@
       "defense": 15,
       "hability": "Aplica - 15 de defesa em uma criatura oponente.",
       "id": "card_009",
-      "image": "cards/abutuaram.png"
+      "image": "assets/cards/abutuaram.png"
     },
     {
       "name": "Diabrete Alado",
@@ -98,7 +98,7 @@
       "defense": 8,
       "hability": "Voo Veloz: Pode atacar diretamente os pontos de vida do oponente.",
       "id": "card_010_1",
-      "image": "cards/diabrete_alado_1.png"
+      "image": "assets/cards/diabrete_alado_1.png"
     },
     {
       "name": "Diabrete Alado",
@@ -108,7 +108,7 @@
       "defense": 8,
       "hability": "Voo Veloz: Pode atacar diretamente os pontos de vida do oponente.",
       "id": "card_010_2",
-      "image": "cards/diabrete_alado_2.png"
+      "image": "assets/cards/diabrete_alado_2.png"
     },
     {
       "name": "Diabrete Alado",
@@ -118,7 +118,7 @@
       "defense": 8,
       "hability": "Voo Veloz: Pode atacar diretamente os pontos de vida do oponente.",
       "id": "card_010_3",
-      "image": "cards/diabrete_alado_3.png"
+      "image": "assets/cards/diabrete_alado_3.png"
     },
     {
       "name": "Kirb",
@@ -128,7 +128,7 @@
       "defense": 15,
       "hability": "Copia habilidades de monstros com menos de 4 de custo.",
       "id": "card_011",
-      "image": "cards/kirb.png"
+      "image": "assets/cards/kirb.png"
     },
     {
       "name": "Natalino",
@@ -138,7 +138,7 @@
       "defense": 35,
       "hability": "Cura aliados em +10 de defesa ao ser invocado.",
       "id": "card_012",
-      "image": "cards/natalino.png"
+      "image": "assets/cards/natalino.png"
     },
     {
       "name": "Zol",
@@ -148,7 +148,7 @@
       "defense": 3,
       "hability": "Permite comprar carta extra ao ser invocado.",
       "id": "card_013",
-      "image": "cards/zol.png"
+      "image": "assets/cards/zol.png"
     },
     {
       "name": "Tobinha e Boguinha",
@@ -158,7 +158,7 @@
       "defense": 12,
       "hability": "Fofura: não podem ser atacados por criaturas com custo superior a 3.",
       "id": "card_014",
-      "image": "cards/tobinha_e_boguinha.png"
+      "image": "assets/cards/tobinha_e_boguinha.png"
     },
     {
       "name": "11 de setembro",
@@ -168,7 +168,7 @@
       "defense": 25,
       "hability": "Derruba as torres: uma criatura do oponente fica embreagada por 5 turnos e perde 25 pontos de defesa e 10 de ataque.",
       "id": "card_015",
-      "image": "cards/11_de_setembro.png"
+      "image": "assets/cards/11_de_setembro.png"
     },
     {
       "name": "Baltz",
@@ -178,7 +178,7 @@
       "defense": 14,
       "hability": "Remove cartas de suporte do oponente.",
       "id": "card_016",
-      "image": "cards/baltz.png"
+      "image": "assets/cards/baltz.png"
     },
     {
       "name": "Bufaboi",
@@ -188,7 +188,7 @@
       "defense": 10,
       "hability": "Primeiro ataque do turno causa +10 de dano.",
       "id": "card_017",
-      "image": "cards/bufaboi.png"
+      "image": "assets/cards/bufaboi.png"
     },
     {
       "name": "Cp-2",
@@ -198,7 +198,7 @@
       "defense": 23,
       "hability": "Impede ataque de inimigos.",
       "id": "card_018",
-      "image": "cards/cp-2.png"
+      "image": "assets/cards/cp-2.png"
     },
     {
       "name": "Garras Afiadas",
@@ -208,7 +208,7 @@
       "defense": 15,
       "hability": "Ataque Furtivo: Ao atacar um monstro que acabou de ser invocado, Garras Afiadas ganha +10 de Ataque.",
       "id": "card_019",
-      "image": "cards/garras_afiadas.png"
+      "image": "assets/cards/garras_afiadas.png"
     },
     {
       "name": "Gobra",
@@ -218,7 +218,7 @@
       "defense": 15,
       "hability": "Pode sair e voltar da mão 1x/turno.",
       "id": "card_020",
-      "image": "cards/gobra.png"
+      "image": "assets/cards/gobra.png"
     },
     {
       "name": "Paladar",
@@ -228,7 +228,7 @@
       "defense": 10,
       "hability": "Dobra ataque contra monstros com defesa superior.",
       "id": "card_021",
-      "image": "cards/paladar.png"
+      "image": "assets/cards/paladar.png"
     },
     {
       "name": "Puma da Selva",
@@ -238,7 +238,7 @@
       "defense": 15,
       "hability": "Ignora defesa dos inimigos e causa dano direto.",
       "id": "card_022",
-      "image": "cards/puma_da_selva.png"
+      "image": "assets/cards/puma_da_selva.png"
     },
     {
       "name": "Raylaser",
@@ -248,7 +248,7 @@
       "defense": 13,
       "hability": "Causa 15 de dano direto ao inimigo ao ser invocado.",
       "id": "card_023",
-      "image": "cards/raylaser.png"
+      "image": "assets/cards/raylaser.png"
     },
     {
       "name": "Slipul",
@@ -258,7 +258,7 @@
       "defense": 5,
       "hability": "Caso sozinho em campo, ganha 5 de ataque e defesa para cada criatura do oponente.",
       "id": "card_024",
-      "image": "cards/slipul.png"
+      "image": "assets/cards/slipul.png"
     },
     {
       "name": "Zé Mulherzinha",
@@ -268,7 +268,7 @@
       "defense": 10,
       "hability": "Não pode ser alvo direto enquanto houver aliados.",
       "id": "card_025",
-      "image": "cards/zé_mulherzinha.png"
+      "image": "assets/cards/zé_mulherzinha.png"
     },
     {
       "name": "Sabota Copos",
@@ -278,7 +278,7 @@
       "defense": 20,
       "hability": "Sabotaram meu copo: Uma vez por turno pode tirar 5 pontos de defesa e ataque de uma criatura oponente.",
       "id": "card_026",
-      "image": "cards/sabota_copos.png"
+      "image": "assets/cards/sabota_copos.png"
     },
     {
       "name": "Bilugatron",
@@ -288,7 +288,7 @@
       "defense": 10,
       "hability": "Biluga Biluga: pode se grudar a uma criatura oponente e infringir 10 de dano a cada turno, porém não pode atacar e nem defender mais.",
       "id": "card_027",
-      "image": "cards/bilugatron.png"
+      "image": "assets/cards/bilugatron.png"
     },
     {
       "name": "Atravessava",
@@ -298,7 +298,7 @@
       "defense": 0,
       "hability": "Permite que uma criatura que controla possa atravessar as criaturas do oponente e atacar diretamente.",
       "id": "card_028",
-      "image": "cards/atravessava.png"
+      "image": "assets/cards/atravessava.png"
     },
     {
       "name": "Aladar",
@@ -308,7 +308,7 @@
       "defense": 12,
       "hability": "Se derrotar uma criatura oponente, pode atacar de novo.",
       "id": "card_029",
-      "image": "cards/aladar.png"
+      "image": "assets/cards/aladar.png"
     },
     {
       "name": "Cacton",
@@ -318,7 +318,7 @@
       "defense": 25,
       "hability": "Devolve metade do dano ao atacante.",
       "id": "card_030",
-      "image": "cards/cacton.png"
+      "image": "assets/cards/cacton.png"
     },
     {
       "name": "Duende",
@@ -328,7 +328,7 @@
       "defense": 20,
       "hability": "Sorte Mágica: Uma vez por turno, você pode usar uma habilidade mágica adicional.",
       "id": "card_031",
-      "image": "cards/duende.png"
+      "image": "assets/cards/duende.png"
     },
     {
       "name": "Hipool",
@@ -338,7 +338,7 @@
       "defense": 15,
       "hability": "Caso a defesa da criatura for menor que esta carta causa 10 pontos extras de dano.",
       "id": "card_032",
-      "image": "cards/hipool.png"
+      "image": "assets/cards/hipool.png"
     },
     {
       "name": "K-023",
@@ -348,7 +348,7 @@
       "defense": 20,
       "hability": "Sincronia Robótica: Quando está em campo com outro monstro robô, ambos os monstros ganham +5 de Ataque.",
       "id": "card_033",
-      "image": "cards/k-023.png"
+      "image": "assets/cards/k-023.png"
     },
     {
       "name": "Medusa de Lama",
@@ -358,7 +358,7 @@
       "defense": 25,
       "hability": "Paralisa um inimigo por 1 turno.",
       "id": "card_034",
-      "image": "cards/medusa_de_lama.png"
+      "image": "assets/cards/medusa_de_lama.png"
     },
     {
       "name": "Ptera",
@@ -368,7 +368,7 @@
       "defense": 2,
       "hability": "Ataca diretamente jogadores, ignorando monstros.",
       "id": "card_035",
-      "image": "cards/ptera.png"
+      "image": "assets/cards/ptera.png"
     },
     {
       "name": "Rei das Feras",
@@ -378,7 +378,7 @@
       "defense": 20,
       "hability": "Ao derrotar uma criatura causa 10 pontos de dano ao jogador.",
       "id": "card_036",
-      "image": "cards/rei_das_feras.png"
+      "image": "assets/cards/rei_das_feras.png"
     },
     {
       "name": "Scoul",
@@ -388,7 +388,7 @@
       "defense": 25,
       "hability": "Fica mais forte em 10 pontos de ataque e defesa com dragões em campo.",
       "id": "card_037",
-      "image": "cards/scoul.png"
+      "image": "assets/cards/scoul.png"
     },
     {
       "name": "Tlantidu",
@@ -398,7 +398,7 @@
       "defense": 18,
       "hability": "Ao morrer pode procurar um monstro aquático no deck.",
       "id": "card_038",
-      "image": "cards/tlantidu.png"
+      "image": "assets/cards/tlantidu.png"
     },
     {
       "name": "Trox",
@@ -408,7 +408,7 @@
       "defense": 25,
       "hability": "Pode voltar a mão e depois ser invocado sem custo uma vez por partida.",
       "id": "card_039",
-      "image": "cards/trox.png"
+      "image": "assets/cards/trox.png"
     },
     {
       "name": "Little Big Shimbard",
@@ -418,7 +418,7 @@
       "defense": 20,
       "hability": "Rolha de poço: dobra a defesa caso seja a única criatura do seu lado do campo.",
       "id": "card_040",
-      "image": "cards/little_big_shimbard.png"
+      "image": "assets/cards/little_big_shimbard.png"
     },
     {
       "name": "Gulosinho",
@@ -428,7 +428,7 @@
       "defense": 20,
       "hability": "Huumm Gulosinho: uma vez por turno caso o jogador abdique de atacar ganha 5 pontos de ataque e defesa.",
       "id": "card_041",
-      "image": "cards/gulosinho.png"
+      "image": "assets/cards/gulosinho.png"
     },
     {
       "name": "Fantom",
@@ -438,7 +438,7 @@
       "defense": 20,
       "hability": "Evasão Fantasmagórica: Se Fantom for alvo de um ataque e a Defesa dele for 0, ele não é derrotado e pode se teletransportar para a sua mão, sem custo.",
       "id": "card_042",
-      "image": "cards/fantom.png"
+      "image": "assets/cards/fantom.png"
     },
     {
       "name": "Goblin Mestre de Armas",
@@ -448,7 +448,7 @@
       "defense": 25,
       "hability": "Se houver aliados com custo abaixo de 3, dobra o ataque.",
       "id": "card_043",
-      "image": "cards/goblin_mestre_de_armas.png"
+      "image": "assets/cards/goblin_mestre_de_armas.png"
     },
     {
       "name": "Grifo Real",
@@ -458,7 +458,7 @@
       "defense": 26,
       "hability": "Voar Alto: Não pode ser atacado por monstros que custem 4 ou menos.",
       "id": "card_044",
-      "image": "cards/grifo_real.png"
+      "image": "assets/cards/grifo_real.png"
     },
     {
       "name": "Invocador das Trevas",
@@ -468,7 +468,7 @@
       "defense": 25,
       "hability": "Ritual de Invocação: Você pode invocar um Diabrete Alado ao custo de 1 ponto.",
       "id": "card_045",
-      "image": "cards/invocador_das_trevas.png"
+      "image": "assets/cards/invocador_das_trevas.png"
     },
     {
       "name": "Salatiel",
@@ -478,7 +478,7 @@
       "defense": 22,
       "hability": "Pode pagar 3 pontos de energia para ignorar a defesa de uma criatura.",
       "id": "card_046",
-      "image": "cards/salatiel.png"
+      "image": "assets/cards/salatiel.png"
     },
     {
       "name": "Tobias",
@@ -488,7 +488,7 @@
       "defense": 19,
       "hability": "Ataca duas vezes, mas com dano reduzido pela metade no segundo ataque.",
       "id": "card_047",
-      "image": "cards/tobias.png"
+      "image": "assets/cards/tobias.png"
     },
     {
       "name": "Turtol",
@@ -498,7 +498,7 @@
       "defense": 39,
       "hability": "Imune a habilidades de monstros com custo menor que 4.",
       "id": "card_048",
-      "image": "cards/turtol.png"
+      "image": "assets/cards/turtol.png"
     },
     {
       "name": "Entola Guela",
@@ -508,7 +508,7 @@
       "defense": 22,
       "hability": "Guela atolada: Escolhe uma criatura oponente por turno que não pode atacar.",
       "id": "card_049",
-      "image": "cards/entola_guela.png"
+      "image": "assets/cards/entola_guela.png"
     },
     {
       "name": "Shupáku",
@@ -518,7 +518,7 @@
       "defense": 18,
       "hability": "Linguadex: Paralisa uma criatura oponente ao entrar em campo, ela não pode atacar enquanto essa carta estiver em campo.",
       "id": "card_050",
-      "image": "cards/shupáku.png"
+      "image": "assets/cards/shupáku.png"
     },
     {
       "name": "Dino Elétrico",
@@ -528,7 +528,7 @@
       "defense": 30,
       "hability": "Descarga de Choque: Uma vez por turno, pode causar 10 de dano a todos os monstros do oponente.",
       "id": "card_051",
-      "image": "cards/dino_elétrico.png"
+      "image": "assets/cards/dino_elétrico.png"
     },
     {
       "name": "Dragão de Cobre",
@@ -538,7 +538,7 @@
       "defense": 38,
       "hability": "Ao derrotar um monstro, causa 10 de dano ao jogador inimigo.",
       "id": "card_052",
-      "image": "cards/dragão_de_cobre.png"
+      "image": "assets/cards/dragão_de_cobre.png"
     },
     {
       "name": "Gárgula de Rocha",
@@ -548,7 +548,7 @@
       "defense": 45,
       "hability": "Não pode ser atacada por monstros com custo menor que 5 e pode trocar ATK/DEF ao atacar.",
       "id": "card_053",
-      "image": "cards/gárgula_de_rocha.png"
+      "image": "assets/cards/gárgula_de_rocha.png"
     },
     {
       "name": "Lorde Sanguinário",
@@ -558,7 +558,7 @@
       "defense": 25,
       "hability": "Drenagem Vital: Uma vez por turno, ao derrotar um monstro em combate, pode roubar 10 pontos de vida dos pontos de vida do seu oponente e adicioná-los aos seus.",
       "id": "card_054",
-      "image": "cards/lorde_sanguinário.png"
+      "image": "assets/cards/lorde_sanguinário.png"
     },
     {
       "name": "Mago Arcano",
@@ -568,7 +568,7 @@
       "defense": 30,
       "hability": "Rajada de Mana: Uma vez por turno, pode causar 5 de dano direto aos pontos de vida do oponente.",
       "id": "card_055",
-      "image": "cards/mago_arcano.png"
+      "image": "assets/cards/mago_arcano.png"
     },
     {
       "name": "Minotauro Guerreiro",
@@ -578,7 +578,7 @@
       "defense": 25,
       "hability": "Carga Furiosa: O primeiro ataque em cada turno ignora a Defesa do monstro alvo, causando dano total.",
       "id": "card_056",
-      "image": "cards/minotauro_guerreiro.png"
+      "image": "assets/cards/minotauro_guerreiro.png"
     },
     {
       "name": "Quimera de Fogo",
@@ -588,7 +588,7 @@
       "defense": 27,
       "hability": "Sopro Triplo: Uma vez por turno, pode escolher até três monstros do oponente. Cada um deles recebe 5 de dano direto.",
       "id": "card_057",
-      "image": "cards/quimera_de_fogo.png"
+      "image": "assets/cards/quimera_de_fogo.png"
     },
     {
       "name": "Sábio da Montanha",
@@ -598,7 +598,7 @@
       "defense": 25,
       "hability": "Se ele for o único monstro em seu campo, pode usar sua habilidade de evasão para não ser alvo de ataques de monstros com custo 4 ou menos",
       "id": "card_058",
-      "image": "cards/sábio_da_montanha.png"
+      "image": "assets/cards/sábio_da_montanha.png"
     },
     {
       "name": "O Lica",
@@ -608,7 +608,7 @@
       "defense": 30,
       "hability": "Licantropia das trevas: Caso o oponente tenha somente uma criatura ele não pode ser atacado.",
       "id": "card_059",
-      "image": "cards/o_lica.png"
+      "image": "assets/cards/o_lica.png"
     },
     {
       "name": "Tranca Rua",
@@ -618,7 +618,7 @@
       "defense": 40,
       "hability": "Caso existam outras criaturas em campo só ele pode ser atacado.",
       "id": "card_060",
-      "image": "cards/tranca_rua.png"
+      "image": "assets/cards/tranca_rua.png"
     },
     {
       "name": "Alquimista Guardião",
@@ -628,7 +628,7 @@
       "defense": 35,
       "hability": "Elixir Protetor: Uma vez por turno, pode escolher um monstro aliado. Esse monstro ganha +10 de Defesa até o final do próximo turno do oponente.",
       "id": "card_061",
-      "image": "cards/alquimista_guardião.png"
+      "image": "assets/cards/alquimista_guardião.png"
     },
     {
       "name": "Alucard",
@@ -638,7 +638,7 @@
       "defense": 37,
       "hability": "Ressucita um aliado ao derrotar inimigos.",
       "id": "card_062",
-      "image": "cards/alucard.png"
+      "image": "assets/cards/alucard.png"
     },
     {
       "name": "Beluga de Terracota",
@@ -648,7 +648,7 @@
       "defense": 45,
       "hability": "Uma vez por turno, pode atacar diretamente os pontos de vida do seu oponente, mas causando apenas metade do seu dano de Ataque.",
       "id": "card_063",
-      "image": "cards/beluga_de_terracota.png"
+      "image": "assets/cards/beluga_de_terracota.png"
     },
     {
       "name": "Gamaa",
@@ -658,7 +658,7 @@
       "defense": 37,
       "hability": "Ignora 10 pontos da defesa inimiga para cada criatura robotica que você controlar.",
       "id": "card_064",
-      "image": "cards/gamaa.png"
+      "image": "assets/cards/gamaa.png"
     },
     {
       "name": "Iron Dragon",
@@ -668,7 +668,7 @@
       "defense": 40,
       "hability": "Imune a habilidades inimigas.",
       "id": "card_065",
-      "image": "cards/iron_dragon.png"
+      "image": "assets/cards/iron_dragon.png"
     },
     {
       "name": "Mexica",
@@ -678,7 +678,7 @@
       "defense": 33,
       "hability": "Primeiro ataque causa o dobro de pontos.",
       "id": "card_066",
-      "image": "cards/mexica.png"
+      "image": "assets/cards/mexica.png"
     },
     {
       "name": "Paladino Alvorada",
@@ -688,7 +688,7 @@
       "defense": 28,
       "hability": "Lâmina Sagrada. Uma vez por turno, anula as habilidades de um monstro adversário até o final do turno do oponente.",
       "id": "card_067",
-      "image": "cards/paladino_alvorada.png"
+      "image": "assets/cards/paladino_alvorada.png"
     },
     {
       "name": "Paladino Crepuscular",
@@ -698,7 +698,7 @@
       "defense": 39,
       "hability": "Escudo das Sombras. Se for o único monstro em seu campo, ganha +10 de Defesa.",
       "id": "card_068",
-      "image": "cards/paladino_crepuscular.png"
+      "image": "assets/cards/paladino_crepuscular.png"
     },
     {
       "name": "Roller",
@@ -708,7 +708,7 @@
       "defense": 35,
       "hability": "Retorna à mão ao morrer, mas custando um ponto a mais de custo toda vez que retornar.",
       "id": "card_069",
-      "image": "cards/roller.png"
+      "image": "assets/cards/roller.png"
     },
     {
       "name": "Tiranossauro",
@@ -718,7 +718,7 @@
       "defense": 20,
       "hability": "Rugido Assustador: O primeiro ataque de Tiranossauro ignora 10 de Defesa do monstro adversário.",
       "id": "card_070",
-      "image": "cards/tiranossauro.png"
+      "image": "assets/cards/tiranossauro.png"
     },
     {
       "name": "Dragão de Jade",
@@ -728,7 +728,7 @@
       "defense": 35,
       "hability": "Pele Ácida: Ao ser atacado, causa 10 de dano direto ao monstro que o atacou, refletindo seu invólucro venenoso.",
       "id": "card_071",
-      "image": "cards/dragão_de_jade.png"
+      "image": "assets/cards/dragão_de_jade.png"
     },
     {
       "name": "Gigante da Marreta",
@@ -738,7 +738,7 @@
       "defense": 40,
       "hability": "Causa terremoto de 10 de dano em todos os inimigos.",
       "id": "card_072",
-      "image": "cards/gigante_da_marreta.png"
+      "image": "assets/cards/gigante_da_marreta.png"
     },
     {
       "name": "Golem de Pedra",
@@ -748,7 +748,7 @@
       "defense": 50,
       "hability": "Pele de Pedra: É imune a danos causados por habilidades especiais de outros monstros, refletindo sua resistência a ataques que não sejam físicos",
       "id": "card_073",
-      "image": "cards/golem_de_pedra.png"
+      "image": "assets/cards/golem_de_pedra.png"
     },
     {
       "name": "Nucles",
@@ -758,7 +758,7 @@
       "defense": 37,
       "hability": "Ignora 10 pontos do ataque inimigo.",
       "id": "card_074",
-      "image": "cards/nucles.png"
+      "image": "assets/cards/nucles.png"
     },
     {
       "name": "Turtol Maximus",
@@ -768,7 +768,7 @@
       "defense": 48,
       "hability": "Se o oponente só tem um monstro em campo, ganha mais 10 pontos de defesa",
       "id": "card_075",
-      "image": "cards/turtol_maximus.png"
+      "image": "assets/cards/turtol_maximus.png"
     },
     {
       "name": "Condessa Carmilla",
@@ -778,7 +778,7 @@
       "defense": 45,
       "hability": "Quando ataca, o dano causado é igual ao Ataque dela menos 15. Se o monstro for derrotado, ganha 10 de Ataque extra.",
       "id": "card_076",
-      "image": "cards/condessa_carmilla.png"
+      "image": "assets/cards/condessa_carmilla.png"
     },
     {
       "name": "Marik",
@@ -788,7 +788,7 @@
       "defense": 47,
       "hability": "Causa dano 5 pontos de ataque extras por monstro inimigo.",
       "id": "card_077",
-      "image": "cards/marik.png"
+      "image": "assets/cards/marik.png"
     },
     {
       "name": "Lobo Alfa Fly",
@@ -798,7 +798,7 @@
       "defense": 38,
       "hability": "Domínio Aéreo. Seus ataques ignoram em 20 pontos a Defesa do monstro oponente.",
       "id": "card_078",
-      "image": "cards/lobo_alfa_fly.png"
+      "image": "assets/cards/lobo_alfa_fly.png"
     },
     {
       "name": "Lobo Beta Lightning",
@@ -808,7 +808,7 @@
       "defense": 47,
       "hability": "Ao ser invocado, causa 20 de dano direto ao oponente.",
       "id": "card_079",
-      "image": "cards/lobo_beta_lightning.png"
+      "image": "assets/cards/lobo_beta_lightning.png"
     },
     {
       "name": "Lobo Omega Pyro",
@@ -818,7 +818,7 @@
       "defense": 49,
       "hability": "Aplica queimadura contínua a uma criatura do oponente - 5 de defesa a cada turno.",
       "id": "card_080",
-      "image": "cards/lobo_omega_pyro.png"
+      "image": "assets/cards/lobo_omega_pyro.png"
     },
     {
       "name": "Latex",
@@ -828,7 +828,7 @@
       "defense": 59,
       "hability": "Ataca todos os monstros adversários, causando metade do ATK.",
       "id": "card_081",
-      "image": "cards/latex.png"
+      "image": "assets/cards/latex.png"
     },
     {
       "name": "Lobo Gamma Freeze",
@@ -838,7 +838,7 @@
       "defense": 59,
       "hability": "Paralisa monstros do oponente por 3 turnos.",
       "id": "card_082",
-      "image": "cards/lobo_gamma_freeze.png"
+      "image": "assets/cards/lobo_gamma_freeze.png"
     },
     {
       "name": "Hidra das Profundezas",
@@ -848,7 +848,7 @@
       "defense": 59,
       "hability": "Respiração Cáustica: Ao atacar, causa 20 de dano adicional a todos os outros monstros em campo, tanto seus quanto os do oponente.",
       "id": "card_083",
-      "image": "cards/hidra_das_profundezas.png"
+      "image": "assets/cards/hidra_das_profundezas.png"
     },
     {
       "name": "Imperial X",
@@ -858,7 +858,7 @@
       "defense": 59,
       "hability": "Ataca duas vezes por turno.",
       "id": "card_084",
-      "image": "cards/imperial_x.png"
+      "image": "assets/cards/imperial_x.png"
     },
     {
       "name": "Marik 2",
@@ -868,7 +868,7 @@
       "defense": 59,
       "hability": "Ataca todos os monstros inimigos, mas perde toda sua defesa depois de usada a habilidade.",
       "id": "card_085",
-      "image": "cards/marik_2.png"
+      "image": "assets/cards/marik_2.png"
     },
     {
       "name": "Sentinela Solar",
@@ -878,7 +878,7 @@
       "defense": 59,
       "hability": "Ao ser invocado, cria uma barreira de luz que impede que qualquer monstro com Ataque de 30 ou menos cause dano a ele ou ao seu controlador por um turno.",
       "id": "card_086",
-      "image": "cards/sentinela_solar.png"
+      "image": "assets/cards/sentinela_solar.png"
     },
     {
       "name": "Superior",
@@ -888,7 +888,7 @@
       "defense": 59,
       "hability": "Pode atacar duas vezes; ao derrotar, recupera 1 monstro do cemitério para a mão.",
       "id": "card_087",
-      "image": "cards/superior.png"
+      "image": "assets/cards/superior.png"
     },
     {
       "name": "Feitiço de Teletransporte",
@@ -898,7 +898,7 @@
       "defense": 2,
       "hability": "Equipa em qualquer monstro. Uma vez por turno, no final do seu turno, você pode devolver o monstro equipado para a sua mão.",
       "id": "card_091",
-      "image": "cards/feitiço_de_teletransporte.png"
+      "image": "assets/cards/feitiço_de_teletransporte.png"
     },
     {
       "name": "Cajado da Ilusão",
@@ -908,7 +908,7 @@
       "defense": 5,
       "hability": "Equipa em qualquer monstro mágico. Uma vez por turno, o monstro pode se tornar \"intocável\" para o próximo ataque do oponente, desviando-se da ação.",
       "id": "card_092",
-      "image": "cards/cajado_da_ilusão.png"
+      "image": "assets/cards/cajado_da_ilusão.png"
     },
     {
       "name": "Medalhão de Cura",
@@ -918,7 +918,7 @@
       "defense": 10,
       "hability": "Equipa em qualquer monstro. Uma vez por turno, no final da sua Fase de Combate, cura 15 de Defesa do monstro equipado.",
       "id": "card_093",
-      "image": "cards/medalhão_de_cura.png"
+      "image": "assets/cards/medalhão_de_cura.png"
     },
     {
       "name": "Pena do Gigante",
@@ -928,7 +928,7 @@
       "defense": 10,
       "hability": "Pode bloquear um ataque de um monstro, mesmo que ele seja \"Imune a habilidades especiais\".",
       "id": "card_094",
-      "image": "cards/pena_do_gigante.png"
+      "image": "assets/cards/pena_do_gigante.png"
     },
     {
       "name": "Manto da Luz Solar",
@@ -938,7 +938,7 @@
       "defense": 8,
       "hability": "Causa 15 de dano de volta quando atacado por um Vampiro ou Lobisomem.",
       "id": "card_095",
-      "image": "cards/manto_da_luz_solar.png"
+      "image": "assets/cards/manto_da_luz_solar.png"
     },
     {
       "name": "Machado do Vento",
@@ -948,7 +948,7 @@
       "defense": 0,
       "hability": "Permite um um segundo ataque a um monstro diferente, mas o dano desse segundo ataque é reduzido pela metade.",
       "id": "card_096",
-      "image": "cards/machado_do_vento.png"
+      "image": "assets/cards/machado_do_vento.png"
     },
     {
       "name": "Flecha de Prata",
@@ -958,7 +958,7 @@
       "defense": 0,
       "hability": "Equipa em qualquer monstro humanoide ou besta. Ao atacar, ignora todas as habilidades especiais defensivas do monstro alvo.",
       "id": "card_097",
-      "image": "cards/flecha_de_prata.png"
+      "image": "assets/cards/flecha_de_prata.png"
     },
     {
       "name": "Dispositivo de Sincronia",
@@ -968,7 +968,7 @@
       "defense": 5,
       "hability": "Equipa em qualquer monstro robótico. Se você tiver outro monstro robótico em campo, o monstro equipado e o outro monstro robótico ganham +5 de Ataque e Defesa.",
       "id": "card_098",
-      "image": "cards/dispositivo_de_sincronia.png"
+      "image": "assets/cards/dispositivo_de_sincronia.png"
     },
     {
       "name": "Tomo de Feitiços Ancestrais",
@@ -978,7 +978,7 @@
       "defense": 0,
       "hability": "Equipa em qualquer monstro mágico. No início de cada turno, o monstro equipado permite que você compre uma carta adicional.",
       "id": "card_099",
-      "image": "cards/tomo_de_feitiços_ancestrais.png"
+      "image": "assets/cards/tomo_de_feitiços_ancestrais.png"
     },
     {
       "name": "Botas da Rapidez",
@@ -988,7 +988,7 @@
       "defense": 0,
       "hability": "Permite atacar duas vezes por turno, com o segundo ataque causando metade do dano.",
       "id": "card_100",
-      "image": "cards/botas_da_rapidez.png"
+      "image": "assets/cards/botas_da_rapidez.png"
     },
     {
       "name": "Olho de Águia",
@@ -998,7 +998,7 @@
       "defense": 3,
       "hability": "Ignora habilidades de \"Evasão\" ou \"Intocável\" do monstro adversário.",
       "id": "card_101",
-      "image": "cards/olho_de_águia.png"
+      "image": "assets/cards/olho_de_águia.png"
     },
     {
       "name": "Estaca do Caçador",
@@ -1008,7 +1008,7 @@
       "defense": 0,
       "hability": "Equipa em guerreiro/humanoide. Ganha +10 de Ataque contra Vampiros ou Lobisomens.",
       "id": "card_102",
-      "image": "cards/estaca_do_caçador.png"
+      "image": "assets/cards/estaca_do_caçador.png"
     },
     {
       "name": "Couraça de Nano-Carbono",
@@ -1018,7 +1018,7 @@
       "defense": 10,
       "hability": "Equipa em qualquer monstro robótico. Se o monstro equipado for atacado por um monstro de Custo 8 ou mais, o dano recebido é reduzido em 10.",
       "id": "card_103",
-      "image": "cards/couraça_de_nano-carbono.png"
+      "image": "assets/cards/couraça_de_nano-carbono.png"
     },
     {
       "name": "Núcleo de Energia Pura",
@@ -1028,7 +1028,7 @@
       "defense": 10,
       "hability": "Equipa em qualquer monstro dragão ou de elite. Aumenta o Ataque e a Defesa do monstro em 5.",
       "id": "card_104",
-      "image": "cards/núcleo_de_energia_pura.png"
+      "image": "assets/cards/núcleo_de_energia_pura.png"
     },
     {
       "name": "Manoplas de Gelo",
@@ -1038,7 +1038,7 @@
       "defense": 5,
       "hability": "Causa 15 de dano adicional a monstros com habilidade de fogo.",
       "id": "card_105",
-      "image": "cards/manoplas_de_gelo.png"
+      "image": "assets/cards/manoplas_de_gelo.png"
     },
     {
       "name": "Escudo de Energia Estável",
@@ -1048,7 +1048,7 @@
       "defense": 10,
       "hability": "Equipa em monstro robótico. A cada dano recebido, a energia do jogador aumenta em 1.",
       "id": "card_106",
-      "image": "cards/escudo_de_energia_estável.png"
+      "image": "assets/cards/escudo_de_energia_estável.png"
     },
     {
       "name": "Lâmina Sagrada",
@@ -1058,7 +1058,7 @@
       "defense": 5,
       "hability": "Equipa em Elite/Paladino. Pode ignorar a habilidade especial de um Vampiro ou Lobisomem por turno.",
       "id": "card_107",
-      "image": "cards/lâmina_sagrada.png"
+      "image": "assets/cards/lâmina_sagrada.png"
     },
     {
       "name": "Aura de Vingança",
@@ -1068,7 +1068,7 @@
       "defense": 5,
       "hability": "Equipa em qualquer monstro de elite. Se o monstro equipado for derrotado, ele causa dano igual ao seu Ataque total aos pontos de vida do oponente.",
       "id": "card_108",
-      "image": "cards/aura_de_vingança.png"
+      "image": "assets/cards/aura_de_vingança.png"
     },
     {
       "name": "Rego Freitas",
@@ -1078,7 +1078,7 @@
       "defense": 0,
       "hability": "Pegue uma carona com o Rego Freitas e ganhe habilidade de voo por um turno, permitindo atacar os pontos do oponente diretamente.",
       "id": "card_088",
-      "image": "cards/rego_freitas.png"
+      "image": "assets/cards/rego_freitas.png"
     },
     {
       "name": "Apelino Pão e Vinho",
@@ -1088,7 +1088,7 @@
       "defense": 10,
       "hability": "\"Quem comer o pão, beber o vinho e ler deste livro aprenderá as artes da apelação\". Ataque com a criatura equipada quantas vezes quiser por turno.",
       "id": "card_089",
-      "image": "cards/apelino_pão_e_vinho.png"
+      "image": "assets/cards/apelino_pão_e_vinho.png"
     },
     {
       "name": "Bilugação Astral",
@@ -1098,7 +1098,7 @@
       "defense": 0,
       "hability": "A criatura que souber as artes da bilugação astral ficará intransponível por um turno.",
       "id": "card_090",
-      "image": "cards/bilugação_astral.png"
+      "image": "assets/cards/bilugação_astral.png"
     }
   ],
   "total_cards": 108,
