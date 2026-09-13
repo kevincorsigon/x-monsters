@@ -75,6 +75,42 @@
                     }
                 }];
             }
+        },
+        card_003: {
+            feedback: 'ETC: remove monstros inimigos de custo < 3 para a mão dos donos.',
+            resolve(event, context) {
+                const opponentId = event.payload.playerId === 'p1' ? 'p2' : 'p1';
+                return context.state.players[opponentId].zones.field
+                    .filter(card => isCreatureCard(card) && card.data.cost < 3)
+                    .map(card => ({
+                        kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: card.instanceId,
+                        destinationZone: 'hand',
+                        destinationPlayerId: card.ownerId
+                    }));
+            }
+        },
+        card_050: {
+            feedback: 'Shupáku: Linguadex paralisa um inimigo enquanto estiver em campo.',
+            resolve(event, context) {
+                const opponentId = event.payload.playerId === 'p1' ? 'p2' : 'p1';
+                const target = context.state.players[opponentId].zones.field
+                    .find(isCreatureCard);
+                if (!target) return [];
+                return [{
+                    kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                    effect: {
+                        id: `${event.payload.cardId}:linguadex`,
+                        effectType: 'ATTACK_DISABLED',
+                        sourceId: event.payload.cardId,
+                        targetId: target.instanceId,
+                        duration: {
+                            kind: GameEngine.DURATION_KINDS.UNTIL_SOURCE_LEAVES,
+                            sourceId: event.payload.cardId
+                        }
+                    }
+                }];
+            }
         }
     });
 
@@ -246,7 +282,138 @@
         },
         card_101: {
             feedback: 'Olho de Águia: ataques ignoram Evasão e Intocável do alvo.',
+            modifiers: {}
+        },
+        card_094: {
+            feedback: 'Pena do Gigante: bloqueia um ataque mesmo contra alvo imune a habilidades.',
             targetSide: 'ALLY',
+            modifiers: {},
+            effects(equipment, targetId) {
+                return [{
+                    kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                    effect: {
+                        id: `${equipment.instanceId}:feather_shield`,
+                        effectType: 'FEATHER_SHIELD',
+                        sourceId: equipment.instanceId,
+                        targetId,
+                        duration: {
+                            kind: GameEngine.DURATION_KINDS.UNTIL_SOURCE_LEAVES,
+                            sourceId: equipment.instanceId
+                        }
+                    }
+                }];
+            }
+        },
+        card_107: {
+            feedback: 'Lâmina Sagrada: 1x/turno ignora a habilidade de um Vampiro ou Lobisomem.',
+            targetSide: 'ALLY',
+            requiredTraitsAny: ['elite', 'paladino'],
+            modifiers: {}
+        },
+        card_005: {
+            feedback: 'Zica do pantano: imobilizada 3 turnos, perdendo 5 DEF a cada turno.',
+            targetSide: 'ENEMY',
+            modifiers: {},
+            effects(equipment, targetId) {
+                const duration = {
+                    kind: GameEngine.DURATION_KINDS.FOR_TARGET_CONTROLLER_TURNS,
+                    targetControllerId: equipment.controllerId === 'p1' ? 'p2' : 'p1',
+                    count: 3
+                };
+                return [
+                    {
+                        kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                        effect: {
+                            id: `${equipment.instanceId}:immobilized`,
+                            effectType: 'ATTACK_DISABLED',
+                            sourceId: equipment.instanceId,
+                            targetId,
+                            duration: { ...duration }
+                        }
+                    },
+                    {
+                        kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                        effect: {
+                            id: `${equipment.instanceId}:defense_drain`,
+                            effectType: 'DEFENSE_DRAIN',
+                            sourceId: equipment.instanceId,
+                            targetId,
+                            targetControllerId: duration.targetControllerId,
+                            duration: { ...duration }
+                        }
+                    }
+                ];
+            }
+        },
+        card_015: {
+            feedback: '11 de Setembro: -10 ATK/-25 DEF e imobilizada por 5 turnos.',
+            targetSide: 'ENEMY',
+            modifiers: {},
+            effects(equipment, targetId) {
+                const targetControllerId = equipment.controllerId === 'p1' ? 'p2' : 'p1';
+                const duration = {
+                    kind: GameEngine.DURATION_KINDS.FOR_TARGET_CONTROLLER_TURNS,
+                    targetControllerId,
+                    count: 5
+                };
+                return [
+                    {
+                        kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                        targetId,
+                        modifier: {
+                            id: `${equipment.instanceId}:attack`,
+                            sourceId: equipment.instanceId,
+                            stat: 'attack',
+                            operation: GameEngine.MODIFIER_OPERATIONS.ADD,
+                            value: -10,
+                            duration: { ...duration }
+                        }
+                    },
+                    {
+                        kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                        targetId,
+                        modifier: {
+                            id: `${equipment.instanceId}:defense`,
+                            sourceId: equipment.instanceId,
+                            stat: 'defense',
+                            operation: GameEngine.MODIFIER_OPERATIONS.ADD,
+                            value: -25,
+                            duration: { ...duration }
+                        }
+                    },
+                    {
+                        kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                        effect: {
+                            id: `${equipment.instanceId}:immobilized`,
+                            effectType: 'ATTACK_DISABLED',
+                            sourceId: equipment.instanceId,
+                            targetId,
+                            duration: { ...duration }
+                        }
+                    }
+                ];
+            }
+        },
+        card_091: {
+            feedback: 'Feitiço de Teletransporte: 1x/turno devolve o hospedeiro à mão.',
+            targetSide: 'ALLY',
+            modifiers: {}
+        },
+        card_093: {
+            feedback: 'Medalhão de Cura: 1x/turno cura 15 DEF do hospedeiro.',
+            targetSide: 'ALLY',
+            modifiers: {}
+        },
+        card_099: {
+            feedback: 'Tomo de Feitiços Ancestrais: compra 1 carta extra no início do turno.',
+            targetSide: 'ALLY',
+            requiredTrait: 'magico',
+            modifiers: {}
+        },
+        card_106: {
+            feedback: 'Escudo de Energia Estável: +1 de energia a cada dano recebido.',
+            targetSide: 'ALLY',
+            requiredTrait: 'robotico',
             modifiers: {}
         }
     });
@@ -327,6 +494,719 @@
                     }
                 }];
             }
+        },
+        card_072: {
+            abilityId: 'terremoto',
+            feedback: 'Gigante da Marreta: 10 de dano a todos os inimigos.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 0,
+            maxTargets: 0,
+            damage: 10,
+            allEnemies: true
+        },
+        card_081: {
+            abilityId: 'ataque_em_massa',
+            feedback: 'Latex: metade do ATK causada a todos os inimigos.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 0,
+            maxTargets: 0,
+            buildEffects(sourceId, context) {
+                const legalTargets = getActivatedTargets(context.state, sourceId);
+                if (legalTargets.length === 0) return [];
+                const amount = Math.floor(context.getEffectiveStat(sourceId, 'attack') / 2);
+                return [{
+                    kind: GameEngine.EFFECT_KINDS.APPLY_DAMAGE_BATCH,
+                    sourceId,
+                    targetIds: legalTargets,
+                    amount,
+                    damageType: 'ability',
+                    abilityId: 'ataque_em_massa',
+                    provenance: { kind: 'ability', sourceId, abilityId: 'ataque_em_massa' }
+                }];
+            }
+        },
+        card_053: {
+            abilityId: 'gargula_swap_stats',
+            feedback: 'Gárgula de Rocha: troca ATK/DEF até o fim do turno.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 0,
+            maxTargets: 0,
+            buildEffects(sourceId, context) {
+                const state = context.state;
+                const card = state.cardInstances[sourceId];
+                if (!card) return [];
+                const currentAttack = context.getEffectiveStat(sourceId, 'attack');
+                const currentDefense = context.getEffectiveStat(sourceId, 'defense');
+                const prefix = `${sourceId}:gargula_swap:${state.turn}`;
+                const duration = {
+                    kind: GameEngine.DURATION_KINDS.UNTIL_END_OF_TURN,
+                    playerId: card.controllerId,
+                    turnNumber: state.turn
+                };
+                return [
+                    {
+                        kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                        targetId: sourceId,
+                        modifier: {
+                            id: `${prefix}:attack`,
+                            sourceId,
+                            stat: 'attack',
+                            operation: GameEngine.MODIFIER_OPERATIONS.SET,
+                            value: currentDefense,
+                            duration
+                        }
+                    },
+                    {
+                        kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                        targetId: sourceId,
+                        modifier: {
+                            id: `${prefix}:defense`,
+                            sourceId,
+                            stat: 'defense',
+                            operation: GameEngine.MODIFIER_OPERATIONS.SET,
+                            value: currentAttack,
+                            duration
+                        }
+                    }
+                ];
+            }
+        },
+        card_067: {
+            abilityId: 'lamina_alvorada',
+            feedback: 'Paladino Alvorada: anula habilidades de um inimigo até o fim do turno dele.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 1,
+            maxTargets: 1,
+            buildEffects(sourceId, context) {
+                const source = context.state.cardInstances[sourceId];
+                const targetId = context.selection?.[0];
+                if (!source || !targetId) return [];
+                return [{
+                    kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                    effect: {
+                        id: `${sourceId}:ability_nullified:${context.state.turn}`,
+                        effectType: 'ABILITY_NULLIFIED',
+                        sourceId,
+                        targetId,
+                        duration: {
+                            kind: GameEngine.DURATION_KINDS.UNTIL_END_OF_OPPONENT_TURN,
+                            controllerId: source.controllerId
+                        }
+                    }
+                }];
+            }
+        },
+        card_107: {
+            abilityId: 'lamina_cacador',
+            feedback: 'Lâmina Sagrada: ignora a habilidade de um Vampiro ou Lobisomem no turno.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 1,
+            maxTargets: 1,
+            sourceZone: 'equipment',
+            targetFilter: card => hasTrait(card, 'vampiro') || hasTrait(card, 'lobisomem'),
+            buildEffects(sourceId, context) {
+                const source = context.state.cardInstances[sourceId];
+                const targetId = context.selection?.[0];
+                if (!source || !targetId) return [];
+                return [{
+                    kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                    effect: {
+                        id: `${sourceId}:ability_nullified:${context.state.turn}`,
+                        effectType: 'ABILITY_NULLIFIED',
+                        sourceId,
+                        targetId,
+                        duration: {
+                            kind: GameEngine.DURATION_KINDS.UNTIL_END_OF_OPPONENT_TURN,
+                            controllerId: source.controllerId
+                        }
+                    }
+                }];
+            }
+        },
+        card_006: {
+            abilityId: 'jogar_fora',
+            feedback: 'Adubaram: descarta uma criatura inimiga e compra uma carta.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_MATCH, count: 1 },
+            minTargets: 1,
+            maxTargets: 1,
+            sourceZone: 'hand',
+            buildEffects(sourceId, context) {
+                const source = context.state.cardInstances[sourceId];
+                const targetId = context.selection?.[0];
+                const target = targetId ? context.state.cardInstances[targetId] : null;
+                if (!source || !target) return [];
+                const effects = [{
+                    kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                    instanceId: target.instanceId,
+                    destinationZone: 'discard',
+                    destinationPlayerId: target.ownerId
+                }];
+                const deck = context.state.players[source.controllerId].zones.deck;
+                if (deck.length > 0) {
+                    effects.push({
+                        kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: deck[0].instanceId,
+                        destinationZone: 'hand',
+                        destinationPlayerId: source.controllerId
+                    });
+                }
+                effects.push({
+                    kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                    instanceId: sourceId,
+                    destinationZone: 'discard',
+                    destinationPlayerId: source.ownerId
+                });
+                return effects;
+            }
+        },
+        card_007: {
+            abilityId: 'aliciar',
+            feedback: 'Camisa 14: alicia uma criatura inimiga de custo ≤ 3 e concede +10 ATK por 2 turnos.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_MATCH, count: 1 },
+            minTargets: 1,
+            maxTargets: 1,
+            sourceZone: 'hand',
+            targetFilter: card => card.data.cost <= 3,
+            buildEffects(sourceId, context) {
+                const source = context.state.cardInstances[sourceId];
+                const targetId = context.selection?.[0];
+                const target = targetId ? context.state.cardInstances[targetId] : null;
+                if (!source || !target) return [];
+                const newControllerId = source.controllerId;
+                return [
+                    {
+                        kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: target.instanceId,
+                        destinationZone: 'field',
+                        destinationPlayerId: newControllerId
+                    },
+                    {
+                        kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                        targetId: target.instanceId,
+                        modifier: {
+                            id: `${sourceId}:aliciar:attack`,
+                            sourceId,
+                            stat: 'attack',
+                            operation: GameEngine.MODIFIER_OPERATIONS.ADD,
+                            value: 10,
+                            duration: {
+                                kind: GameEngine.DURATION_KINDS.FOR_CONTROLLER_TURNS,
+                                controllerId: newControllerId,
+                                count: 2
+                            }
+                        }
+                    },
+                    {
+                        kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: sourceId,
+                        destinationZone: 'discard',
+                        destinationPlayerId: source.ownerId
+                    }
+                ];
+            }
+        },
+        card_008: {
+            abilityId: 'paralisia_cu_estourado',
+            feedback: 'Cara de cu estourado: paralisa um inimigo por 2 turnos.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_MATCH, count: 1 },
+            minTargets: 1,
+            maxTargets: 1,
+            sourceZone: 'hand',
+            buildEffects(sourceId, context) {
+                const source = context.state.cardInstances[sourceId];
+                const targetId = context.selection?.[0];
+                const target = targetId ? context.state.cardInstances[targetId] : null;
+                if (!source || !target) return [];
+                const duration = {
+                    kind: GameEngine.DURATION_KINDS.FOR_TARGET_CONTROLLER_TURNS,
+                    targetControllerId: target.controllerId,
+                    count: 2
+                };
+                return [
+                    {
+                        kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                        effect: {
+                            id: `${sourceId}:paralysis`,
+                            effectType: 'ATTACK_DISABLED',
+                            sourceId,
+                            targetId,
+                            duration: { ...duration }
+                        }
+                    },
+                    {
+                        kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                        targetId,
+                        modifier: {
+                            id: `${sourceId}:defenseless`,
+                            sourceId,
+                            stat: 'defense',
+                            operation: GameEngine.MODIFIER_OPERATIONS.SET,
+                            value: 0,
+                            duration: { ...duration }
+                        }
+                    },
+                    {
+                        kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: sourceId,
+                        destinationZone: 'discard',
+                        destinationPlayerId: source.ownerId
+                    }
+                ];
+            }
+        },
+        card_011: {
+            abilityId: 'kirb_copy',
+            feedback: 'Kirb: copia a habilidade sem alvo de um aliado com custo < 4.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 1,
+            maxTargets: 1,
+            targetsFn(state, sourceId) {
+                const source = state.cardInstances[sourceId];
+                if (!source) return [];
+                return state.players[source.controllerId].zones.field
+                    .filter(card => card.instanceId !== sourceId)
+                    .filter(isCreatureCard)
+                    .filter(card => {
+                        const rule = card.data.cost < 4 ? getActivatedRule(card.definitionId) : null;
+                        return rule && rule.maxTargets === 0;
+                    })
+                    .map(card => card.instanceId);
+            },
+            buildEffects(sourceId, context) {
+                const copiedId = context.selection?.[0];
+                const copied = copiedId ? context.state.cardInstances[copiedId] : null;
+                if (!copied) return [];
+                const copiedRule = getActivatedRule(copied.definitionId);
+                if (!copiedRule) return [];
+                return buildRuleEffects(copiedId, copiedRule, context);
+            }
+        },
+        card_016: {
+            abilityId: 'remover_suporte',
+            feedback: 'Baltz: descarta todas as cartas de suporte do oponente.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 0,
+            maxTargets: 0,
+            buildEffects(sourceId, context) {
+                const source = context.state.cardInstances[sourceId];
+                if (!source) return [];
+                const opponentId = source.controllerId === 'p1' ? 'p2' : 'p1';
+                return context.state.players[opponentId].zones.equipment.map(card => ({
+                    kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                    instanceId: card.instanceId,
+                    destinationZone: 'discard',
+                    destinationPlayerId: card.ownerId
+                }));
+            }
+        },
+        card_020: {
+            abilityId: 'sair_e_voltar',
+            feedback: 'Gobra: retorna à mão 1x por turno.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 0,
+            maxTargets: 0,
+            buildEffects(sourceId, context) {
+                const source = context.state.cardInstances[sourceId];
+                if (!source) return [];
+                return [
+                    {
+                        kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: sourceId,
+                        destinationZone: 'hand',
+                        destinationPlayerId: source.ownerId
+                    },
+                    ...detachAttachedEquipment(context.state, source)
+                ];
+            }
+        },
+        card_027: {
+            abilityId: 'biluga_biluga',
+            feedback: 'Bilugatron: gruda em um inimigo causando 10 de dano por turno, perdendo ataque e defesa.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_MATCH, count: 1 },
+            minTargets: 1,
+            maxTargets: 1,
+            buildEffects(sourceId, context) {
+                const source = context.state.cardInstances[sourceId];
+                const targetId = context.selection?.[0];
+                if (!source || !targetId) return [];
+                const bondDuration = {
+                    kind: GameEngine.DURATION_KINDS.UNTIL_SOURCE_LEAVES,
+                    sourceId
+                };
+                return [
+                    {
+                        kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                        effect: {
+                            id: `${sourceId}:biluga_bond`,
+                            effectType: 'BILUGA_BOND',
+                            sourceId,
+                            targetId,
+                            duration: { ...bondDuration }
+                        }
+                    },
+                    {
+                        kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                        effect: {
+                            id: `${sourceId}:no_attack`,
+                            effectType: 'ATTACK_DISABLED',
+                            sourceId,
+                            targetId: sourceId,
+                            duration: { ...bondDuration }
+                        }
+                    },
+                    {
+                        kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                        targetId: sourceId,
+                        modifier: {
+                            id: `${sourceId}:biluga_defenseless`,
+                            sourceId,
+                            stat: 'defense',
+                            operation: GameEngine.MODIFIER_OPERATIONS.SET,
+                            value: 0,
+                            duration: { ...bondDuration }
+                        }
+                    }
+                ];
+            }
+        },
+        card_031: {
+            abilityId: 'sorte_magica',
+            feedback: 'Duende: reseta o uso de uma habilidade ativada aliada neste turno.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 1,
+            maxTargets: 1,
+            targetsFn(state, sourceId) {
+                const source = state.cardInstances[sourceId];
+                if (!source) return [];
+                return state.players[source.controllerId].zones.field
+                    .filter(card => card.instanceId !== sourceId)
+                    .filter(isCreatureCard)
+                    .filter(card => getActivatedRule(card.definitionId))
+                    .map(card => card.instanceId);
+            },
+            buildEffects(sourceId, context) {
+                const targetId = context.selection?.[0];
+                const target = targetId ? context.state.cardInstances[targetId] : null;
+                if (!target) return [];
+                const rule = getActivatedRule(target.definitionId);
+                if (!rule) return [];
+                return [{
+                    kind: GameEngine.EFFECT_KINDS.RESET_ABILITY_USE,
+                    sourceId: target.instanceId,
+                    abilityId: rule.abilityId
+                }];
+            }
+        },
+        card_034: {
+            abilityId: 'paralisia_lama',
+            feedback: 'Medusa de Lama: paralisa um inimigo por 1 turno.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 1,
+            maxTargets: 1,
+            buildEffects(sourceId, context) {
+                const targetId = context.selection?.[0];
+                const target = targetId ? context.state.cardInstances[targetId] : null;
+                if (!target) return [];
+                return [{
+                    kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                    effect: {
+                        id: `${sourceId}:paralysis:${context.state.turn}`,
+                        effectType: 'ATTACK_DISABLED',
+                        sourceId,
+                        targetId,
+                        duration: {
+                            kind: GameEngine.DURATION_KINDS.FOR_TARGET_CONTROLLER_TURNS,
+                            targetControllerId: target.controllerId,
+                            count: 1
+                        }
+                    }
+                }];
+            }
+        },
+        card_039: {
+            abilityId: 'retirada_tatica',
+            feedback: 'Trox: retorna à mão (1x por partida).',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_MATCH, count: 1 },
+            minTargets: 0,
+            maxTargets: 0,
+            buildEffects(sourceId, context) {
+                const source = context.state.cardInstances[sourceId];
+                if (!source) return [];
+                return [
+                    {
+                        kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: sourceId,
+                        destinationZone: 'hand',
+                        destinationPlayerId: source.ownerId
+                    },
+                    ...detachAttachedEquipment(context.state, source)
+                ];
+            }
+        },
+        card_045: {
+            abilityId: 'ritual_invocacao',
+            feedback: 'Invocador das Trevas: invoca um Diabrete Alado da mão pagando 1 de energia.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 1,
+            maxTargets: 1,
+            costs: [{ kind: 'PLAYER_STAT', stat: 'energy', amount: 1 }],
+            targetsFn(state, sourceId) {
+                const source = state.cardInstances[sourceId];
+                if (!source) return [];
+                return state.players[source.controllerId].zones.hand
+                    .filter(card => card.definitionId.startsWith('card_010'))
+                    .map(card => card.instanceId);
+            },
+            buildEffects(sourceId, context) {
+                const source = context.state.cardInstances[sourceId];
+                const targetId = context.selection?.[0];
+                if (!source || !targetId) return [];
+                return [
+                    {
+                        kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: targetId,
+                        destinationZone: 'field',
+                        destinationPlayerId: source.controllerId
+                    },
+                    {
+                        kind: GameEngine.EFFECT_KINDS.EMIT_EVENT,
+                        type: GameEngine.EVENT_TYPES.CREATURE_SUMMONED,
+                        payload: { cardId: targetId, playerId: source.controllerId },
+                        immediate: true
+                    }
+                ];
+            }
+        },
+        card_046: {
+            abilityId: 'ignorar_defesa',
+            feedback: 'Salatiel: paga 3 de energia para ignorar a defesa de um alvo no próximo ataque.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 1,
+            maxTargets: 1,
+            costs: [{ kind: 'PLAYER_STAT', stat: 'energy', amount: 3 }],
+            buildEffects(sourceId, context) {
+                const targetId = context.selection?.[0];
+                if (!targetId) return [];
+                return [{
+                    kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                    effect: {
+                        id: `${sourceId}:ignore_defense:${context.state.turn}:${targetId}`,
+                        effectType: 'IGNORE_DEFENSE_GRANT',
+                        sourceId,
+                        targetId,
+                        duration: {
+                            kind: GameEngine.DURATION_KINDS.UNTIL_NEXT_MATCHING_EVENT,
+                            eventType: GameEngine.EVENT_TYPES.AFTER_ATTACK,
+                            subjectId: targetId
+                        }
+                    }
+                }];
+            }
+        },
+        card_049: {
+            abilityId: 'guela_atolada',
+            feedback: 'Entola Guela: um inimigo escolhido não pode atacar até o fim do turno dele.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 1,
+            maxTargets: 1,
+            buildEffects(sourceId, context) {
+                const source = context.state.cardInstances[sourceId];
+                const targetId = context.selection?.[0];
+                if (!source || !targetId) return [];
+                return [{
+                    kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                    effect: {
+                        id: `${sourceId}:guela_atolada:${context.state.turn}`,
+                        effectType: 'ATTACK_DISABLED',
+                        sourceId,
+                        targetId,
+                        duration: {
+                            kind: GameEngine.DURATION_KINDS.UNTIL_END_OF_OPPONENT_TURN,
+                            controllerId: source.controllerId
+                        }
+                    }
+                }];
+            }
+        },
+        card_055: {
+            abilityId: 'rajada_mana',
+            feedback: 'Mago Arcano: 5 de dano direto ao oponente.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 0,
+            maxTargets: 0,
+            buildEffects(sourceId, context) {
+                const source = context.state.cardInstances[sourceId];
+                if (!source) return [];
+                const opponentId = source.controllerId === 'p1' ? 'p2' : 'p1';
+                return [{
+                    kind: GameEngine.EFFECT_KINDS.CHANGE_PLAYER_STAT,
+                    stat: 'pv',
+                    playerId: opponentId,
+                    amount: -5,
+                    changeType: 'damage',
+                    provenance: { kind: 'ability', sourceId, abilityId: 'rajada_mana' }
+                }];
+            }
+        },
+        card_061: {
+            abilityId: 'elixir_protetor',
+            feedback: 'Alquimista Guardião: +10 DEF a um aliado até o fim do próximo turno adversário.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 1,
+            maxTargets: 1,
+            targetsAllies: true,
+            buildEffects(sourceId, context) {
+                const source = context.state.cardInstances[sourceId];
+                const targetId = context.selection?.[0];
+                if (!source || !targetId) return [];
+                return [{
+                    kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                    targetId,
+                    modifier: {
+                        id: `${sourceId}:elixir:${context.state.turn}`,
+                        sourceId,
+                        stat: 'defense',
+                        operation: GameEngine.MODIFIER_OPERATIONS.ADD,
+                        value: 10,
+                        duration: {
+                            kind: GameEngine.DURATION_KINDS.UNTIL_END_OF_OPPONENT_TURN,
+                            controllerId: source.controllerId
+                        }
+                    }
+                }];
+            }
+        },
+        card_080: {
+            abilityId: 'queimadura_continua',
+            feedback: 'Lobo Omega Pyro: aplica queimadura contínua (-5 DEF por turno) a um inimigo.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 1,
+            maxTargets: 1,
+            buildEffects(sourceId, context) {
+                const targetId = context.selection?.[0];
+                if (!targetId) return [];
+                const effectId = `${sourceId}:burning:${targetId}`;
+                if (context.state.effects.some(effect => effect.id === effectId)) return [];
+                return [{
+                    kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                    effect: {
+                        id: effectId,
+                        effectType: 'BURNING',
+                        sourceId,
+                        targetId,
+                        duration: {
+                            kind: GameEngine.DURATION_KINDS.UNTIL_SOURCE_LEAVES,
+                            sourceId
+                        }
+                    }
+                }];
+            }
+        },
+        card_082: {
+            abilityId: 'paralisia_glacial',
+            feedback: 'Lobo Gamma Freeze: paralisa todos os inimigos por 3 turnos.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 0,
+            maxTargets: 0,
+            allEnemies: true,
+            buildEffects(sourceId, context) {
+                const source = context.state.cardInstances[sourceId];
+                if (!source) return [];
+                const opponentId = source.controllerId === 'p1' ? 'p2' : 'p1';
+                const targets = getActivatedTargets(context.state, sourceId);
+                return targets.map(targetId => ({
+                    kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                    effect: {
+                        id: `${sourceId}:freeze:${context.state.turn}:${targetId}`,
+                        effectType: 'ATTACK_DISABLED',
+                        sourceId,
+                        targetId,
+                        duration: {
+                            kind: GameEngine.DURATION_KINDS.FOR_TARGET_CONTROLLER_TURNS,
+                            targetControllerId: opponentId,
+                            count: 3
+                        }
+                    }
+                }));
+            }
+        },
+        card_085: {
+            abilityId: 'ataque_total',
+            feedback: 'Marik 2: ataca todos os inimigos com seu ATK total, perdendo toda a DEF depois.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_MATCH, count: 1 },
+            minTargets: 0,
+            maxTargets: 0,
+            buildEffects(sourceId, context) {
+                const legalTargets = getActivatedTargets(context.state, sourceId);
+                const amount = context.getEffectiveStat(sourceId, 'attack');
+                const effects = [];
+                if (legalTargets.length > 0) {
+                    effects.push({
+                        kind: GameEngine.EFFECT_KINDS.APPLY_DAMAGE_BATCH,
+                        sourceId,
+                        targetIds: legalTargets,
+                        amount,
+                        damageType: 'ability',
+                        abilityId: 'ataque_total',
+                        provenance: { kind: 'ability', sourceId, abilityId: 'ataque_total' }
+                    });
+                }
+                effects.push({
+                    kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                    targetId: sourceId,
+                    modifier: {
+                        id: `${sourceId}:marik_defenseless`,
+                        sourceId,
+                        stat: 'defense',
+                        operation: GameEngine.MODIFIER_OPERATIONS.SET,
+                        value: 0,
+                        duration: { kind: GameEngine.DURATION_KINDS.PERMANENT_ON_INSTANCE }
+                    }
+                });
+                return effects;
+            }
+        },
+        card_091: {
+            abilityId: 'teletransporte_retorno',
+            feedback: 'Feitiço de Teletransporte: 1x/turno devolve o hospedeiro equipado à mão.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 0,
+            maxTargets: 0,
+            sourceZone: 'equipment',
+            buildEffects(sourceId, context) {
+                const equipment = context.state.cardInstances[sourceId];
+                const hostId = equipment?.attachedTo;
+                const host = hostId ? context.state.cardInstances[hostId] : null;
+                if (!host) return [];
+                return [
+                    {
+                        kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: hostId,
+                        destinationZone: 'hand',
+                        destinationPlayerId: host.ownerId
+                    },
+                    ...detachAttachedEquipment(context.state, host)
+                ];
+            }
+        },
+        card_093: {
+            abilityId: 'cura_medalhao',
+            feedback: 'Medalhão de Cura: 1x/turno cura 15 DEF do hospedeiro.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 0,
+            maxTargets: 0,
+            sourceZone: 'equipment',
+            buildEffects(sourceId, context) {
+                const equipment = context.state.cardInstances[sourceId];
+                const hostId = equipment?.attachedTo;
+                if (!hostId) return [];
+                return [{
+                    kind: GameEngine.EFFECT_KINDS.APPLY_CARD_DAMAGE,
+                    targetId: hostId,
+                    amount: -15,
+                    provenance: { kind: 'ability', sourceId, abilityId: 'cura_medalhao' }
+                }];
+            }
         }
     });
 
@@ -335,6 +1215,7 @@
         card_018: { feedback: 'CP-2: inimigos devem atacá-lo primeiro.' },
         card_025: { feedback: 'Protegido enquanto houver outro aliado.' },
         card_044: { feedback: 'Voar Alto: não pode ser atacado por custo 4 ou menor.' },
+        card_053: { feedback: 'Gárgula de Rocha: não pode ser atacada por custo menor que 5.' },
         card_058: { feedback: 'Evasão ativa enquanto for a única criatura aliada.' },
         card_059: { feedback: 'O Lica não pode ser atacado por um campo inimigo solitário.' },
         card_060: { feedback: 'Tranca Rua deve ser atacado enquanto houver outro aliado.' }
@@ -431,6 +1312,12 @@
             modifiers: [dynamicModifier(
                 'attackLimit', GameEngine.MODIFIER_OPERATIONS.SET, () => 2, () => true
             )]
+        },
+        card_087: {
+            feedback: 'Superior: dois ataques por turno.',
+            modifiers: [dynamicModifier(
+                'attackLimit', GameEngine.MODIFIER_OPERATIONS.SET, () => 2, () => true
+            )]
         }
     });
 
@@ -494,6 +1381,18 @@
     function enemyCreatures(state, card) {
         const opponentId = card.controllerId === 'p1' ? 'p2' : 'p1';
         return state.players[opponentId].zones.field.filter(isCreatureCard);
+    }
+
+    function detachAttachedEquipment(state, card) {
+        return [...card.attachments]
+            .map(instanceId => state.cardInstances[instanceId])
+            .filter(attachment => attachment && attachment.zone === 'equipment')
+            .map(attachment => ({
+                kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                instanceId: attachment.instanceId,
+                destinationZone: 'discard',
+                destinationPlayerId: attachment.ownerId
+            }));
     }
 
     function dynamicModifier(stat, operation, value, condition) {
@@ -603,6 +1502,9 @@
         if (!bypassesAllDefenses && target.definitionId === 'card_044' && attacker.data.cost <= 4) {
             return { valid: false, reason: 'Voar Alto bloqueia criaturas de custo 4 ou menor.' };
         }
+        if (!bypassesAllDefenses && target.definitionId === 'card_053' && attacker.data.cost < 5) {
+            return { valid: false, reason: 'Gárgula de Rocha bloqueia criaturas de custo menor que 5.' };
+        }
         if (target.definitionId === 'card_058') {
             const isAlone = defendingField.filter(isCreatureCard).length === 1;
             if (!bypassesEvasion && isAlone && attacker.data.cost <= 4) {
@@ -651,11 +1553,54 @@
 
     function getActivatedTargets(state, sourceId) {
         const source = state.cardInstances[sourceId];
-        if (!source || !getActivatedRule(source.definitionId)) return [];
+        const rule = source ? getActivatedRule(source.definitionId) : null;
+        if (!source || !rule) return [];
+        if (rule.targetsFn) return rule.targetsFn(state, sourceId);
+        if (rule.targetsAllies) {
+            return state.players[source.controllerId].zones.field
+                .filter(card => card.instanceId !== sourceId && isCreatureCard(card))
+                .filter(card => !rule.targetFilter || rule.targetFilter(card))
+                .map(card => card.instanceId);
+        }
         const opponentId = source.controllerId === 'p1' ? 'p2' : 'p1';
         return state.players[opponentId].zones.field
             .filter(card => ['criatura', 'evolução'].includes(card.data.type))
+            .filter(card => !rule.targetFilter || rule.targetFilter(card))
             .map(card => card.instanceId);
+    }
+
+    function buildRuleEffects(sourceId, rule, context) {
+        if (rule.buildEffects) return rule.buildEffects(sourceId, context);
+        const legalTargets = getActivatedTargets(context.state, sourceId);
+        const selectedTargets = rule.allEnemies ? legalTargets : context.selection;
+        if (rule.damage !== null && rule.damage !== undefined) {
+            return [{
+                kind: GameEngine.EFFECT_KINDS.APPLY_DAMAGE_BATCH,
+                sourceId,
+                targetIds: selectedTargets,
+                amount: rule.damage,
+                damageType: 'ability',
+                abilityId: rule.abilityId,
+                provenance: { kind: 'ability', sourceId, abilityId: rule.abilityId }
+            }];
+        }
+
+        const targetId = selectedTargets[0];
+        const effectPrefix = `${sourceId}:${rule.abilityId}:${context.state.turn}:${targetId}`;
+        return ['attack', 'defense'].map(stat => ({
+            kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+            targetId,
+            modifier: {
+                id: `${effectPrefix}:${stat}`,
+                sourceId,
+                stat,
+                operation: GameEngine.MODIFIER_OPERATIONS.ADD,
+                value: -5,
+                duration: {
+                    kind: GameEngine.DURATION_KINDS.PERMANENT_ON_INSTANCE
+                }
+            }
+        }));
     }
 
     function createActivatedAbilityAction(state, sourceId) {
@@ -672,46 +1617,13 @@
             requiresTurn: true,
             abilityId: rule.abilityId,
             limit: rule.limit,
+            costs: rule.costs || [],
             choice: rule.maxTargets > 0 ? {
                 options: context => getActivatedTargets(context.state, sourceId),
                 min: rule.minTargets,
                 max: rule.maxTargets
             } : null,
-            effects: context => {
-                if (rule.buildEffects) {
-                    return rule.buildEffects(sourceId, context);
-                }
-                const legalTargets = getActivatedTargets(context.state, sourceId);
-                const selectedTargets = rule.allEnemies ? legalTargets : context.selection;
-                if (rule.damage !== null) {
-                    return [{
-                        kind: GameEngine.EFFECT_KINDS.APPLY_DAMAGE_BATCH,
-                        sourceId,
-                        targetIds: selectedTargets,
-                        amount: rule.damage,
-                        damageType: 'ability',
-                        abilityId: rule.abilityId,
-                        provenance: { kind: 'ability', sourceId, abilityId: rule.abilityId }
-                    }];
-                }
-
-                const targetId = selectedTargets[0];
-                const effectPrefix = `${sourceId}:${rule.abilityId}:${context.state.turn}:${targetId}`;
-                return ['attack', 'defense'].map(stat => ({
-                    kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
-                    targetId,
-                    modifier: {
-                        id: `${effectPrefix}:${stat}`,
-                        sourceId,
-                        stat,
-                        operation: GameEngine.MODIFIER_OPERATIONS.ADD,
-                        value: -5,
-                        duration: {
-                            kind: GameEngine.DURATION_KINDS.PERMANENT_ON_INSTANCE
-                        }
-                    }
-                }));
-            }
+            effects: context => buildRuleEffects(sourceId, rule, context)
         };
         if (!action.choice) delete action.choice;
         return action;
@@ -856,6 +1768,16 @@
             return { prevented: true, preventionId: barrier.id };
         }
 
+        if (isAbility && sourceIsCreature && (isCardDamage || isPlayerDamage)) {
+            const nullified = state.effects.find(activeEffect =>
+                activeEffect.effectType === 'ABILITY_NULLIFIED' &&
+                activeEffect.targetId === provenance.sourceId
+            );
+            if (nullified) {
+                return { prevented: true, preventionId: nullified.id };
+            }
+        }
+
         return null;
     }
 
@@ -986,6 +1908,24 @@
             }
         );
 
+        const unregisterAttackDeclared = engine.registerEventHandler(
+            GameEngine.EVENT_TYPES.ATTACK_DECLARED,
+            (event, context) => {
+                const disabled = context.state.effects.find(effect =>
+                    effect.effectType === 'ATTACK_DISABLED' &&
+                    effect.targetId === event.payload.attackerId
+                );
+                if (!disabled) return [];
+                return [{
+                    kind: GameEngine.EFFECT_KINDS.MODIFY_COMBAT,
+                    combatId: event.payload.combatId,
+                    field: 'cancelled',
+                    value: true
+                }];
+            },
+            100
+        );
+
         const unregisterCombat = engine.registerEventHandler(
             GameEngine.EVENT_TYPES.BEFORE_DAMAGE,
             (event, context) => {
@@ -1065,6 +2005,17 @@
                     attacker.definitionId === 'card_056' &&
                     target &&
                     event.payload.attackOrdinal === 1
+                ) {
+                    ignoredDefense = Number.POSITIVE_INFINITY;
+                }
+
+                if (
+                    target &&
+                    context.state.effects.some(effect =>
+                        effect.effectType === 'IGNORE_DEFENSE_GRANT' &&
+                        effect.sourceId === attacker.instanceId &&
+                        effect.targetId === target.instanceId
+                    )
                 ) {
                     ignoredDefense = Number.POSITIVE_INFINITY;
                 }
@@ -1218,24 +2169,49 @@
             GameEngine.EVENT_TYPES.AFTER_ATTACK,
             (event, context) => {
                 const attacker = context.state.cardInstances[event.payload.attackerId];
+                if (!attacker) return [];
+                const effects = [];
+
                 if (
-                    attacker?.definitionId !== 'card_076' ||
-                    !event.payload.defeated?.includes(event.payload.targetId)
+                    attacker.definitionId === 'card_076' &&
+                    event.payload.defeated?.includes(event.payload.targetId)
                 ) {
-                    return [];
+                    effects.push({
+                        kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                        targetId: attacker.instanceId,
+                        modifier: {
+                            id: `carmilla_kill:${event.payload.combatId}`,
+                            sourceId: attacker.instanceId,
+                            stat: 'attack',
+                            operation: GameEngine.MODIFIER_OPERATIONS.ADD,
+                            value: 10,
+                            duration: { kind: GameEngine.DURATION_KINDS.PERMANENT_ON_INSTANCE }
+                        }
+                    });
                 }
-                return [{
-                    kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
-                    targetId: attacker.instanceId,
-                    modifier: {
-                        id: `carmilla_kill:${event.payload.combatId}`,
-                        sourceId: attacker.instanceId,
-                        stat: 'attack',
-                        operation: GameEngine.MODIFIER_OPERATIONS.ADD,
-                        value: 10,
-                        duration: { kind: GameEngine.DURATION_KINDS.PERMANENT_ON_INSTANCE }
+
+                if (attacker.definitionId === 'card_083' && !event.payload.cancelled) {
+                    const otherTargets = allFieldCreatures(context.state)
+                        .filter(card => card.instanceId !== attacker.instanceId)
+                        .map(card => card.instanceId);
+                    if (otherTargets.length > 0) {
+                        effects.push({
+                            kind: GameEngine.EFFECT_KINDS.APPLY_DAMAGE_BATCH,
+                            sourceId: attacker.instanceId,
+                            targetIds: otherTargets,
+                            amount: 20,
+                            damageType: 'ability',
+                            abilityId: 'respiracao_caustica',
+                            provenance: {
+                                kind: 'ability',
+                                sourceId: attacker.instanceId,
+                                abilityId: 'respiracao_caustica'
+                            }
+                        });
                     }
-                }];
+                }
+
+                return effects;
             }
         );
 
@@ -1319,6 +2295,21 @@
                         effectId: untouchableShield.id
                     });
                 }
+                const featherShield = context.state.effects.find(effect =>
+                    effect.effectType === 'FEATHER_SHIELD' &&
+                    effect.targetId === event.payload.targetId
+                );
+                if (featherShield) {
+                    effects.push({
+                        kind: GameEngine.EFFECT_KINDS.MODIFY_COMBAT,
+                        combatId: event.payload.combatId,
+                        field: 'cancelled',
+                        value: true
+                    }, {
+                        kind: GameEngine.EFFECT_KINDS.REMOVE_EFFECT,
+                        effectId: featherShield.id
+                    });
+                }
                 return effects;
             },
             100
@@ -1328,24 +2319,40 @@
             GameEngine.EVENT_TYPES.DAMAGE_DEALT,
             (event, context) => {
                 const damaged = context.state.cardInstances[event.payload.damagedId];
+                if (!damaged) return [];
+                const effects = [];
+
                 if (
-                    damaged?.definitionId !== 'card_030' ||
-                    event.payload.damageType !== 'physical' ||
-                    event.payload.amount <= 0 ||
-                    !event.payload.sourceId
+                    damaged.definitionId === 'card_030' &&
+                    event.payload.damageType === 'physical' &&
+                    event.payload.amount > 0 &&
+                    event.payload.sourceId
                 ) {
-                    return [];
+                    effects.push({
+                        kind: GameEngine.EFFECT_KINDS.APPLY_CARD_DAMAGE,
+                        targetId: event.payload.sourceId,
+                        amount: Math.floor(event.payload.amount / 2),
+                        provenance: {
+                            kind: 'ability',
+                            sourceId: damaged.instanceId,
+                            abilityId: 'reflect_half_damage'
+                        }
+                    });
                 }
-                return [{
-                    kind: GameEngine.EFFECT_KINDS.APPLY_CARD_DAMAGE,
-                    targetId: event.payload.sourceId,
-                    amount: Math.floor(event.payload.amount / 2),
-                    provenance: {
-                        kind: 'ability',
-                        sourceId: damaged.instanceId,
-                        abilityId: 'reflect_half_damage'
-                    }
-                }];
+
+                const energyShield = damaged.attachments
+                    .map(instanceId => context.state.cardInstances[instanceId])
+                    .find(attachment => attachment?.definitionId === 'card_106' && attachment.zone === 'equipment');
+                if (energyShield && event.payload.amount > 0) {
+                    effects.push({
+                        kind: GameEngine.EFFECT_KINDS.CHANGE_PLAYER_STAT,
+                        stat: 'energy',
+                        playerId: damaged.controllerId,
+                        amount: 1
+                    });
+                }
+
+                return effects;
             }
         );
 
@@ -1426,6 +2433,36 @@
                     });
                 }
 
+                if (source.definitionId === 'card_087' && source.zone === 'field') {
+                    const discard = context.state.players[source.controllerId].zones.discard;
+                    const revivable = [...discard].reverse().find(card =>
+                        ['criatura', 'evolução'].includes(card.data.type)
+                    );
+                    if (revivable) {
+                        effects.push({
+                            kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                            instanceId: revivable.instanceId,
+                            destinationZone: 'hand',
+                            destinationPlayerId: source.controllerId
+                        });
+                    }
+                }
+
+                if (source.definitionId === 'card_062' && source.zone === 'field') {
+                    const discard = context.state.players[source.controllerId].zones.discard;
+                    const revivable = [...discard].reverse().find(card =>
+                        ['criatura', 'evolução'].includes(card.data.type)
+                    );
+                    if (revivable) {
+                        effects.push({
+                            kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                            instanceId: revivable.instanceId,
+                            destinationZone: 'field',
+                            destinationPlayerId: source.controllerId
+                        });
+                    }
+                }
+
                 if (source.definitionId === 'card_054') {
                     const limit = { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 };
                     if (context.canUseAbility(source.instanceId, 'life_drain', limit)) {
@@ -1471,42 +2508,215 @@
         const unregisterDestroyedReaction = engine.registerEventHandler(
             GameEngine.EVENT_TYPES.CREATURE_DESTROYED,
             (event, context) => {
+                const effects = [];
                 const auraId = event.payload.attachmentsSnapshot?.find(attachmentId =>
                     context.state.cardInstances[attachmentId]?.definitionId === 'card_108'
                 );
-                if (!auraId) return [];
-                const opponentId = event.payload.controllerId === 'p1' ? 'p2' : 'p1';
-                return [{
-                    kind: GameEngine.EFFECT_KINDS.CHANGE_PLAYER_STAT,
-                    stat: 'pv',
-                    playerId: opponentId,
-                    amount: -event.payload.attackSnapshot,
-                    changeType: 'damage',
-                    provenance: {
-                        kind: 'ability',
-                        sourceId: auraId,
-                        abilityId: 'vengeance_aura'
+                if (auraId) {
+                    const opponentId = event.payload.controllerId === 'p1' ? 'p2' : 'p1';
+                    effects.push({
+                        kind: GameEngine.EFFECT_KINDS.CHANGE_PLAYER_STAT,
+                        stat: 'pv',
+                        playerId: opponentId,
+                        amount: -event.payload.attackSnapshot,
+                        changeType: 'damage',
+                        provenance: {
+                            kind: 'ability',
+                            sourceId: auraId,
+                            abilityId: 'vengeance_aura'
+                        }
+                    });
+                }
+
+                const destroyedCard = context.state.cardInstances[event.payload.cardId];
+
+                if (destroyedCard?.definitionId === 'card_069') {
+                    effects.push(
+                        {
+                            kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                            instanceId: destroyedCard.instanceId,
+                            destinationZone: 'hand',
+                            destinationPlayerId: event.payload.ownerId
+                        },
+                        {
+                            kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                            targetId: destroyedCard.instanceId,
+                            modifier: {
+                                id: `${destroyedCard.instanceId}:cost_penalty:${context.state.turn}`,
+                                sourceId: destroyedCard.instanceId,
+                                stat: 'costPenalty',
+                                operation: GameEngine.MODIFIER_OPERATIONS.ADD,
+                                value: 1,
+                                duration: { kind: GameEngine.DURATION_KINDS.PERMANENT_ON_INSTANCE }
+                            }
+                        }
+                    );
+                }
+
+                if (destroyedCard?.definitionId === 'card_038') {
+                    const deck = context.state.players[event.payload.ownerId].zones.deck;
+                    const aquaticCard = deck.find(card => hasTrait(card, 'aquatico'));
+                    if (aquaticCard) {
+                        effects.push({
+                            kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                            instanceId: aquaticCard.instanceId,
+                            destinationZone: 'hand',
+                            destinationPlayerId: event.payload.ownerId
+                        });
                     }
-                }];
+                }
+
+                return effects;
             }
         );
 
         const unregisterTurnCleanup = engine.registerEventHandler(
             GameEngine.EVENT_TYPES.TURN_ENDED,
-            (event, context) => context.state.effects
-                .filter(effect =>
-                    effect.effectType === 'DIRECT_ATTACK_PERMISSION' &&
-                    effect.expiresPlayerId === event.payload.playerId &&
-                    event.payload.turnNumber >= effect.expiresTurnNumber
-                )
-                .map(effect => ({
-                    kind: GameEngine.EFFECT_KINDS.REMOVE_EFFECT,
-                    effectId: effect.id
-                }))
+            (event, context) => {
+                const effects = context.state.effects
+                    .filter(effect =>
+                        effect.effectType === 'DIRECT_ATTACK_PERMISSION' &&
+                        effect.expiresPlayerId === event.payload.playerId &&
+                        event.payload.turnNumber >= effect.expiresTurnNumber
+                    )
+                    .map(effect => ({
+                        kind: GameEngine.EFFECT_KINDS.REMOVE_EFFECT,
+                        effectId: effect.id
+                    }));
+
+                context.state.players[event.payload.playerId].zones.field
+                    .filter(card => card.definitionId === 'card_041')
+                    .forEach(card => {
+                        const usage = card.usage?.combatAttacks;
+                        const attackCount = usage?.turnNumber === event.payload.turnNumber
+                            ? usage.count
+                            : 0;
+                        if (attackCount > 0) return;
+                        const effectPrefix = `${card.instanceId}:gulosinho:${event.payload.turnNumber}`;
+                        effects.push(
+                            {
+                                kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                                targetId: card.instanceId,
+                                modifier: {
+                                    id: `${effectPrefix}:attack`,
+                                    sourceId: card.instanceId,
+                                    stat: 'attack',
+                                    operation: GameEngine.MODIFIER_OPERATIONS.ADD,
+                                    value: 5,
+                                    duration: { kind: GameEngine.DURATION_KINDS.PERMANENT_ON_INSTANCE }
+                                }
+                            },
+                            {
+                                kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                                targetId: card.instanceId,
+                                modifier: {
+                                    id: `${effectPrefix}:defense`,
+                                    sourceId: card.instanceId,
+                                    stat: 'defense',
+                                    operation: GameEngine.MODIFIER_OPERATIONS.ADD,
+                                    value: 5,
+                                    duration: { kind: GameEngine.DURATION_KINDS.PERMANENT_ON_INSTANCE }
+                                }
+                            }
+                        );
+                    });
+
+                return effects;
+            }
+        );
+
+        const unregisterTurnStarted = engine.registerEventHandler(
+            GameEngine.EVENT_TYPES.TURN_STARTED,
+            (event, context) => {
+                const effects = [];
+                const turn = event.payload.turnNumber;
+                const playerId = event.payload.playerId;
+
+                context.state.effects
+                    .filter(effect =>
+                        effect.effectType === 'DEFENSE_DRAIN' &&
+                        effect.targetControllerId === playerId
+                    )
+                    .forEach(effect => {
+                        effects.push({
+                            kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                            targetId: effect.targetId,
+                            modifier: {
+                                id: `${effect.id}:tick:${turn}`,
+                                sourceId: effect.sourceId,
+                                stat: 'defense',
+                                operation: GameEngine.MODIFIER_OPERATIONS.ADD,
+                                value: -5,
+                                duration: { kind: GameEngine.DURATION_KINDS.PERMANENT_ON_INSTANCE }
+                            }
+                        });
+                    });
+
+                context.state.effects
+                    .filter(effect => effect.effectType === 'BURNING')
+                    .forEach(effect => {
+                        const source = context.state.cardInstances[effect.sourceId];
+                        if (!source || source.controllerId !== playerId) return;
+                        effects.push({
+                            kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                            targetId: effect.targetId,
+                            modifier: {
+                                id: `${effect.id}:tick:${turn}`,
+                                sourceId: effect.sourceId,
+                                stat: 'defense',
+                                operation: GameEngine.MODIFIER_OPERATIONS.ADD,
+                                value: -5,
+                                duration: { kind: GameEngine.DURATION_KINDS.PERMANENT_ON_INSTANCE }
+                            }
+                        });
+                    });
+
+                context.state.effects
+                    .filter(effect => effect.effectType === 'BILUGA_BOND')
+                    .forEach(effect => {
+                        const source = context.state.cardInstances[effect.sourceId];
+                        const target = context.state.cardInstances[effect.targetId];
+                        if (!source || source.controllerId !== playerId) return;
+                        if (!target || target.zone !== 'field') return;
+                        effects.push({
+                            kind: GameEngine.EFFECT_KINDS.APPLY_CARD_DAMAGE,
+                            targetId: effect.targetId,
+                            amount: 10,
+                            provenance: {
+                                kind: 'ability',
+                                sourceId: effect.sourceId,
+                                abilityId: 'biluga_biluga'
+                            }
+                        });
+                    });
+
+                allFieldCreatures(context.state)
+                    .filter(card => card.controllerId === playerId)
+                    .forEach(card => {
+                        const tomo = card.attachments
+                            .map(instanceId => context.state.cardInstances[instanceId])
+                            .find(attachment =>
+                                attachment?.definitionId === 'card_099' &&
+                                attachment.zone === 'equipment'
+                            );
+                        if (!tomo) return;
+                        const deck = context.state.players[playerId].zones.deck;
+                        if (deck.length === 0) return;
+                        effects.push({
+                            kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                            instanceId: deck[0].instanceId,
+                            destinationZone: 'hand',
+                            destinationPlayerId: playerId
+                        });
+                    });
+
+                return effects;
+            }
         );
 
         return function uninstall() {
             unregisterSummon();
+            unregisterAttackDeclared();
             unregisterCombat();
             unregisterProtection();
             unregisterAfterAttack();
@@ -1516,6 +2726,7 @@
             unregisterDefeatReaction();
             unregisterDestroyedReaction();
             unregisterTurnCleanup();
+            unregisterTurnStarted();
         };
     }
 

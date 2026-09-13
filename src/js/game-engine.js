@@ -50,6 +50,7 @@
         MODIFY_COMBAT: 'MODIFY_COMBAT',
         RECORD_ATTACK: 'RECORD_ATTACK',
         RECORD_ABILITY_USE: 'RECORD_ABILITY_USE',
+        RESET_ABILITY_USE: 'RESET_ABILITY_USE',
         EMIT_EVENT: 'EMIT_EVENT'
     });
 
@@ -407,6 +408,13 @@
                 (!getCard(effect.sourceId) || !effect.abilityId || !effect.limit)
             ) {
                 return { valid: false, reason: 'Registro de habilidade inválido' };
+            }
+
+            if (
+                effect.kind === EFFECT_KINDS.RESET_ABILITY_USE &&
+                (!getCard(effect.sourceId) || !effect.abilityId)
+            ) {
+                return { valid: false, reason: 'Reset de habilidade inválido' };
             }
 
             if (effect.kind === EFFECT_KINDS.EMIT_EVENT && !effect.type) {
@@ -836,6 +844,22 @@
                 case EFFECT_KINDS.RECORD_ABILITY_USE:
                     markAbilityUse(effect.sourceId, effect.abilityId, effect.limit, transaction);
                     break;
+
+                case EFFECT_KINDS.RESET_ABILITY_USE: {
+                    const source = getCard(effect.sourceId);
+                    if (!source) throw new Error(`Fonte não encontrada: ${effect.sourceId}`);
+                    const previousUsage = source.usage[effect.abilityId]
+                        ? JSON.parse(JSON.stringify(source.usage[effect.abilityId]))
+                        : undefined;
+                    if (previousUsage) {
+                        delete source.usage[effect.abilityId].turnCounts[state.turn];
+                    }
+                    transaction.record(() => {
+                        if (previousUsage) source.usage[effect.abilityId] = previousUsage;
+                        else delete source.usage[effect.abilityId];
+                    });
+                    break;
+                }
 
                 case EFFECT_KINDS.EMIT_EVENT:
                     enqueueEvent(effect.type, effect.payload, causeId);

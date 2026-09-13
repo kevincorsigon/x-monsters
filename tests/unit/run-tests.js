@@ -827,9 +827,11 @@ function emitSummoned(engine, source) {
 
 test('registra exatamente as quatro habilidades do lote 4A', () => {
     assert.deepEqual(Object.keys(CardRules.SUMMON_RULES).sort(), [
+        'card_003',
         'card_012',
         'card_013',
         'card_023',
+        'card_050',
         'card_079'
     ]);
 });
@@ -2831,6 +2833,640 @@ test('Cajado da Ilusão equipa somente host mágico, ativa 1x/turno e cancela o 
     fixture.state.currentPhase = 'invocation';
     const reactivation = CardRules.activateAbility(fixture.engine, staff.instanceId);
     assert.equal(reactivation.status, 'resolved');
+});
+
+test('Gárgula de Rocha bloqueia atacantes de custo menor que 5 e troca ATK/DEF ao ativar', () => {
+    const fixture = createCombatFixture({
+        attackerAttack: 20,
+        attackerDefense: 10,
+        targetAttack: 12,
+        targetDefense: 45
+    });
+    fixture.target.definitionId = 'card_053';
+    fixture.attacker.data.cost = 4;
+    CardRules.install(fixture.engine);
+
+    assert.equal(
+        CardRules.validateAttackTarget(fixture.state, fixture.attacker.instanceId, fixture.target.instanceId).valid,
+        false
+    );
+    fixture.attacker.data.cost = 5;
+    assert.equal(
+        CardRules.validateAttackTarget(fixture.state, fixture.attacker.instanceId, fixture.target.instanceId).valid,
+        true
+    );
+
+    fixture.state.currentPlayer = 'p2';
+    const activation = CardRules.activateAbility(fixture.engine, fixture.target.instanceId);
+    assert.equal(activation.status, 'resolved');
+    assert.equal(fixture.engine.getEffectiveStat(fixture.target.instanceId, 'attack'), 45);
+    assert.equal(fixture.engine.getEffectiveStat(fixture.target.instanceId, 'defense'), 12);
+    assert.equal(CardRules.activateAbility(fixture.engine, fixture.target.instanceId).status, 'rejected');
+});
+
+test('Gigante da Marreta causa 10 a todos os inimigos e não atinge aliados', () => {
+    const fixture = createAreaAbilityFixture('card_072');
+    const result = CardRules.activateAbility(fixture.engine, fixture.source.instanceId);
+
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.ally.damage, 0);
+    assert.equal(fixture.enemy1.damage, 10);
+    assert.equal(fixture.enemy2.damage, 10);
+    assert.equal(CardRules.activateAbility(fixture.engine, fixture.source.instanceId).status, 'rejected');
+});
+
+test('Latex causa metade do ATK efetivo a todos os inimigos sem atingir aliados', () => {
+    const fixture = createAreaAbilityFixture('card_081');
+    const result = CardRules.activateAbility(fixture.engine, fixture.source.instanceId);
+
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.ally.damage, 0);
+    assert.equal(fixture.enemy1.damage, 15);
+    assert.equal(fixture.enemy2.damage, 15);
+});
+
+test('Hidra das Profundezas causa 20 adicionais a todas as outras criaturas ao atacar', () => {
+    const state = GameStateModel.createInitialGameState();
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+    const hidra = addFieldCreature(state, 'p1', 'card_083', 'hidra_source', { attack: 40, defense: 40 });
+    const ally = addFieldCreature(state, 'p1', 'ally', 'hidra_ally', { defense: 30 });
+    const target = addFieldCreature(state, 'p2', 'target', 'hidra_target', { attack: 0, defense: 100 });
+    const otherEnemy = addFieldCreature(state, 'p2', 'other_enemy', 'hidra_other_enemy', { defense: 30 });
+    state.currentPhase = 'combat';
+
+    const result = engine.resolveCombat({ attackerId: hidra.instanceId, targetId: target.instanceId });
+
+    assert.equal(result.status, 'resolved');
+    assert.equal(hidra.damage, 0);
+    assert.equal(ally.damage, 20);
+    assert.equal(otherEnemy.damage, 20);
+    assert.equal(target.damage, 60);
+});
+
+test('Superior ataca duas vezes e recupera a criatura mais recente do cemitério ao derrotar', () => {
+    const fixture = createCombatFixture({ attackerAttack: 25, targetDefense: 10, targetAttack: 0 });
+    fixture.attacker.definitionId = 'card_087';
+    CardRules.install(fixture.engine);
+    emitSummoned(fixture.engine, fixture.attacker);
+
+    const buried1 = addFieldCreature(fixture.state, 'p1', 'buried_1', 'superior_buried_1');
+    GameStateModel.moveCard(fixture.state, buried1.instanceId, 'discard', 'p1');
+    const buried2 = addFieldCreature(fixture.state, 'p1', 'buried_2', 'superior_buried_2');
+    GameStateModel.moveCard(fixture.state, buried2.instanceId, 'discard', 'p1');
+
+    const first = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+    assert.equal(first.targetDestroyed, true);
+    assert.equal(buried2.zone, 'hand');
+    assert.equal(buried1.zone, 'discard');
+    assert.equal(fixture.engine.canAttack(fixture.attacker.instanceId).canAttack, true);
+});
+
+test('Pena do Gigante bloqueia um ataque mesmo com Flecha de Prata equipada no atacante', () => {
+    const fixture = createCombatFixture({ attackerAttack: 20, targetDefense: 100 });
+    CardRules.install(fixture.engine);
+    const feather = GameStateModel.createCardInstance({
+        id: 'card_094', name: 'Pena', type: 'suporte', cost: 2, attack: 0, defense: 10
+    }, 'p2', { instanceId: 'giant_feather' });
+    GameStateModel.registerCard(fixture.state, feather, 'equipment', 'p2');
+    feather.attachedTo = fixture.target.instanceId;
+    fixture.target.attachments.push(feather.instanceId);
+    fixture.engine.resolveAction({
+        type: 'ADD_FEATHER_SHIELD', actorId: 'p2', sourceId: feather.instanceId, requiresControl: false,
+        effects: CardRules.createEquipmentEffects(feather, fixture.target.instanceId, fixture.state)
+    });
+    attachTraitEquipment(fixture, 'card_097');
+
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+
+    assert.equal(result.cancelled, true);
+    assert.equal(fixture.target.damage, 0);
+});
+
+test('Paladino Alvorada anula a habilidade do inimigo escolhido até o fim do turno dele', () => {
+    const fixture = createAreaAbilityFixture('card_051');
+    const paladino = addFieldCreature(fixture.state, 'p2', 'card_067', 'paladino_source', {
+        attack: 37,
+        defense: 28
+    });
+
+    fixture.state.currentPlayer = 'p2';
+    const activation = CardRules.activateAbility(fixture.engine, paladino.instanceId, [
+        fixture.source.instanceId
+    ]);
+    assert.equal(activation.status, 'resolved');
+    assert.equal(
+        CardRules.activateAbility(fixture.engine, paladino.instanceId, [fixture.source.instanceId]).status,
+        'rejected'
+    );
+
+    fixture.state.currentPlayer = 'p1';
+    const dinoResult = CardRules.activateAbility(fixture.engine, fixture.source.instanceId);
+    assert.equal(dinoResult.status, 'resolved');
+    assert.equal(fixture.enemy1.damage, 0);
+    assert.equal(fixture.enemy2.damage, 0);
+});
+
+test('Lâmina Sagrada equipa somente Elite/Paladino e ignora a habilidade de um Vampiro/Lobisomem', () => {
+    const fixture = createCombatFixture({ attackerAttack: 20, targetDefense: 100 });
+    CardRules.install(fixture.engine);
+    fixture.attacker.definitionId = 'card_067';
+    const blade = GameStateModel.createCardInstance({
+        id: 'card_107', name: 'Lâmina', type: 'suporte', cost: 4, attack: 5, defense: 5
+    }, 'p1', { instanceId: 'sacred_blade' });
+    GameStateModel.registerCard(fixture.state, blade, 'equipment', 'p1');
+    blade.attachedTo = fixture.attacker.instanceId;
+    fixture.attacker.attachments.push(blade.instanceId);
+
+    assert.equal(CardRules.validateEquipmentTarget(blade, fixture.attacker).valid, true);
+    const nonEliteHost = addFieldCreature(fixture.state, 'p1', 'plain', 'plain_host');
+    assert.equal(CardRules.validateEquipmentTarget(blade, nonEliteHost).valid, false);
+
+    fixture.target.definitionId = 'card_079';
+    addFieldCreature(fixture.state, 'p2', 'plain_enemy', 'plain_enemy_id');
+    assert.deepEqual(
+        CardRules.getActivatedTargets(fixture.state, blade.instanceId),
+        [fixture.target.instanceId]
+    );
+
+    const activation = CardRules.activateAbility(fixture.engine, blade.instanceId, [fixture.target.instanceId]);
+    assert.equal(activation.status, 'resolved');
+    assert.equal(
+        fixture.state.effects.some(effect =>
+            effect.effectType === 'ABILITY_NULLIFIED' && effect.targetId === fixture.target.instanceId
+        ),
+        true
+    );
+});
+
+function createHandAbilityFixture(definitionId, options = {}) {
+    const state = GameStateModel.createInitialGameState();
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+    const source = GameStateModel.createCardInstance({
+        id: definitionId,
+        name: definitionId,
+        type: options.type || 'suporte',
+        cost: options.cost ?? 1,
+        attack: options.attack ?? 0,
+        defense: options.defense ?? 0
+    }, 'p1', { instanceId: `${definitionId}_hand_source` });
+    GameStateModel.registerCard(state, source, 'hand', 'p1');
+    state.currentPhase = 'invocation';
+    return { state, engine, source };
+}
+
+function installEquipmentByRule(fixture, definitionId, hostId, ownerId = 'p1') {
+    const equipment = GameStateModel.createCardInstance({
+        id: definitionId,
+        name: definitionId,
+        type: 'suporte',
+        cost: 1,
+        attack: 0,
+        defense: 0
+    }, ownerId, { instanceId: `${definitionId}_equip_on_${hostId}` });
+    GameStateModel.registerCard(fixture.state, equipment, 'equipment', ownerId);
+    equipment.attachedTo = hostId;
+    fixture.state.cardInstances[hostId].attachments.push(equipment.instanceId);
+    const result = fixture.engine.resolveAction({
+        type: 'EQUIP_RULE_TEST',
+        actorId: ownerId,
+        sourceId: equipment.instanceId,
+        effects: CardRules.createEquipmentEffects(equipment, hostId, fixture.state)
+    });
+    assert.equal(result.status, 'resolved');
+    return equipment;
+}
+
+test('ETC remove monstros inimigos de custo abaixo de 3 para a mão', () => {
+    const fixture = createSummonRuleFixture('card_003');
+    const cheap = addFieldCreature(fixture.state, 'p2', 'cheap_enemy', 'etc_cheap', { cost: 1 });
+    const expensive = addFieldCreature(fixture.state, 'p2', 'expensive_enemy', 'etc_expensive', { cost: 5 });
+    emitSummoned(fixture.engine, fixture.source);
+    assert.equal(cheap.zone, 'hand');
+    assert.equal(expensive.zone, 'field');
+});
+
+test('Shupáku paralisa a primeira criatura inimiga encontrada ao entrar em campo', () => {
+    const fixture = createSummonRuleFixture('card_050');
+    const enemy = addFieldCreature(fixture.state, 'p2', 'enemy', 'shupaku_enemy');
+    emitSummoned(fixture.engine, fixture.source);
+    assert.equal(
+        fixture.state.effects.some(effect =>
+            effect.effectType === 'ATTACK_DISABLED' && effect.targetId === enemy.instanceId
+        ),
+        true
+    );
+});
+
+test('Zica do pantano imobiliza e drena 5 de defesa por turno', () => {
+    const fixture = createCombatFixture({ targetDefense: 30 });
+    CardRules.install(fixture.engine);
+    installEquipmentByRule(fixture, 'card_005', fixture.target.instanceId, 'p1');
+    assert.equal(
+        fixture.state.effects.some(effect =>
+            effect.effectType === 'ATTACK_DISABLED' && effect.targetId === fixture.target.instanceId
+        ),
+        true
+    );
+    fixture.engine.emit(GameEngine.EVENT_TYPES.TURN_STARTED, { playerId: 'p2', turnNumber: fixture.state.turn });
+    assert.equal(fixture.engine.getEffectiveStat(fixture.target.instanceId, 'defense'), 25);
+});
+
+test('11 de Setembro reduz stats e imobiliza o alvo por 5 turnos', () => {
+    const fixture = createCombatFixture({ targetAttack: 20, targetDefense: 40 });
+    installEquipmentByRule(fixture, 'card_015', fixture.target.instanceId, 'p1');
+    assert.equal(fixture.engine.getEffectiveStat(fixture.target.instanceId, 'attack'), 10);
+    assert.equal(fixture.engine.getEffectiveStat(fixture.target.instanceId, 'defense'), 15);
+    assert.equal(
+        fixture.state.effects.some(effect =>
+            effect.effectType === 'ATTACK_DISABLED' && effect.targetId === fixture.target.instanceId
+        ),
+        true
+    );
+});
+
+test('Feitiço de Teletransporte devolve o hospedeiro à mão e se descarta', () => {
+    const fixture = createCombatFixture();
+    const spell = installEquipmentByRule(fixture, 'card_091', fixture.attacker.instanceId, 'p1');
+    const result = CardRules.activateAbility(fixture.engine, spell.instanceId);
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.attacker.zone, 'hand');
+    assert.equal(spell.zone, 'discard');
+});
+
+test('Medalhão de Cura recupera 15 de defesa do hospedeiro', () => {
+    const fixture = createCombatFixture();
+    fixture.attacker.damage = 20;
+    const medallion = installEquipmentByRule(fixture, 'card_093', fixture.attacker.instanceId, 'p1');
+    const result = CardRules.activateAbility(fixture.engine, medallion.instanceId);
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.attacker.damage, 5);
+});
+
+test('Tomo de Feitiços Ancestrais compra uma carta extra no início do turno', () => {
+    const fixture = createCombatFixture();
+    CardRules.install(fixture.engine);
+    fixture.attacker.definitionId = 'card_055';
+    installEquipmentByRule(fixture, 'card_099', fixture.attacker.instanceId, 'p1');
+    const deckCard = GameStateModel.createCardInstance({
+        id: 'tomo_deck_card', name: 'Deck', type: 'criatura', cost: 1, attack: 1, defense: 1
+    }, 'p1', { instanceId: 'tomo_deck_1' });
+    GameStateModel.registerCard(fixture.state, deckCard, 'deck', 'p1');
+
+    fixture.engine.emit(GameEngine.EVENT_TYPES.TURN_STARTED, { playerId: 'p1', turnNumber: fixture.state.turn });
+    assert.equal(deckCard.zone, 'hand');
+});
+
+test('Escudo de Energia Estável concede 1 de energia a cada dano recebido', () => {
+    const fixture = createCombatFixture();
+    CardRules.install(fixture.engine);
+    fixture.attacker.definitionId = 'card_027';
+    installEquipmentByRule(fixture, 'card_106', fixture.attacker.instanceId, 'p1');
+    GameStateModel.setPlayerStat(fixture.state, 'energy', 'p1', 3);
+
+    fixture.engine.emit(GameEngine.EVENT_TYPES.DAMAGE_DEALT, {
+        sourceId: fixture.target.instanceId,
+        damagedId: fixture.attacker.instanceId,
+        amount: 5,
+        attemptedAmount: 5,
+        damageType: 'physical'
+    });
+
+    assert.equal(fixture.state.players.p1.energy, 4);
+});
+
+test('Adubaram descarta um inimigo, compra uma carta e se descarta', () => {
+    const fixture = createHandAbilityFixture('card_006');
+    const enemy = addFieldCreature(fixture.state, 'p2', 'enemy', 'adubaram_enemy');
+    const deckCard = GameStateModel.createCardInstance({
+        id: 'deck_card', name: 'Deck', type: 'criatura', cost: 1, attack: 1, defense: 1
+    }, 'p1', { instanceId: 'adubaram_deck_1' });
+    GameStateModel.registerCard(fixture.state, deckCard, 'deck', 'p1');
+
+    const result = CardRules.activateAbility(fixture.engine, fixture.source.instanceId, [enemy.instanceId]);
+    assert.equal(result.status, 'resolved');
+    assert.equal(enemy.zone, 'discard');
+    assert.equal(deckCard.zone, 'hand');
+    assert.equal(fixture.source.zone, 'discard');
+});
+
+test('Camisa 14 alicia um inimigo barato e concede +10 ATK por 2 turnos', () => {
+    const fixture = createHandAbilityFixture('card_007');
+    const enemy = addFieldCreature(fixture.state, 'p2', 'enemy', 'camisa_enemy', { cost: 2, attack: 5 });
+
+    const result = CardRules.activateAbility(fixture.engine, fixture.source.instanceId, [enemy.instanceId]);
+    assert.equal(result.status, 'resolved');
+    assert.equal(enemy.controllerId, 'p1');
+    assert.equal(fixture.engine.getEffectiveStat(enemy.instanceId, 'attack'), 15);
+    assert.equal(fixture.source.zone, 'discard');
+
+    fixture.engine.emit(GameEngine.EVENT_TYPES.TURN_ENDED, { playerId: 'p1', turnNumber: fixture.state.turn });
+    fixture.engine.emit(GameEngine.EVENT_TYPES.TURN_ENDED, { playerId: 'p1', turnNumber: fixture.state.turn + 1 });
+    assert.equal(fixture.engine.getEffectiveStat(enemy.instanceId, 'attack'), 5);
+});
+
+test('Cara de cu estourado paralisa e zera a defesa de um inimigo por 2 turnos', () => {
+    const fixture = createHandAbilityFixture('card_008');
+    const enemy = addFieldCreature(fixture.state, 'p2', 'enemy', 'cu_estourado_enemy', { defense: 20 });
+
+    const result = CardRules.activateAbility(fixture.engine, fixture.source.instanceId, [enemy.instanceId]);
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.engine.getEffectiveStat(enemy.instanceId, 'defense'), 0);
+    assert.equal(
+        fixture.state.effects.some(effect =>
+            effect.effectType === 'ATTACK_DISABLED' && effect.targetId === enemy.instanceId
+        ),
+        true
+    );
+    assert.equal(fixture.source.zone, 'discard');
+});
+
+test('Kirb copia a habilidade sem alvo de um aliado de custo baixo', () => {
+    const state = GameStateModel.createInitialGameState();
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+    const kirb = addFieldCreature(state, 'p1', 'card_011', 'kirb_1', { cost: 3 });
+    const gobra = addFieldCreature(state, 'p1', 'card_020', 'gobra_1', { cost: 3 });
+    state.currentPhase = 'combat';
+
+    const result = CardRules.activateAbility(engine, kirb.instanceId, [gobra.instanceId]);
+    assert.equal(result.status, 'resolved');
+    assert.equal(gobra.zone, 'hand');
+});
+
+test('Baltz descarta todas as cartas de suporte do oponente', () => {
+    const state = GameStateModel.createInitialGameState();
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+    const baltz = addFieldCreature(state, 'p1', 'card_016', 'baltz_1', { cost: 3 });
+    const support1 = GameStateModel.createCardInstance({
+        id: 'support1', name: 'Suporte 1', type: 'suporte', cost: 1, attack: 0, defense: 0
+    }, 'p2', { instanceId: 'baltz_support_1' });
+    GameStateModel.registerCard(state, support1, 'equipment', 'p2');
+    const support2 = GameStateModel.createCardInstance({
+        id: 'support2', name: 'Suporte 2', type: 'suporte', cost: 1, attack: 0, defense: 0
+    }, 'p2', { instanceId: 'baltz_support_2' });
+    GameStateModel.registerCard(state, support2, 'equipment', 'p2');
+    state.currentPhase = 'combat';
+
+    const result = CardRules.activateAbility(engine, baltz.instanceId);
+    assert.equal(result.status, 'resolved');
+    assert.equal(support1.zone, 'discard');
+    assert.equal(support2.zone, 'discard');
+});
+
+test('Gobra retorna à mão e descarta equipamentos anexados', () => {
+    const state = GameStateModel.createInitialGameState();
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+    const gobra = addFieldCreature(state, 'p1', 'card_020', 'gobra_2', { cost: 3 });
+    const gear = GameStateModel.createCardInstance({
+        id: 'gear', name: 'Gear', type: 'suporte', cost: 1, attack: 0, defense: 0
+    }, 'p1', { instanceId: 'gobra_gear' });
+    GameStateModel.registerCard(state, gear, 'equipment', 'p1');
+    gear.attachedTo = gobra.instanceId;
+    gobra.attachments.push(gear.instanceId);
+    state.currentPhase = 'combat';
+
+    const result = CardRules.activateAbility(engine, gobra.instanceId);
+    assert.equal(result.status, 'resolved');
+    assert.equal(gobra.zone, 'hand');
+    assert.equal(gear.zone, 'discard');
+});
+
+test('Bilugatron gruda em um inimigo, causa 10 de dano por turno e perde ataque/defesa', () => {
+    const state = GameStateModel.createInitialGameState();
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+    const bilugatron = addFieldCreature(state, 'p1', 'card_027', 'bilugatron_1');
+    const enemy = addFieldCreature(state, 'p2', 'enemy', 'bilugatron_enemy');
+    state.currentPhase = 'combat';
+
+    const result = CardRules.activateAbility(engine, bilugatron.instanceId, [enemy.instanceId]);
+    assert.equal(result.status, 'resolved');
+    assert.equal(engine.getEffectiveStat(bilugatron.instanceId, 'defense'), 0);
+    assert.equal(
+        state.effects.some(effect =>
+            effect.effectType === 'ATTACK_DISABLED' && effect.targetId === bilugatron.instanceId
+        ),
+        true
+    );
+
+    engine.emit(GameEngine.EVENT_TYPES.TURN_STARTED, { playerId: 'p1', turnNumber: state.turn });
+    assert.equal(enemy.damage, 10);
+
+    const combat = engine.resolveCombat({ attackerId: bilugatron.instanceId, targetId: enemy.instanceId });
+    assert.equal(combat.cancelled, true);
+});
+
+test('Duende reseta o uso de uma habilidade ativada aliada', () => {
+    const state = GameStateModel.createInitialGameState();
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+    const duende = addFieldCreature(state, 'p1', 'card_031', 'duende_1');
+    const mago = addFieldCreature(state, 'p1', 'card_055', 'mago_1');
+    state.currentPhase = 'combat';
+
+    assert.equal(CardRules.activateAbility(engine, mago.instanceId).status, 'resolved');
+    assert.equal(CardRules.activateAbility(engine, mago.instanceId).status, 'rejected');
+
+    const reset = CardRules.activateAbility(engine, duende.instanceId, [mago.instanceId]);
+    assert.equal(reset.status, 'resolved');
+    assert.equal(CardRules.activateAbility(engine, mago.instanceId).status, 'resolved');
+});
+
+test('Medusa de Lama paralisa um inimigo por 1 turno', () => {
+    const fixture = createAreaAbilityFixture('card_034');
+    const result = CardRules.activateAbility(fixture.engine, fixture.source.instanceId, [fixture.enemy1.instanceId]);
+    assert.equal(result.status, 'resolved');
+    assert.equal(
+        fixture.state.effects.some(effect =>
+            effect.effectType === 'ATTACK_DISABLED' && effect.targetId === fixture.enemy1.instanceId
+        ),
+        true
+    );
+});
+
+test('Trox retorna à mão uma vez por partida', () => {
+    const state = GameStateModel.createInitialGameState();
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+    const trox = addFieldCreature(state, 'p1', 'card_039', 'trox_1');
+    state.currentPhase = 'combat';
+
+    const result = CardRules.activateAbility(engine, trox.instanceId);
+    assert.equal(result.status, 'resolved');
+    assert.equal(trox.zone, 'hand');
+});
+
+test('Invocador das Trevas invoca um Diabrete Alado da mão pagando 1 de energia', () => {
+    const state = GameStateModel.createInitialGameState();
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+    const invocador = addFieldCreature(state, 'p1', 'card_045', 'invocador_1');
+    const diabrete = GameStateModel.createCardInstance({
+        id: 'card_010_1', name: 'Diabrete Alado', type: 'criatura', cost: 2, attack: 10, defense: 8
+    }, 'p1', { instanceId: 'diabrete_hand_1' });
+    GameStateModel.registerCard(state, diabrete, 'hand', 'p1');
+    state.currentPhase = 'invocation';
+
+    const result = CardRules.activateAbility(engine, invocador.instanceId, [diabrete.instanceId]);
+    assert.equal(result.status, 'resolved');
+    assert.equal(diabrete.zone, 'field');
+    assert.equal(state.players.p1.energy, 5);
+});
+
+test('Salatiel paga energia para ignorar a defesa de um alvo no próximo ataque', () => {
+    const fixture = createCombatFixture({ attackerAttack: 5, targetDefense: 50, targetAttack: 0 });
+    fixture.attacker.definitionId = 'card_046';
+    CardRules.install(fixture.engine);
+
+    const result = CardRules.activateAbility(fixture.engine, fixture.attacker.instanceId, [fixture.target.instanceId]);
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.state.players.p1.energy, 3);
+
+    const combat = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+    assert.equal(combat.penetratingDamage, 5);
+    assert.equal(fixture.target.damage, 5);
+});
+
+test('Entola Guela impede o ataque do alvo até o fim do turno dele', () => {
+    const fixture = createAreaAbilityFixture('card_049');
+    const result = CardRules.activateAbility(fixture.engine, fixture.source.instanceId, [fixture.enemy1.instanceId]);
+    assert.equal(result.status, 'resolved');
+    assert.equal(
+        fixture.state.effects.some(effect =>
+            effect.effectType === 'ATTACK_DISABLED' && effect.targetId === fixture.enemy1.instanceId
+        ),
+        true
+    );
+});
+
+test('Mago Arcano causa 5 de dano direto ao oponente', () => {
+    const fixture = createAreaAbilityFixture('card_055');
+    const result = CardRules.activateAbility(fixture.engine, fixture.source.instanceId);
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.state.players.p2.pv, 195);
+});
+
+test('Alquimista Guardião concede +10 DEF a um aliado até o fim do próximo turno adversário', () => {
+    const fixture = createAreaAbilityFixture('card_061');
+    const result = CardRules.activateAbility(fixture.engine, fixture.source.instanceId, [fixture.ally.instanceId]);
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.engine.getEffectiveStat(fixture.ally.instanceId, 'defense'), 30);
+});
+
+test('Lobo Omega Pyro aplica queimadura contínua que reduz DEF a cada turno', () => {
+    const fixture = createAreaAbilityFixture('card_080');
+    const result = CardRules.activateAbility(fixture.engine, fixture.source.instanceId, [fixture.enemy1.instanceId]);
+    assert.equal(result.status, 'resolved');
+    fixture.engine.emit(GameEngine.EVENT_TYPES.TURN_STARTED, { playerId: 'p1', turnNumber: fixture.state.turn });
+    assert.equal(fixture.engine.getEffectiveStat(fixture.enemy1.instanceId, 'defense'), 15);
+});
+
+test('Lobo Gamma Freeze paralisa todos os inimigos por 3 turnos', () => {
+    const fixture = createAreaAbilityFixture('card_082');
+    const result = CardRules.activateAbility(fixture.engine, fixture.source.instanceId);
+    assert.equal(result.status, 'resolved');
+    assert.equal(
+        fixture.state.effects.filter(effect => effect.effectType === 'ATTACK_DISABLED').length,
+        2
+    );
+});
+
+test('Marik 2 ataca todos os inimigos e perde toda a defesa depois', () => {
+    const fixture = createAreaAbilityFixture('card_085');
+    const result = CardRules.activateAbility(fixture.engine, fixture.source.instanceId);
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.enemy1.damage, 30);
+    assert.equal(fixture.enemy2.damage, 30);
+    assert.equal(fixture.engine.getEffectiveStat(fixture.source.instanceId, 'defense'), 0);
+});
+
+test('Tlantidu tenta buscar um monstro aquático ao ser destruído (atualmente inerte)', () => {
+    const fixture = createCombatFixture({ attackerAttack: 30, targetDefense: 5, targetAttack: 0 });
+    fixture.target.definitionId = 'card_038';
+    CardRules.install(fixture.engine);
+    const deckCard = GameStateModel.createCardInstance({
+        id: 'tlantidu_deck_card', name: 'Deck', type: 'criatura', cost: 1, attack: 1, defense: 1
+    }, 'p2', { instanceId: 'tlantidu_deck_1' });
+    GameStateModel.registerCard(fixture.state, deckCard, 'deck', 'p2');
+
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.target.zone, 'discard');
+    assert.equal(deckCard.zone, 'deck');
+});
+
+test('Alucard ressuscita um aliado do cemitério diretamente para o campo ao derrotar', () => {
+    const fixture = createCombatFixture({ attackerAttack: 25, targetDefense: 10, targetAttack: 0 });
+    fixture.attacker.definitionId = 'card_062';
+    CardRules.install(fixture.engine);
+    const buried = addFieldCreature(fixture.state, 'p1', 'buried_ally', 'alucard_buried_1');
+    GameStateModel.moveCard(fixture.state, buried.instanceId, 'discard', 'p1');
+
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+
+    assert.equal(result.targetDestroyed, true);
+    assert.equal(buried.zone, 'field');
+});
+
+test('Roller retorna à mão ao morrer e acumula penalidade de custo', () => {
+    const fixture = createCombatFixture({ attackerAttack: 30, targetDefense: 5, targetAttack: 0 });
+    fixture.target.definitionId = 'card_069';
+    CardRules.install(fixture.engine);
+
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.target.zone, 'hand');
+    assert.equal(
+        fixture.target.modifiers.some(modifier => modifier.stat === 'costPenalty' && modifier.value === 1),
+        true
+    );
+});
+
+test('Gulosinho ganha +5/+5 permanentes ao abdicar de atacar no turno', () => {
+    const state = GameStateModel.createInitialGameState();
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+    const gulosinho = addFieldCreature(state, 'p1', 'card_041', 'gulosinho_1');
+
+    engine.emit(GameEngine.EVENT_TYPES.TURN_ENDED, { playerId: 'p1', turnNumber: state.turn });
+    assert.equal(engine.getEffectiveStat(gulosinho.instanceId, 'attack'), 15);
+    assert.equal(engine.getEffectiveStat(gulosinho.instanceId, 'defense'), 15);
+});
+
+test('Gulosinho não ganha bônus se atacou no turno', () => {
+    const fixture = createCombatFixture();
+    fixture.attacker.definitionId = 'card_041';
+    CardRules.install(fixture.engine);
+    fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+    fixture.engine.emit(GameEngine.EVENT_TYPES.TURN_ENDED, { playerId: 'p1', turnNumber: fixture.state.turn });
+    assert.equal(fixture.engine.getEffectiveStat(fixture.attacker.instanceId, 'attack'), 15);
 });
 
 let failures = 0;

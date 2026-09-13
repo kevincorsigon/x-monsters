@@ -1,6 +1,165 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-20 — Fase 6 completada: 30 cartas (Zonas, vínculos e habilidades especiais)
+Escopo integral solicitado pelo usuário ("Fase 6 inteira de uma vez"), sem
+sub-lotes. `075` Turtol Maximus já estava migrado (nenhuma ação necessária).
+Fase 7 (remoção do legado) permanece bloqueada até auditoria desta fase.
+
+Novo primitivo de engine: `RESET_ABILITY_USE` (EFFECT_KINDS), limpa
+`card.usage[abilityId].turnCounts[turn]` transacionalmente — necessário para
+o Duende (031) conceder uma ativação extra a um aliado.
+
+Padrão novo consolidado: efeito `ATTACK_DISABLED` (genérico, substitui a
+necessidade de um efeito por carta) consumido por um novo handler
+`ATTACK_DECLARED` (prioridade 100) que cancela o combate sempre que o
+atacante carrega esse efeito — usado por 005, 008, 027 (auto-alvo), 034,
+049, 050, 082. Justificativa: `getAttackLimit()` nunca reduz o limite de
+ataque abaixo de 1 via modificador, então "não pode atacar" só é
+implementável cancelando o combate no `ATTACK_DECLARED`, que dispara mesmo
+em ataques diretos sem alvo (diferente de `BECAME_ATTACK_TARGET`).
+
+Novo handler `TURN_STARTED` centraliza três tiques por turno: `DEFENSE_DRAIN`
+(005), `BURNING` (080) e `BILUGA_BOND` (027), além da compra extra do Tomo
+de Feitiços Ancestrais (099) — todos vinculados ao `controllerId`/`playerId`
+correto do payload, sem necessidade de contadores manuais (a duração
+`FOR_TARGET_CONTROLLER_TURNS`/`UNTIL_SOURCE_LEAVES` já expira sozinha).
+
+Decisões de modelagem por carta:
+- **003 ETC**: `SUMMON_RULES`, remove ao entrar em campo todo inimigo com
+  `cost < 3` para a mão do dono.
+- **005 Zica do pantano / 015 11 de Setembro**: equipamentos com `effects()`
+  customizado (imobilização via `ATTACK_DISABLED` + dreno/stats via
+  `ADD_MODIFIER`/`DEFENSE_DRAIN`), sem bônus implícito de `modifiers`.
+- **006 Adubaram / 007 Camisa 14 do América / 008 Cara de cu estourado**:
+  modelados como `ACTIVATED_RULES` com `sourceZone: 'hand'` (habilidades de
+  carta-suporte de uso único, descartando-se após o efeito). 007 funde o
+  roubo de controle (`MOVE_CARD` com `destinationPlayerId` diferente) e o
+  bônus de +10 ATK no MESMO alvo roubado, em vez de dois alvos separados —
+  simplificação de modelagem (o engine só suporta uma escolha por ação).
+- **011 Kirb**: cópia de habilidade restrita a habilidades **sem alvo**
+  (`rule.maxTargets === 0`) de aliados com custo < 4, via novo
+  `rule.targetsFn` e helper `buildRuleEffects` extraído do closure genérico
+  de `createActivatedAbilityAction` (reuso). Habilidades com alvo próprio
+  (`buildEffects` dependente de `context.selection`) foram deliberadamente
+  excluídas do pool copiável para evitar colisão de semântica de seleção.
+- **016 Baltz / 020 Gobra / 039 Trox / 091 Feitiço de Teletransporte**:
+  ações de zero alvo que retornam a própria carta (ou o hospedeiro, no caso
+  de 091) à mão do dono; adicionado helper `detachAttachedEquipment` que
+  descarta equipamentos anexados quando uma criatura sai do campo para a
+  mão (convenção comum de TCG, cobre "orfandade" de equipamentos).
+- **027 Bilugatron**: vínculo `BILUGA_BOND` (dano de 10/turno via
+  `TURN_STARTED`) + `ATTACK_DISABLED` auto-alvo + `defense SET 0`, tudo com
+  duração `UNTIL_SOURCE_LEAVES` (o vínculo dura enquanto Bilugatron estiver
+  em campo, sem limite de turnos).
+- **031 Duende**: `targetsFn` retorna aliados com `ACTIVATED_RULES`
+  registrada; `buildEffects` emite `RESET_ABILITY_USE` (novo primitivo).
+- **038 Tlantidu**: busca no deck por criatura com trait `aquatico` ao ser
+  destruído — **funcionalmente completo, porém inerte hoje** (nenhuma carta
+  do catálogo tem essa trait). Gap de tagueamento de catálogo, não é
+  decisão de produto bloqueante.
+- **041 Gulosinho**: `TURN_ENDED` concede +5/+5 permanente se
+  `usage.combatAttacks.count === 0` no turno que terminou.
+- **045 Invocador das Trevas**: única exceção às cartas "bloqueadas" pelo
+  gap de `game.html` (custo lido direto de `data.cost`, ignorando
+  modificadores) — implementada como ação nova e independente com
+  `action.costs` próprio (`energy: 1`) e emissão de `CREATURE_SUMMONED`,
+  sem passar pelo fluxo legado de invocação por arrasto.
+- **046 Salatiel**: "ignora defesa" reaproveita o padrão existente
+  (056/064/078) de dano penetrante via `combat.penetratingDamage`; a
+  criatura-alvo **não morre automaticamente** — o excedente vai direto para
+  o PV do oponente, igual às demais cartas dessa família.
+- **049 Entola Guela / 034 Medusa de Lama / 050 Shupáku / 082 Lobo Gamma
+  Freeze**: variações de `ATTACK_DISABLED` com durações diferentes
+  (`UNTIL_END_OF_OPPONENT_TURN`, `FOR_TARGET_CONTROLLER_TURNS`,
+  `UNTIL_SOURCE_LEAVES`, todos-os-inimigos).
+- **055 Mago Arcano / 085 Marik 2**: dano direto simples e "ataca todos os
+  inimigos com o próprio ATK, depois `defense SET 0` permanente",
+  respectivamente.
+- **061 Alquimista Guardião**: primeira carta a usar `rule.targetsAllies`
+  (nova opção em `getActivatedTargets`) para alvo aliado em vez de inimigo.
+- **062 Alucard**: espelha a reanimação de `087` Superior, mas para o
+  **campo** em vez da mão (`destinationZone: 'field'`), sem re-emitir
+  `CREATURE_SUMMONED` (mesma simplificação já usada por 087 — reanimação
+  direta, sem re-disparar gatilhos de invocação).
+- **069 Roller**: retorna à mão ao morrer + modificador `costPenalty`
+  (stat livre, não lido por nenhum sistema hoje) — **forward-compatible,
+  porém inerte** até `game.html` consultar `getEffectiveStat('cost')` no
+  fluxo de invocação legado.
+- **093 Medalhão de Cura / 099 Tomo de Feitiços Ancestrais / 106 Escudo de
+  Energia Estável**: 093 modelado como ativação manual 1x/turno (em vez de
+  automática "ao final da Fase de Combate", simplificação de timing); 099 é
+  totalmente automático via `TURN_STARTED` (compra extra); 106 é totalmente
+  automático via `DAMAGE_DEALT` (+1 energia por dano recebido).
+
+**Limitações conhecidas e documentadas (não bloqueantes para fechar a
+Fase 6, mas pendentes de acompanhamento):**
+1. **039 Trox / 069 Roller** — as cláusulas "invocado sem custo" e "custando
+   um ponto a mais" dependem do fluxo de invocação por arrasto em
+   `game.html`, que lê `cardData.data.cost` diretamente em vez de
+   `engine.getEffectiveStat`. Fora do escopo desta migração de engine;
+   registrado como tarefa de integração futura.
+2. **038 Tlantidu** — nenhuma carta do catálogo tem a trait `aquatico`
+   tagueada em `TRAITS_BY_DEFINITION`; a busca funciona mas nunca encontra
+   alvo até o catálogo ser atualizado.
+
+Testes: 141/141 (110 pré-existentes + 31 novos) via
+`node tests/unit/run-tests.js`.
+
+## 2026-09-13 — Fase 5 completada: lote final de 8 cartas (053, 067, 072, 081, 083, 087, 094, 107)
+Fechado o gap remanescente da Fase 5 (Combate avançado) identificado por
+análise cruzada spec × prompt-packs anteriores (5A1/5B1/5C1/5C2/5D1/5D2/5D4
+só cobriam parte da lista). `090` Bilugação Astral segue de fora por
+decisão de produto já registrada (termo "intransponível").
+
+Decisões de modelagem deste lote:
+- **053 Gárgula de Rocha**: "não pode ser atacada por criaturas de custo <
+  5" modelado como novo check em `validateAttackTarget` (respeitando
+  `bypassesAllDefenses` de Flecha de Prata); a troca ATK/DEF "ao ativar" é
+  uma habilidade ativada self-target com dois efeitos `ADD_MODIFIER`
+  (`SET`), `UNTIL_END_OF_TURN`.
+- **067 Paladino Alvorada / 107 Lâmina Sagrada (lado ativado)**: "anula a
+  habilidade do inimigo escolhido" modelado como efeito reativo
+  `ABILITY_NULLIFIED` com duração `UNTIL_END_OF_OPPONENT_TURN` (expira
+  sozinho via `advanceDuration` genérico); `preventMigratedEffect` passou a
+  bloquear `APPLY_CARD_DAMAGE`/`CHANGE_PLAYER_STAT` cuja `provenance.sourceId`
+  bate com o alvo anulado, quando `provenance.kind==='ability'`. 107 reusa o
+  mesmo efeito mas com `sourceZone:'equipment'` e `targetFilter` restrito a
+  alvos com trait vampiro/lobisomem — exigiu estender `getActivatedTargets`
+  com suporte a `rule.targetFilter` opcional.
+- **072 Gigante da Marreta**: espelha exatamente `card_051` Dino Elétrico
+  (10 dano a todos os inimigos, sem custo extra de modelagem).
+- **081 Latex**: dano de área dinâmico = `floor(ATK/2)` do próprio,
+  calculado via `context.getEffectiveStat` no `buildEffects`, aplicado a
+  todos os inimigos via `APPLY_DAMAGE_BATCH`.
+- **083 Hidra das Profundezas**: "20 adicional a todas as outras criaturas
+  do campo ao atacar" modelado no handler `AFTER_ATTACK` (`unregisterAfterAttack`,
+  reestruturado para builder de múltiplas condições), sem limite por turno
+  (dispara em todo ataque bem-sucedido, `!event.payload.cancelled`); dano
+  mútuo padrão de combate (contra-ataque do defensor) continua se aplicando
+  normalmente à Hidra — não é anulado pela habilidade.
+- **087 Superior**: ganha `attackLimit SET 2` (mesmo padrão de 047/084); ao
+  ser destruída, reanima para a mão a criatura/evolução descartada mais
+  recentemente (busca reversa no array de descarte do controlador) — default
+  determinístico conservador, mesma convenção usada em decks/descarte de
+  outras cartas.
+- **094 Pena do Gigante**: equipamento que adiciona efeito reativo
+  `FEATHER_SHIELD` ao equipar; a checagem de cancelamento no handler
+  `BECAME_ATTACK_TARGET` foi deliberadamente colocada fora dos guards de
+  `bypassesAllShields`/`bypassesUntouchableShield`, ou seja, Flecha de Prata
+  e Olho de Águia NÃO ignoram este escudo (não é um "escudo defensivo
+  especial" no mesmo sentido de 002/092 — releitura literal do texto).
+- **107 Lâmina Sagrada (lado equipamento)**: `requiredTraitsAny: ['elite',
+  'paladino']`, sem modificadores de atributo (segue a convenção já
+  registrada de que campos numéricos legados não são bônus implícitos).
+
+Suíte de testes: 8 novos casos adicionados a `tests/unit/run-tests.js`
+cobrindo as 8 cartas, usando helpers existentes (`createCombatFixture`,
+`addFieldCreature`, `createAreaAbilityFixture`, `attachTraitEquipment`,
+`emitSummoned`) sem inventar novos. Suíte final: 110/110 (102 preexistentes
++ 8 novos). Nenhuma regressão em `card-rules.js` fora do escopo destas 8
+cartas. Fase 5 encerrada.
+
 ## 2026-09-13 — Fase 5D2 reauditada PASS após fechar o gap de cobertura do Olho de Águia
 O único gap do audit anterior (FAIL) — 5 asserts negativos ausentes contra
 `card_018` (CP-2), `card_025` (Zé Mulherzinha), `card_044` (Grifo Real),
