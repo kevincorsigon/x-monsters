@@ -1996,6 +1996,7 @@
     <!-- Sistema de Habilidades das Cartas -->
     <script src="src/js/game-state.js"></script>
     <script src="src/js/game-engine.js"></script>
+    <script src="src/js/card-rules.js"></script>
     <script src="src/js/card-abilities.js"></script>
     <script src="src/js/deck_system.js"></script>
     <script src="tests/browser/test_features.js"></script>
@@ -2182,16 +2183,15 @@
         }
 
         function updateAttackedCardsVisual() {
-            // Remover classe de todas as cartas
             document.querySelectorAll('.card').forEach(card => {
                 card.classList.remove('already-attacked');
             });
-            
-            // Adicionar classe para cartas que já atacaram
-            gameState.attackedThisTurn.forEach(cardId => {
-                const cardElement = document.getElementById(cardId);
-                if (cardElement) {
-                    cardElement.classList.add('already-attacked');
+
+            Object.values(gameState.cardInstances).forEach(card => {
+                if (card.zone !== 'field') return;
+                if (window.gameEngine.getAttackCount(card.instanceId) >=
+                    window.gameEngine.getAttackLimit(card.instanceId)) {
+                    card.element?.classList.add('already-attacked');
                 }
             });
         }
@@ -2493,22 +2493,27 @@
         function setupCombatPhase() {
             clearCombatHighlights();
             
-            const myCards = gameState.cards[gameState.currentPlayer].field;
+            const myCards = gameState.cards[gameState.currentPlayer].field
+                .filter(card => ['criatura', 'evolução'].includes(card.data.type));
             
             if (myCards.length === 0) {
                 updateCombatInfo('Você não tem cartas no campo para atacar!');
                 return;
             }
             
-            // Destacar suas cartas como possíveis atacantes
+            let availableAttackers = 0;
             myCards.forEach(card => {
                 const element = document.getElementById(card.id);
-                if (element) {
+                const attackCheck = window.gameEngine.canAttack(card.id);
+                if (element && attackCheck.canAttack) {
                     element.classList.add('can-attack');
+                    availableAttackers++;
                 }
             });
-            
-            updateCombatInfo('Selecione uma de suas cartas (destacadas em laranja) para atacar');
+
+            updateCombatInfo(availableAttackers > 0
+                ? 'Selecione uma de suas cartas (destacadas em laranja) para atacar'
+                : 'Todas as suas criaturas já usaram seus ataques neste turno');
         }
 
         function highlightTargets() {
@@ -2543,20 +2548,21 @@
             // Controlar botão de ataque direto
             const directAttackBtn = document.getElementById('direct-attack-btn');
             const protectedCards = opponentCards.length - validTargets;
+            const canAttackDirectly = window.CardRules.canDirectAttack(gameState, attackerId);
             
             if (opponentCards.length === 0) {
                 directAttackBtn.style.display = 'inline-block';
                 updateCombatInfo('Campo inimigo vazio! Use "Ataque Direto"');
-            } else if (validTargets === 0) {
+            } else if (validTargets === 0 && canAttackDirectly) {
                 directAttackBtn.style.display = 'inline-block';
                 updateCombatInfo(`Todas as cartas inimigas estão protegidas! Use "Ataque Direto"`);
             } else {
-                directAttackBtn.style.display = 'inline-block';
+                directAttackBtn.style.display = canAttackDirectly ? 'inline-block' : 'none';
                 let message = `Clique em uma carta inimiga (vermelha) para atacar`;
                 if (protectedCards > 0) {
                     message += ` - ${protectedCards} carta(s) protegida(s) 🛡️`;
                 }
-                message += ` ou use "Ataque Direto"`;
+                if (canAttackDirectly) message += ` ou use "Ataque Direto"`;
                 updateCombatInfo(message);
             }
         }
@@ -2615,12 +2621,28 @@
             gameState.targetCard = null;
         }
 
-        function canAttackTarget(attackerId, targetId) {
+        function canAttackTarget(attackerId, targetId, options = {}) {
             const attacker = findCardData(attackerId);
             const target = findCardData(targetId);
             
             if (!attacker || !target) {
                 return { canAttack: false, reason: 'Cartas não encontradas' };
+            }
+
+            if (!options.skipEngine) {
+                const baseCheck = window.gameEngine.validateCombat({ attackerId, targetId });
+                if (!baseCheck.valid) {
+                    return { canAttack: false, reason: baseCheck.reason };
+                }
+            }
+
+            const migratedCheck = window.CardRules.validateAttackTarget(
+                gameState,
+                attackerId,
+                targetId
+            );
+            if (!migratedCheck.valid) {
+                return { canAttack: false, reason: migratedCheck.reason };
             }
 
             // Verificar proteções do alvo via sistema de habilidades
@@ -2700,110 +2722,86 @@
         }
 
         function performAttack(attackerId, targetId) {
-            console.log('Iniciando ataque:', attackerId, 'vs', targetId);
-            
             const attacker = findCardData(attackerId);
             const target = findCardData(targetId);
-            
-            console.log('🔍 Dados do atacante:', attacker);
-            console.log('🔍 Dados do alvo:', target);
-            
-            if (!attacker || !target) {
-                console.log('Erro: dados das cartas não encontrados');
-                console.log('Atacante encontrado:', !!attacker);
-                console.log('Alvo encontrado:', !!target);
-                return;
-            }
+            if (!attacker || !target) return;
 
-            // Verificar se o ataque é permitido
             const attackCheck = canAttackTarget(attackerId, targetId);
             if (!attackCheck.canAttack) {
-                console.log('❌ Ataque bloqueado:', attackCheck.reason);
                 showMessage(attackCheck.reason, 'warning');
                 clearCombatHighlights();
                 setupCombatPhase();
                 return;
             }
 
-            console.log('Atacante:', attacker.data.name, attacker.data.attack + '/' + attacker.data.defense);
-            console.log('Alvo:', target.data.name, target.data.attack + '/' + target.data.defense);
-
-            // Processar habilidades antes do ataque
-            if (window.cardAbilities && window.cardAbilities.onBeforeAttack) {
-                window.cardAbilities.onBeforeAttack(attackerId, targetId);
+            if (window.cardAbilities?.onCombatDeclared) {
+                window.cardAbilities.onCombatDeclared(attackerId, targetId);
             }
 
-            const attackPower = attacker.data.attack;
-            const targetDefenseOriginal = target.data.defense;
-            const targetAttack = target.data.attack;
-            const attackerDefenseOriginal = attacker.data.defense;
-            
-            // Aplicar dano mútuo
-            target.data.defense -= attackPower;
-            attacker.data.defense -= targetAttack;
-
-            // Verificar se cartas foram destruídas ANTES de modificar para exibição
-            const targetDestroyed = target.data.defense <= 0;
-            const attackerDestroyed = attacker.data.defense <= 0;
-
-            // Garantir que defesa não fique abaixo de 0 para exibição
-            const targetFinalDefense = Math.max(0, target.data.defense);
-            const attackerFinalDefense = Math.max(0, attacker.data.defense);
-
-            // Atualizar dados das cartas para exibição
-            const targetDisplayData = { ...target.data, defense: targetFinalDefense };
-            const attackerDisplayData = { ...attacker.data, defense: attackerFinalDefense };
-
-            // Atualizar visualmente as cartas
-            updateCardDisplay(attackerId, attackerDisplayData);
-            updateCardDisplay(targetId, targetDisplayData);
-
-            // Preparar mensagem de combate
-            let message = `${attacker.data.name} (${attackPower} ATK) atacou ${target.data.name} (${targetAttack} ATK)!\n`;
-            
-            if (targetDestroyed) {
-                console.log('🔥 Alvo será destruído:', target.data.name, 'Defesa final:', target.data.defense);
-                message += `${target.data.name} foi destruída! `;
-                // Calcular dano penetrante corretamente
-                const penetratingDamage = Math.max(0, attackPower - targetDefenseOriginal);
-                if (penetratingDamage > 0) {
-                    changeStat('pv', target.player, -penetratingDamage);
-                    message += `${penetratingDamage} de dano penetrante! `;
+            const result = window.gameEngine.resolveCombat({
+                attackerId,
+                targetId,
+                targetValidator: () => {
+                    const legacyCheck = canAttackTarget(attackerId, targetId, { skipEngine: true });
+                    return legacyCheck.canAttack || legacyCheck.reason;
                 }
-                setTimeout(() => {
-                    console.log('🔥 Executando destruição do alvo:', targetId);
-                    destroyCard(targetId);
-                }, 1000);
-            }
-            
-            if (attackerDestroyed) {
-                console.log('🔥 Atacante será destruído:', attacker.data.name, 'Defesa final:', attacker.data.defense);
-                message += `${attacker.data.name} foi destruída no contra-ataque! `;
-                setTimeout(() => {
-                    console.log('🔥 Executando destruição do atacante:', attackerId);
-                    destroyCard(attackerId);
-                }, 1000);
+            });
+
+            if (result.status !== 'resolved') {
+                showMessage(result.reason, 'warning');
+                clearCombatHighlights();
+                setupCombatPhase();
+                return;
             }
 
-            // Log detalhado para debug
-            console.log(`💥 Resultado do combate:`);
-            console.log(`   ${attacker.data.name}: ${attackerDefenseOriginal} → ${attacker.data.defense} DEF`);
-            console.log(`   ${target.data.name}: ${targetDefenseOriginal} → ${target.data.defense} DEF`);
-            console.log(`   Atacante destruído: ${attackerDestroyed}`);
-            console.log(`   Alvo destruído: ${targetDestroyed}`);
+            if (result.cancelled) {
+                updateCardDisplay(attackerId, {
+                    ...attacker.data,
+                    attack: window.gameEngine.getEffectiveStat(attackerId, 'attack'),
+                    defense: window.gameEngine.getRemainingDefense(attackerId)
+                });
+                updateCardDisplay(targetId, {
+                    ...target.data,
+                    attack: window.gameEngine.getEffectiveStat(targetId, 'attack'),
+                    defense: window.gameEngine.getRemainingDefense(targetId)
+                });
+                showMessage(`O ataque de ${attacker.data.name} foi anulado.`, 'info');
+                if (window.cardAbilities?.onCombatResolved) {
+                    window.cardAbilities.onCombatResolved(result);
+                }
+                updateAttackedCardsVisual();
+                clearCombatHighlights();
+                setupCombatPhase();
+                return;
+            }
 
-            alert(message);
-            
-            // Processar habilidades após o ataque
-            if (window.cardAbilities && window.cardAbilities.onAfterAttack) {
-                window.cardAbilities.onAfterAttack(attackerId, targetId);
+            updateCardDisplay(attackerId, {
+                ...attacker.data,
+                attack: window.gameEngine.getEffectiveStat(attackerId, 'attack'),
+                defense: result.attackerRemainingDefense
+            });
+            updateCardDisplay(targetId, {
+                ...target.data,
+                attack: window.gameEngine.getEffectiveStat(targetId, 'attack'),
+                defense: result.targetRemainingDefense
+            });
+            renderPlayerStat('pv', target.controllerId);
+
+            let message = `${attacker.data.name} causou ${result.damageToTarget} de dano em ${target.data.name}.`;
+            if (result.targetDestroyed) message += ` ${target.data.name} foi destruída.`;
+            if (result.attackerDestroyed) message += ` ${attacker.data.name} foi destruída no contra-ataque.`;
+            if (result.penetratingDamage > 0) {
+                message += ` ${result.penetratingDamage} de dano penetrante.`;
             }
-            
-            // Marcar carta como tendo atacado neste turno
-            if (!gameState.attackedThisTurn.includes(attackerId)) {
-                gameState.attackedThisTurn.push(attackerId);
-                console.log('🗡️ Carta marcada como atacou:', attackerId);
+            showMessage(message, result.defeated.length > 0 ? 'success' : 'info');
+
+            if (window.cardAbilities?.onCombatResolved) {
+                window.cardAbilities.onCombatResolved(result);
             }
+
+            result.defeated.forEach(cardId => {
+                setTimeout(() => destroyCard(cardId), 500);
+            });
             
             updateAttackedCardsVisual();
             clearCombatHighlights();
@@ -2811,44 +2809,38 @@
         }
 
         function directAttack() {
-            console.log('Ataque direto iniciado');
-            
             if (!gameState.attackingCard) {
                 alert('Primeiro selecione uma carta sua para atacar!');
                 return;
             }
-            
-            // Verificar se a carta já atacou este turno
-            if (gameState.attackedThisTurn.includes(gameState.attackingCard)) {
-                showMessage('Esta carta já atacou neste turno!', 'warning');
-                return;
-            }
-            
+
             const attacker = findCardData(gameState.attackingCard);
-            if (!attacker) {
-                console.log('Dados do atacante não encontrados');
+            if (!attacker) return;
+
+            const opponent = gameState.currentPlayer === 'p1' ? 'p2' : 'p1';
+            const allowDirectAttack = window.CardRules.canDirectAttack(
+                gameState,
+                gameState.attackingCard
+            );
+            const result = window.gameEngine.resolveCombat({
+                attackerId: gameState.attackingCard,
+                defenderPlayerId: opponent,
+                isDirect: true,
+                allowDirectAttack
+            });
+            if (result.status !== 'resolved') {
+                showMessage(result.reason, 'warning');
                 return;
             }
 
-            const opponent = gameState.currentPlayer === 'p1' ? 'p2' : 'p1';
-            const damage = attacker.data.attack;
-            
-            console.log(`${attacker.data.name} atacando diretamente ${opponent} por ${damage} de dano`);
-            
-            // Processar habilidades antes do ataque direto (se a função existir)
-            if (window.cardAbilities && window.cardAbilities.onBeforeDirectAttack) {
-                window.cardAbilities.onBeforeDirectAttack(gameState.attackingCard, opponent);
+            renderPlayerStat('pv', opponent);
+            showMessage(
+                `${attacker.data.name} atacou diretamente por ${result.directDamage} de dano.`,
+                'success'
+            );
+            if (window.cardAbilities?.onCombatResolved) {
+                window.cardAbilities.onCombatResolved(result);
             }
-            
-            changeStat('pv', opponent, -damage);
-            alert(`💥 ${attacker.data.name} atacou diretamente!\n${damage} pontos de dano!`);
-            
-            // Marcar carta como tendo atacado neste turno
-            if (!gameState.attackedThisTurn.includes(gameState.attackingCard)) {
-                gameState.attackedThisTurn.push(gameState.attackingCard);
-                console.log('🗡️ Carta marcada como atacou (direto):', gameState.attackingCard);
-            }
-            
             updateAttackedCardsVisual();
             clearCombatHighlights();
             setupCombatPhase();
@@ -2869,56 +2861,25 @@
         function destroyCard(cardId) {
             console.log('💥 DESTROY CARD CHAMADA para:', cardId);
             
-            const cardData = findCardData(cardId);
+            const cardData = gameState.cardInstances[cardId] || findCardData(cardId);
             if (!cardData) {
                 console.log('💥 ERRO: Dados da carta não encontrados para:', cardId);
                 return;
             }
 
-            console.log('💥 Dados completos da carta:', cardData);
-            
-            if (!cardData.player) {
-                console.log('💥 ERRO CRÍTICO: cardData.player é undefined!');
-                console.log('💥 Estrutura cardData:', Object.keys(cardData));
-                console.log('💥 Tentando determinar player pela posição no DOM...');
-                
-                // Tentar determinar o player pela posição no DOM como fallback
-                const cardElement = document.getElementById(cardId);
-                if (cardElement) {
-                    const fieldP1 = document.getElementById('field-p1');
-                    const fieldP2 = document.getElementById('field-p2');
-                    
-                    if (fieldP1.contains(cardElement)) {
-                        cardData.player = 'p1';
-                        console.log('💥 Player determinado pelo DOM: p1');
-                    } else if (fieldP2.contains(cardElement)) {
-                        cardData.player = 'p2';
-                        console.log('💥 Player determinado pelo DOM: p2');
-                    } else {
-                        console.log('💥 ERRO: Não foi possível determinar o player');
-                        return;
+            if (cardData.zone === 'field') {
+                cardData.attachments.forEach(attachmentId => {
+                    const attachment = gameState.cardInstances[attachmentId];
+                    if (attachment) {
+                        window.GameStateModel.moveCard(gameState, attachmentId, 'discard', attachment.ownerId);
+                        attachment.attachedTo = null;
                     }
-                } else {
-                    console.log('💥 ERRO: Elemento DOM não encontrado');
-                    return;
-                }
+                });
+                cardData.attachments = [];
+                window.GameStateModel.moveCard(gameState, cardId, 'discard', cardData.ownerId);
             }
-
-            console.log('💥 Destruindo carta:', cardData.data.name, 'do jogador', cardData.player);
-            console.log('💥 Estado antes da destruição - Field:', gameState.cards[cardData.player] ? gameState.cards[cardData.player].field.length : 'PLAYER UNDEFINED', 'cartas');
-
-            const zonePlayerId = cardData.zonePlayerId || cardData.player;
-            cardData.attachments.forEach(attachmentId => {
-                const attachment = gameState.cardInstances[attachmentId];
-                if (attachment) {
-                    window.GameStateModel.moveCard(gameState, attachmentId, 'discard', attachment.ownerId);
-                    attachment.attachedTo = null;
-                }
-            });
-            cardData.attachments = [];
-            window.GameStateModel.moveCard(gameState, cardId, 'discard', cardData.ownerId);
             updateDiscardCount(cardData.ownerId);
-            console.log('💥 Carta movida para o descarte. Field agora tem:', gameState.cards[zonePlayerId].field.length, 'cartas');
+            renderFieldsFromState();
 
             // Remover do DOM com animação
             const cardElement = document.getElementById(cardId);
@@ -3046,6 +3007,18 @@
             });
         }
         window.renderHandsFromState = renderHandsFromState;
+
+        function renderFieldsFromState() {
+            ['p1', 'p2'].forEach(player => {
+                gameState.cards[player].field.forEach(card => {
+                    updateCardDisplay(card.instanceId, {
+                        ...card.data,
+                        attack: window.gameEngine.getEffectiveStat(card.instanceId, 'attack'),
+                        defense: window.gameEngine.getRemainingDefense(card.instanceId)
+                    });
+                });
+            });
+        }
 
         function getCardIcon(type) {
             const icons = {
@@ -3211,10 +3184,10 @@
                     return;
                 }
                 
-                // Verificar se atacante já atacou
-                if (gameState.attackedThisTurn.includes(gameState.attackingCard)) {
-                    console.log('❌ Atacante já atacou este turno');
-                    showMessage('Esta carta já atacou neste turno!', 'warning');
+                const attackerCheck = window.gameEngine.canAttack(gameState.attackingCard);
+                if (!attackerCheck.canAttack) {
+                    console.log('❌ Atacante não pode atacar:', attackerCheck.reason);
+                    showMessage(attackerCheck.reason, 'warning');
                     clearCombatHighlights();
                     gameState.attackingCard = null;
                     return;
@@ -3244,11 +3217,11 @@
             if (!gameState.attackingCard || (cardData.player === gameState.currentPlayer && isCardInField(cardId))) {
                 // Só pode selecionar cartas do jogador atual que estão em campo
                 if (cardData.player === gameState.currentPlayer && isCardInField(cardId)) {
-                    // Verificar se a carta já atacou este turno
-                    if (gameState.attackedThisTurn.includes(cardId)) {
-                        console.log('❌ Carta já atacou este turno:', cardId);
-                        showMessage('Esta carta já atacou neste turno!', 'warning');
-                        updateCombatInfo('Esta carta já atacou neste turno! Selecione outra carta.');
+                    const attackCheck = window.gameEngine.canAttack(cardId);
+                    if (!attackCheck.canAttack) {
+                        console.log('❌ Carta não pode atacar:', cardId, attackCheck.reason);
+                        showMessage(attackCheck.reason, 'warning');
+                        updateCombatInfo(`${attackCheck.reason} Selecione outra carta.`);
                         return;
                     }
                     
@@ -3436,7 +3409,7 @@
                         type: window.GameEngine.EVENT_TYPES.CARD_PLAYED,
                         payload: { cardId, playerId: targetPlayer, definitionId: cardData.definitionId }
                     },
-                    ...(cardData.data.type === 'criatura' ? [{
+                    ...(['criatura', 'evolução'].includes(cardData.data.type) ? [{
                         type: window.GameEngine.EVENT_TYPES.CREATURE_SUMMONED,
                         payload: { cardId, playerId: targetPlayer, definitionId: cardData.definitionId }
                     }] : [])
@@ -3467,9 +3440,17 @@
                 }, 500);
                 
                 // Ativar habilidades da carta invocada
-                if (window.cardAbilities && window.cardAbilities.onCardSummoned && cardData.data.type === 'criatura') {
+                if (
+                    window.cardAbilities &&
+                    window.cardAbilities.onCardSummoned &&
+                    ['criatura', 'evolução'].includes(cardData.data.type)
+                ) {
                     window.cardAbilities.onCardSummoned(cardId, cardData.data, targetPlayer);
                 }
+
+                renderHandsFromState();
+                renderFieldsFromState();
+                renderPlayerStats();
                 
                 // Feedback visual
                 updateInvocationInfo(`${cardData.data.name} foi invocada com sucesso!`);
@@ -3484,6 +3465,9 @@
         }
 
         function findCardData(cardId) {
+            const registeredCard = gameState.cardInstances[cardId];
+            if (registeredCard) return registeredCard;
+
             console.log('🔍 Looking for card:', cardId);
             console.log('🔍 GameState cards:', gameState.cards);
             
@@ -3823,6 +3807,15 @@ Cartas restantes:
                 alert('Cartas de suporte só podem ser equipadas em criaturas!');
                 return;
             }
+
+            const migratedTargetCheck = window.CardRules.validateEquipmentTarget(
+                supportCardData,
+                creatureCardData
+            );
+            if (!migratedTargetCheck.valid) {
+                showMessage(migratedTargetCheck.reason, 'warning');
+                return;
+            }
             
             // Cartas de suporte podem ser aplicadas em qualquer criatura
             // (Tanto aliadas quanto inimigas)
@@ -3855,6 +3848,41 @@ Cartas restantes:
             
             if (!supportCardData || !creatureCardData) return;
             
+            const migratedEquipmentEffects = window.CardRules
+                ?.createEquipmentEffects(supportCardData, creatureCardId, gameState);
+            const equipmentStatEffects = migratedEquipmentEffects || [
+                ...(supportCardData.data.attack ? [{
+                    kind: window.GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                    targetId: creatureCardId,
+                    modifier: {
+                        id: `${supportCardId}:attack`,
+                        sourceId: supportCardId,
+                        stat: 'attack',
+                        operation: window.GameEngine.MODIFIER_OPERATIONS.ADD,
+                        value: supportCardData.data.attack,
+                        duration: {
+                            kind: window.GameEngine.DURATION_KINDS.UNTIL_SOURCE_LEAVES,
+                            sourceId: supportCardId
+                        }
+                    }
+                }] : []),
+                ...(supportCardData.data.defense ? [{
+                    kind: window.GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                    targetId: creatureCardId,
+                    modifier: {
+                        id: `${supportCardId}:defense`,
+                        sourceId: supportCardId,
+                        stat: 'defense',
+                        operation: window.GameEngine.MODIFIER_OPERATIONS.ADD,
+                        value: supportCardData.data.defense,
+                        duration: {
+                            kind: window.GameEngine.DURATION_KINDS.UNTIL_SOURCE_LEAVES,
+                            sourceId: supportCardId
+                        }
+                    }
+                }] : [])
+            ];
+
             const equipResult = window.gameEngine.resolveAction({
                 type: 'EQUIP_CARD',
                 actorId: supportCardData.player,
@@ -3883,7 +3911,8 @@ Cartas restantes:
                         kind: window.GameEngine.EFFECT_KINDS.ATTACH_CARD,
                         equipmentId: supportCardId,
                         targetId: creatureCardId
-                    }
+                    },
+                    ...equipmentStatEffects
                 ],
                 events: [
                     {
@@ -3914,18 +3943,12 @@ Cartas restantes:
             renderPlayerStat('energy', supportCardData.player);
             playSound('energySound');
             
-            // Aplicar bônus da carta de suporte à criatura
-            creatureCardData.data.attack += supportCardData.data.attack || 0;
-            creatureCardData.data.defense += supportCardData.data.defense || 0;
-            
             // Adicionar equipamento à criatura
             if (!creatureCardData.data.equipment) {
                 creatureCardData.data.equipment = [];
             }
             creatureCardData.data.equipment.push(supportCardData.data);
             
-            // Atualizar visual da criatura
-            updateCardDisplay(creatureCardId, creatureCardData.data);
             const creatureElement = document.getElementById(creatureCardId);
             
             creatureElement.classList.add('equipped');
@@ -3937,6 +3960,8 @@ Cartas restantes:
             if (window.cardAbilities) {
                 window.cardAbilities.onCardEquipped(supportCardId, supportCardData.data, creatureCardId);
             }
+
+            renderFieldsFromState();
             
             // Remover elemento visual da carta de suporte
             const supportElement = document.getElementById(supportCardId);
@@ -3945,7 +3970,7 @@ Cartas restantes:
             }
             
             // Feedback
-            alert(`${supportCardData.data.name} foi equipada em ${creatureCardData.data.name}!\n+${supportCardData.data.attack || 0} ATK, +${supportCardData.data.defense || 0} DEF`);
+            alert(`${supportCardData.data.name} foi equipada em ${creatureCardData.data.name}!`);
             
             // Limpar highlights
             clearEquipmentHighlights();

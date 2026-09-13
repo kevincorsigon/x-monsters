@@ -235,10 +235,15 @@ class CardAbilitiesSystem {
         this.permanentEffects = new Map(); // Efeitos permanentes
         this.oneShotEffects = new Set(); // Efeitos únicos usados
         this.engine = null;
+        this.unregisterCardRules = null;
     }
 
     attachEngine(engine) {
+        if (this.unregisterCardRules) this.unregisterCardRules();
         this.engine = engine;
+        if (window.CardRules) {
+            this.unregisterCardRules = window.CardRules.install(engine);
+        }
     }
 
     reset() {
@@ -248,6 +253,14 @@ class CardAbilitiesSystem {
         this.oneShotEffects.clear();
     }
 
+    onCombatDeclared(attackerId, targetId) {
+        console.log('⚔️ Combate declarado:', { attackerId, targetId });
+    }
+
+    onCombatResolved(result) {
+        console.log('⚔️ Combate resolvido:', result);
+    }
+
     // ========================================
     // SISTEMA DE TRIGGERS - QUANDO ATIVAR HABILIDADES
     // ========================================
@@ -255,6 +268,12 @@ class CardAbilitiesSystem {
     // Quando uma carta é invocada no campo
     onCardSummoned(cardId, cardData, playerId) {
         console.log(`🎴 Ativando habilidades de invocação: ${cardData.name}`);
+
+        if (window.CardRules?.isMigrated(cardData.id)) {
+            const feedback = window.CardRules.getFeedback(cardData.id);
+            if (feedback) this.showAbilityFeedback(cardId, feedback);
+            return;
+        }
         
         switch(cardData.id) {
             case 'card_012': // Natalino
@@ -302,6 +321,12 @@ class CardAbilitiesSystem {
     // Quando uma carta equipa outra
     onCardEquipped(equipmentId, equipmentData, targetId) {
         console.log(`🔧 Equipando: ${equipmentData.name} em criatura`);
+
+        const migratedRule = window.CardRules?.getEquipmentRule(equipmentData.id);
+        if (migratedRule) {
+            this.showAbilityFeedback(targetId, migratedRule.feedback);
+            return;
+        }
         
         switch(equipmentData.id) {
             case 'card_001': // Espada Mágica

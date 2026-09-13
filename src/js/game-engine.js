@@ -22,6 +22,14 @@
         CARD_PLAYED: 'CARD_PLAYED',
         CREATURE_SUMMONED: 'CREATURE_SUMMONED',
         EQUIPMENT_ATTACHED: 'EQUIPMENT_ATTACHED',
+        ATTACK_DECLARED: 'ATTACK_DECLARED',
+        BECAME_ATTACK_TARGET: 'BECAME_ATTACK_TARGET',
+        BEFORE_DAMAGE: 'BEFORE_DAMAGE',
+        DAMAGE_DEALT: 'DAMAGE_DEALT',
+        CREATURE_WOULD_DIE: 'CREATURE_WOULD_DIE',
+        CREATURE_DESTROYED: 'CREATURE_DESTROYED',
+        CREATURE_DEFEATED: 'CREATURE_DEFEATED',
+        AFTER_ATTACK: 'AFTER_ATTACK',
         CARD_MOVED: 'CARD_MOVED',
         STATE_CHANGED: 'STATE_CHANGED',
         SOURCE_LEFT_FIELD: 'SOURCE_LEFT_FIELD'
@@ -36,6 +44,9 @@
         REMOVE_EFFECT: 'REMOVE_EFFECT',
         SET_TURN_STATE: 'SET_TURN_STATE',
         ATTACH_CARD: 'ATTACH_CARD',
+        APPLY_CARD_DAMAGE: 'APPLY_CARD_DAMAGE',
+        MODIFY_COMBAT: 'MODIFY_COMBAT',
+        RECORD_ATTACK: 'RECORD_ATTACK',
         EMIT_EVENT: 'EMIT_EVENT'
     });
 
@@ -73,6 +84,7 @@
         let effectSequence = 0;
         let choiceSequence = 0;
         let isProcessingEvents = false;
+        const activeCombats = new Map();
 
         function ensureCollections() {
             if (!Array.isArray(state.effects)) state.effects = [];
@@ -280,6 +292,31 @@
                 }
             }
 
+            if (effect.kind === EFFECT_KINDS.APPLY_CARD_DAMAGE && !getCard(effect.targetId)) {
+                return { valid: false, reason: 'Alvo de dano não encontrado' };
+            }
+
+            if (effect.kind === EFFECT_KINDS.MODIFY_COMBAT) {
+                const allowedFields = [
+                    'attackPower',
+                    'defenderPower',
+                    'damageToTarget',
+                    'damageToAttacker',
+                    'directDamage',
+                    'penetratingDamage',
+                    'cancelled',
+                    'preventTargetDeath',
+                    'preventAttackerDeath'
+                ];
+                if (!allowedFields.includes(effect.field)) {
+                    return { valid: false, reason: 'Campo de combate inválido' };
+                }
+            }
+
+            if (effect.kind === EFFECT_KINDS.RECORD_ATTACK && !getCard(effect.attackerId)) {
+                return { valid: false, reason: 'Atacante não encontrado' };
+            }
+
             if (effect.kind === EFFECT_KINDS.EMIT_EVENT && !effect.type) {
                 return { valid: false, reason: 'Evento do efeito inválido' };
             }
@@ -397,7 +434,10 @@
                             restoredZone.splice(previous.index, 0, restoredCard);
                         }
                     });
-                    if (source[0].zone === 'field' && effect.destinationZone !== 'field') {
+                    if (
+                        ['field', 'equipment'].includes(source[0].zone) &&
+                        effect.destinationZone !== source[0].zone
+                    ) {
                         enqueueEvent(EVENT_TYPES.SOURCE_LEFT_FIELD, {
                             sourceId: effect.instanceId,
                             from: source[0].zone,
@@ -503,6 +543,52 @@
                             target.attachments.length,
                             ...previousAttachments
                         );
+                    });
+                    break;
+                }
+
+                case EFFECT_KINDS.APPLY_CARD_DAMAGE: {
+                    const target = getCard(effect.targetId);
+                    if (!target) throw new Error(`Alvo de dano não encontrado: ${effect.targetId}`);
+                    const previousDamage = target.damage;
+                    target.damage = Math.max(0, target.damage + effect.amount);
+                    transaction.record(() => {
+                        target.damage = previousDamage;
+                    });
+                    break;
+                }
+
+                case EFFECT_KINDS.MODIFY_COMBAT: {
+                    const combat = activeCombats.get(effect.combatId);
+                    if (!combat) throw new Error(`Combate não encontrado: ${effect.combatId}`);
+                    const previousValue = combat[effect.field];
+                    const operation = effect.operation || MODIFIER_OPERATIONS.SET;
+                    if (operation === MODIFIER_OPERATIONS.SET) combat[effect.field] = effect.value;
+                    else if (operation === MODIFIER_OPERATIONS.ADD) combat[effect.field] += effect.value;
+                    else if (operation === MODIFIER_OPERATIONS.MULTIPLY) combat[effect.field] *= effect.value;
+                    else throw new Error(`Operação de combate inválida: ${operation}`);
+                    transaction.record(() => {
+                        combat[effect.field] = previousValue;
+                    });
+                    break;
+                }
+
+                case EFFECT_KINDS.RECORD_ATTACK: {
+                    const attacker = getCard(effect.attackerId);
+                    if (!attacker) throw new Error(`Atacante não encontrado: ${effect.attackerId}`);
+                    const previousUsage = attacker.usage.combatAttacks
+                        ? { ...attacker.usage.combatAttacks }
+                        : undefined;
+                    const currentCount = previousUsage?.turnNumber === state.turn
+                        ? previousUsage.count
+                        : 0;
+                    attacker.usage.combatAttacks = {
+                        turnNumber: state.turn,
+                        count: currentCount + 1
+                    };
+                    transaction.record(() => {
+                        if (previousUsage) attacker.usage.combatAttacks = previousUsage;
+                        else delete attacker.usage.combatAttacks;
                     });
                     break;
                 }
@@ -856,20 +942,377 @@
                 return modifier.stat === stat &&
                     (!modifier.condition || modifier.condition(context, state, card));
             });
+            const getModifierValue = modifier => typeof modifier.value === 'function'
+                ? modifier.value(context, state, card)
+                : modifier.value;
             const replacement = modifiers
                 .filter(modifier => modifier.operation === MODIFIER_OPERATIONS.SET)
                 .at(-1);
             const baseValue = replacement
-                ? replacement.value
+                ? getModifierValue(replacement)
                 : card.baseStats[stat] ?? card.data[stat] ?? 0;
             const additiveValue = modifiers
                 .filter(modifier => modifier.operation === MODIFIER_OPERATIONS.ADD)
-                .reduce((total, modifier) => total + modifier.value, 0);
+                .reduce((total, modifier) => total + getModifierValue(modifier), 0);
             const multiplier = modifiers
                 .filter(modifier => modifier.operation === MODIFIER_OPERATIONS.MULTIPLY)
-                .reduce((total, modifier) => total * modifier.value, 1);
+                .reduce((total, modifier) => total * getModifierValue(modifier), 1);
 
             return Math.max(0, (baseValue + additiveValue) * multiplier);
+        }
+
+        function getRemainingDefense(instanceId, context = {}) {
+            const card = getCard(instanceId);
+            if (!card) throw new Error(`Carta não encontrada: ${instanceId}`);
+            return Math.max(0, getEffectiveStat(instanceId, 'defense', context) - card.damage);
+        }
+
+        function getAttackCount(instanceId) {
+            const card = getCard(instanceId);
+            if (!card) return 0;
+            const usage = card.usage?.combatAttacks;
+            return usage?.turnNumber === state.turn ? usage.count : 0;
+        }
+
+        function getAttackLimit(instanceId, context = {}) {
+            const derivedLimit = getEffectiveStat(instanceId, 'attackLimit', context);
+            return derivedLimit > 0 ? derivedLimit : 1;
+        }
+
+        function canAttack(instanceId, options = {}) {
+            const attacker = getCard(instanceId);
+            if (!attacker) return { canAttack: false, reason: 'Atacante não encontrado' };
+            if (state.currentPhase !== 'combat') {
+                return { canAttack: false, reason: 'Ataques só são permitidos na Fase de Combate' };
+            }
+            if (attacker.zone !== 'field') {
+                return { canAttack: false, reason: 'O atacante não está em campo' };
+            }
+            if (attacker.controllerId !== state.currentPlayer) {
+                return { canAttack: false, reason: 'O jogador não controla o atacante' };
+            }
+            if (!['criatura', 'evolução'].includes(attacker.data.type)) {
+                return { canAttack: false, reason: 'Esta carta não pode atacar' };
+            }
+
+            const attackLimit = options.attackLimit ?? getAttackLimit(instanceId, options);
+            if (getAttackCount(instanceId) >= attackLimit) {
+                return { canAttack: false, reason: 'Esta carta já usou todos os ataques do turno' };
+            }
+
+            return { canAttack: true, attackLimit };
+        }
+
+        function validateCombat(options) {
+            const attackerCheck = canAttack(options.attackerId, options);
+            if (!attackerCheck.canAttack) return { valid: false, reason: attackerCheck.reason };
+
+            const attacker = getCard(options.attackerId);
+            const defenderPlayerId = options.defenderPlayerId ||
+                (attacker.controllerId === 'p1' ? 'p2' : 'p1');
+
+            if (options.isDirect) {
+                if (!GameStateModel.PLAYER_IDS.includes(defenderPlayerId)) {
+                    return { valid: false, reason: 'Jogador defensor inválido' };
+                }
+                if (defenderPlayerId === attacker.controllerId) {
+                    return { valid: false, reason: 'Não é possível atacar o próprio jogador' };
+                }
+                if (options.allowDirectAttack === false) {
+                    const defenders = state.players[defenderPlayerId].zones.field
+                        .filter(card => ['criatura', 'evolução'].includes(card.data.type));
+                    if (defenders.length > 0) {
+                        return { valid: false, reason: 'Há criaturas protegendo o jogador' };
+                    }
+                }
+                return { valid: true, attacker, defenderPlayerId, attackLimit: attackerCheck.attackLimit };
+            }
+
+            const target = getCard(options.targetId);
+            if (!target) return { valid: false, reason: 'Alvo não encontrado' };
+            if (target.zone !== 'field') return { valid: false, reason: 'O alvo não está em campo' };
+            if (target.controllerId === attacker.controllerId) {
+                return { valid: false, reason: 'Não é possível atacar uma carta aliada' };
+            }
+            if (!['criatura', 'evolução'].includes(target.data.type)) {
+                return { valid: false, reason: 'O alvo não é uma criatura válida' };
+            }
+
+            if (options.targetValidator) {
+                const result = options.targetValidator({ state, attacker, target });
+                if (result === false) return { valid: false, reason: 'Ataque bloqueado' };
+                if (typeof result === 'string') return { valid: false, reason: result };
+                if (result && result.valid === false) return result;
+            }
+
+            return {
+                valid: true,
+                attacker,
+                target,
+                defenderPlayerId: target.controllerId,
+                attackLimit: attackerCheck.attackLimit
+            };
+        }
+
+        function emitCombatEvent(type, combat, transaction, payload = {}) {
+            applyEffect({
+                kind: EFFECT_KINDS.EMIT_EVENT,
+                type,
+                payload: {
+                    combatId: combat.id,
+                    attackerId: combat.attackerId,
+                    targetId: combat.targetId,
+                    attackOrdinal: combat.attackOrdinal,
+                    isDirect: combat.isDirect,
+                    attackPower: combat.attackPower,
+                    defenderPower: combat.defenderPower,
+                    targetDefenseBefore: combat.targetDefenseBefore,
+                    attackerDefenseBefore: combat.attackerDefenseBefore,
+                    damageToTarget: combat.damageToTarget,
+                    damageToAttacker: combat.damageToAttacker,
+                    directDamage: combat.directDamage,
+                    ...payload
+                },
+                immediate: true
+            }, transaction, combat.id);
+        }
+
+        function moveDestroyedCard(card, combat, transaction) {
+            const attachments = [...card.attachments];
+            attachments.forEach(attachmentId => {
+                const attachment = getCard(attachmentId);
+                if (!attachment || attachment.zone !== 'equipment') return;
+                const previousAttachedTo = attachment.attachedTo;
+                attachment.attachedTo = null;
+                transaction.record(() => {
+                    attachment.attachedTo = previousAttachedTo;
+                });
+                applyEffect({
+                    kind: EFFECT_KINDS.MOVE_CARD,
+                    instanceId: attachmentId,
+                    destinationZone: 'discard',
+                    destinationPlayerId: attachment.ownerId
+                }, transaction, combat.id);
+            });
+
+            const previousAttachments = [...card.attachments];
+            card.attachments = [];
+            transaction.record(() => {
+                card.attachments = previousAttachments;
+            });
+
+            applyEffect({
+                kind: EFFECT_KINDS.MOVE_CARD,
+                instanceId: card.instanceId,
+                destinationZone: 'discard',
+                destinationPlayerId: card.ownerId
+            }, transaction, combat.id);
+        }
+
+        function resolveCombat(options) {
+            const validation = validateCombat(options);
+            if (!validation.valid) return { status: 'rejected', reason: validation.reason };
+
+            const attacker = validation.attacker;
+            const target = validation.target || null;
+            const combatId = `combat_${++actionSequence}`;
+            const attackOrdinal = getAttackCount(attacker.instanceId) + 1;
+            const combat = {
+                id: combatId,
+                attackerId: attacker.instanceId,
+                targetId: target?.instanceId || null,
+                attackerPlayerId: attacker.controllerId,
+                defenderPlayerId: validation.defenderPlayerId,
+                attackOrdinal,
+                isDirect: Boolean(options.isDirect),
+                attackPower: getEffectiveStat(attacker.instanceId, 'attack', { attackOrdinal }),
+                defenderPower: target
+                    ? getEffectiveStat(target.instanceId, 'attack', { defending: true })
+                    : 0,
+                targetDefenseBefore: target ? getRemainingDefense(target.instanceId) : 0,
+                attackerDefenseBefore: getRemainingDefense(attacker.instanceId),
+                damageToTarget: 0,
+                damageToAttacker: 0,
+                directDamage: 0,
+                penetratingDamage: null,
+                cancelled: false,
+                preventTargetDeath: false,
+                preventAttackerDeath: false,
+                defeated: []
+            };
+            combat.damageToTarget = combat.attackPower;
+            combat.damageToAttacker = combat.defenderPower;
+            combat.directDamage = combat.attackPower;
+
+            const transaction = createTransaction();
+            activeCombats.set(combatId, combat);
+
+            try {
+                emitCombatEvent(EVENT_TYPES.ATTACK_DECLARED, combat, transaction);
+                if (target) emitCombatEvent(EVENT_TYPES.BECAME_ATTACK_TARGET, combat, transaction);
+                emitCombatEvent(EVENT_TYPES.BEFORE_DAMAGE, combat, transaction);
+
+                if (combat.cancelled) {
+                    applyEffect({
+                        kind: EFFECT_KINDS.RECORD_ATTACK,
+                        attackerId: attacker.instanceId
+                    }, transaction, combatId);
+                    emitCombatEvent(EVENT_TYPES.AFTER_ATTACK, combat, transaction, { cancelled: true });
+                    return {
+                        status: 'resolved',
+                        combatId,
+                        attackerId: combat.attackerId,
+                        targetId: combat.targetId,
+                        attackOrdinal,
+                        isDirect: combat.isDirect,
+                        cancelled: true,
+                        defeated: []
+                    };
+                }
+
+                combat.damageToTarget = Math.max(0, combat.damageToTarget);
+                combat.damageToAttacker = Math.max(0, combat.damageToAttacker);
+                combat.directDamage = Math.max(0, combat.directDamage);
+
+                if (combat.isDirect) {
+                    applyEffect({
+                        kind: EFFECT_KINDS.CHANGE_PLAYER_STAT,
+                        stat: 'pv',
+                        playerId: combat.defenderPlayerId,
+                        amount: -combat.directDamage
+                    }, transaction, combatId);
+                    emitCombatEvent(EVENT_TYPES.DAMAGE_DEALT, combat, transaction, {
+                        sourceId: attacker.instanceId,
+                        playerId: combat.defenderPlayerId,
+                        amount: combat.directDamage,
+                        damageType: 'physical'
+                    });
+                } else {
+                    applyEffect({
+                        kind: EFFECT_KINDS.APPLY_CARD_DAMAGE,
+                        targetId: target.instanceId,
+                        amount: combat.damageToTarget
+                    }, transaction, combatId);
+                    applyEffect({
+                        kind: EFFECT_KINDS.APPLY_CARD_DAMAGE,
+                        targetId: attacker.instanceId,
+                        amount: combat.damageToAttacker
+                    }, transaction, combatId);
+
+                    emitCombatEvent(EVENT_TYPES.DAMAGE_DEALT, combat, transaction, {
+                        sourceId: attacker.instanceId,
+                        damagedId: target.instanceId,
+                        amount: combat.damageToTarget,
+                        damageType: 'physical'
+                    });
+                    emitCombatEvent(EVENT_TYPES.DAMAGE_DEALT, combat, transaction, {
+                        sourceId: target.instanceId,
+                        damagedId: attacker.instanceId,
+                        amount: combat.damageToAttacker,
+                        damageType: 'physical'
+                    });
+
+                    const targetWouldDie = getRemainingDefense(target.instanceId) <= 0;
+                    const attackerWouldDie = getRemainingDefense(attacker.instanceId) <= 0;
+                    if (targetWouldDie) {
+                        emitCombatEvent(EVENT_TYPES.CREATURE_WOULD_DIE, combat, transaction, {
+                            cardId: target.instanceId,
+                            ownerId: target.ownerId,
+                            controllerId: target.controllerId
+                        });
+                    }
+                    if (attackerWouldDie) {
+                        emitCombatEvent(EVENT_TYPES.CREATURE_WOULD_DIE, combat, transaction, {
+                            cardId: attacker.instanceId,
+                            ownerId: attacker.ownerId,
+                            controllerId: attacker.controllerId
+                        });
+                    }
+
+                    const targetDestroyed = targetWouldDie && !combat.preventTargetDeath;
+                    const attackerDestroyed = attackerWouldDie && !combat.preventAttackerDeath;
+                    combat.penetratingDamage = combat.penetratingDamage ??
+                        (targetDestroyed
+                            ? Math.max(0, combat.damageToTarget - combat.targetDefenseBefore)
+                            : 0);
+
+                    if (combat.penetratingDamage > 0) {
+                        applyEffect({
+                            kind: EFFECT_KINDS.CHANGE_PLAYER_STAT,
+                            stat: 'pv',
+                            playerId: combat.defenderPlayerId,
+                            amount: -combat.penetratingDamage
+                        }, transaction, combatId);
+                    }
+
+                    const destroyedCards = [];
+                    if (targetDestroyed) {
+                        destroyedCards.push({
+                            card: target,
+                            defeatedBy: attacker,
+                            ownerId: target.ownerId,
+                            controllerId: target.controllerId
+                        });
+                    }
+                    if (attackerDestroyed) {
+                        destroyedCards.push({
+                            card: attacker,
+                            defeatedBy: target,
+                            ownerId: attacker.ownerId,
+                            controllerId: attacker.controllerId
+                        });
+                    }
+                    destroyedCards.forEach(item => moveDestroyedCard(item.card, combat, transaction));
+
+                    destroyedCards.forEach(item => {
+                        combat.defeated.push(item.card.instanceId);
+                        emitCombatEvent(EVENT_TYPES.CREATURE_DESTROYED, combat, transaction, {
+                            cardId: item.card.instanceId,
+                            ownerId: item.ownerId,
+                            controllerId: item.controllerId
+                        });
+                        emitCombatEvent(EVENT_TYPES.CREATURE_DEFEATED, combat, transaction, {
+                            sourceId: item.defeatedBy.instanceId,
+                            defeatedId: item.card.instanceId,
+                            defeatedOwnerId: item.ownerId,
+                            defeatedControllerId: item.controllerId
+                        });
+                    });
+                }
+
+                applyEffect({
+                    kind: EFFECT_KINDS.RECORD_ATTACK,
+                    attackerId: attacker.instanceId
+                }, transaction, combatId);
+                emitCombatEvent(EVENT_TYPES.AFTER_ATTACK, combat, transaction, {
+                    defeated: [...combat.defeated]
+                });
+
+                return {
+                    status: 'resolved',
+                    combatId,
+                    attackerId: combat.attackerId,
+                    targetId: combat.targetId,
+                    attackOrdinal: combat.attackOrdinal,
+                    isDirect: combat.isDirect,
+                    cancelled: false,
+                    attackPower: combat.attackPower,
+                    damageToTarget: combat.damageToTarget,
+                    damageToAttacker: combat.damageToAttacker,
+                    directDamage: combat.directDamage,
+                    penetratingDamage: combat.penetratingDamage || 0,
+                    attackerRemainingDefense: getRemainingDefense(attacker.instanceId),
+                    targetRemainingDefense: target ? getRemainingDefense(target.instanceId) : null,
+                    attackerDestroyed: combat.defeated.includes(attacker.instanceId),
+                    targetDestroyed: target ? combat.defeated.includes(target.instanceId) : false,
+                    defeated: [...combat.defeated]
+                };
+            } catch (error) {
+                transaction.rollback();
+                return { status: 'failed', reason: error.message, error };
+            } finally {
+                activeCombats.delete(combatId);
+            }
         }
 
         ensureCollections();
@@ -882,6 +1325,12 @@
             resolveChoice,
             cancelChoice,
             getEffectiveStat,
+            getRemainingDefense,
+            getAttackCount,
+            getAttackLimit,
+            canAttack,
+            validateCombat,
+            resolveCombat,
             getUsageCount,
             canUseAbility
         };

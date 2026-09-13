@@ -1,6 +1,37 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-12 — Defaults conservadores aprovados para habilidades ambíguas
+O usuário aprovou aplicar os defaults recomendados da spec durante as Fases 4
+e 5, registrando cada interpretação. Para o lote 4B: o texto da habilidade é
+canônico e substitui os campos numéricos de suporte; debuffs sem prazo duram
+enquanto a fonte permanecer equipada; e “acabou de ser invocado” vale até o
+fim do próximo turno do adversário da criatura invocada. Expirar no próprio
+turno da invocação tornaria Garras Afiadas inutilizável no fluxo alternado.
+Cartas que exigem UI de ativação/seleção
+são separadas em lote próprio para manter testes e orçamento auditáveis.
+
+Para o lote 4C: ataque direto sem habilidade só é permitido quando o oponente
+não controla criaturas; CP-2 força ataques contra si; “enquanto houver aliados”
+significa outro aliado além da própria fonte; Estrela Mágica consome e anula o
+próximo ataque; Atravessava dura enquanto equipado e Rego Freitas até o fim do
+turno em que for equipado.
+
+O usuário autorizou inferir traits pelo nome quando o catálogo não os declarar.
+A implementação deve materializar a inferência em um mapa explícito por ID,
+sem procurar substrings em runtime. Para K-023 e Dispositivo de Sincronia,
+havendo vários robôs aliados, o bônus se aplica a todos os robôs elegíveis.
+Para `elite`, o mapa inicial usa apenas títulos inequivocamente hierárquicos:
+Rei das Feras, Lorde Sanguinário, Alquimista Guardião, Paladinos, Condessa,
+Imperial X, Sentinela Solar e Superior. O mapa é explícito e pode ser revisado
+sem alterar o parser ou inferir por substring em runtime.
+
+Para o lote 5A1: Paladar compara a DEF restante do alvo ao ATK efetivo da
+fonte; Hipool compara a DEF restante do alvo à DEF restante da fonte; “primeiro
+ataque” significa primeiro ataque de cada turno; “ignorar N DEF” transforma N
+pontos adicionais em penetração sem impedir o dano normal à criatura; “ignorar
+toda DEF” faz o ATK completo penetrar no PV se o ataque for contra criatura.
+
 ## 2026-09-12 — Complete root organization implemented and audited
 The repository root now contains only the two HTML entry points, primary
 README, requirements, and configuration. Runtime JavaScript moved to

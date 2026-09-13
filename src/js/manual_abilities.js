@@ -97,30 +97,45 @@ function updateManualAbilitiesList() {
             description: 'Causa 5 de dano direto (1x por turno)',
             action: 'magoArcano_manaBlast',
             cooldown: 'mana_blast'
-        },
-        'card_009': { // Rei das Feras
-            name: 'Rei das Feras',
-            ability: 'Comando das Feras',
-            description: 'Causa dano baseado no ataque',
-            action: 'reiFeras_beastCommand',
-            cooldown: 'beast_command'
-        },
-        'card_034': { // Drako
-            name: 'Drako',
-            ability: 'Sopro Triplo',
-            description: 'Causa 15 de dano direto (1x por turno)',
-            action: 'drako_tripleBreath',
-            cooldown: 'triple_breath'
         }
-        // Adicionar mais conforme necessário
     };
     
     let hasManualAbilities = false;
     let htmlContent = '';
     
     playerCards.forEach(card => {
-        const cardData = window.cardsDatabase?.find(c => c.id === card.data.id);
-        if (cardData && manualAbilities[cardData.id]) {
+        const cardData = window.cardsDatabase?.cards?.find(c => c.id === card.data.id);
+        const migratedRule = window.CardRules?.getActivatedRule(card.data.id);
+
+        if (migratedRule) {
+            hasManualAbilities = true;
+            const targetIds = window.CardRules.getActivatedTargets(window.gameState, card.id);
+            const canUse = window.gameEngine.canUseAbility(
+                card.id,
+                migratedRule.abilityId,
+                migratedRule.limit
+            );
+            const targetOptions = targetIds.map(targetId => {
+                const target = window.gameState.cardInstances[targetId];
+                return `<option value="${targetId}">${target.data.name}</option>`;
+            }).join('');
+            const canActivate = canUse && targetIds.length > 0;
+
+            htmlContent += `
+                <div style="border: 1px solid #444; border-radius: 5px; padding: 8px; margin: 5px 0; ${canActivate ? 'background: rgba(0,100,0,0.2)' : 'background: rgba(100,0,0,0.2)'}">
+                    <div style="font-weight: bold; color: ${canActivate ? 'lightgreen' : 'lightcoral'}">${cardData.name}</div>
+                    <div style="font-size: 10px; color: #ccc; margin: 2px 0;">${migratedRule.feedback}</div>
+                    <select id="ability-target-${card.id}" ${targetIds.length === 0 ? 'disabled' : ''} style="width: 100%; margin: 5px 0;">
+                        ${targetOptions || '<option>Nenhum alvo válido</option>'}
+                    </select>
+                    <button onclick="activateMigratedAbility('${card.id}')"
+                            ${!canActivate ? 'disabled' : ''}
+                            style="background: ${canActivate ? 'var(--primary-color)' : '#666'}; color: white; border: none; border-radius: 3px; padding: 4px 8px; font-size: 10px; cursor: ${canActivate ? 'pointer' : 'not-allowed'}; width: 100%;">
+                        ${canUse ? '⚡ Ativar' : '❌ Já usada'}
+                    </button>
+                </div>
+            `;
+        } else if (cardData && manualAbilities[cardData.id]) {
             hasManualAbilities = true;
             const ability = manualAbilities[cardData.id];
             
@@ -146,6 +161,37 @@ function updateManualAbilitiesList() {
     }
     
     listContainer.innerHTML = htmlContent;
+}
+
+function activateMigratedAbility(cardId) {
+    const targetSelect = document.getElementById(`ability-target-${cardId}`);
+    const targetId = targetSelect?.value;
+    const rule = window.CardRules?.getActivatedRule(
+        window.gameState.cardInstances[cardId]?.definitionId
+    );
+
+    if (!targetId || !rule) {
+        showMessage('Nenhum alvo válido para esta habilidade.', 'warning');
+        return;
+    }
+
+    const result = window.CardRules.activateAbility(window.gameEngine, cardId, [targetId]);
+    if (result.status !== 'resolved') {
+        showMessage(result.reason, 'warning');
+        updateManualAbilitiesList();
+        return;
+    }
+
+    const target = window.gameState.cardInstances[targetId];
+    if (target && window.updateCardDisplay) {
+        window.updateCardDisplay(targetId, {
+            ...target.data,
+            attack: window.gameEngine.getEffectiveStat(targetId, 'attack'),
+            defense: window.gameEngine.getRemainingDefense(targetId)
+        });
+    }
+    window.cardAbilities?.showAbilityFeedback(targetId, rule.feedback);
+    updateManualAbilitiesList();
 }
 
 function activateManualAbility(cardId, abilityFunction, playerId) {
