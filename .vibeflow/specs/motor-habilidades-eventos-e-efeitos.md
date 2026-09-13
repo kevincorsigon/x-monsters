@@ -5,8 +5,14 @@
 - Tipo: arquitetura e plano de implementação.
 - Fonte funcional primária: `data/cards_database.json`.
 - Catálogo auditado: 110 entradas, 108 designs únicos.
-- Implementação: não iniciada por esta spec.
-- Bloqueio para implementação integral: decisões de produto da seção final.
+- Implementação: concluída (Fases 1-7, ver `.vibeflow/decisions.md`).
+  109/110 cartas têm alguma regra própria em `src/js/card-rules.js`
+  (`py -3 scripts/check_cards.py`); `node tests/unit/run-tests.js` → 141/141.
+- Pendência única: **090 Bilugação Astral** segue de fora, bloqueada pela
+  questão de produto #13 (semântica de "intransponível") na seção
+  "Decisões de Produto Bloqueadoras" abaixo — todas as demais 23 questões
+  já foram respondidas ao longo da implementação e estão registradas em
+  `.vibeflow/decisions.md`.
 
 ## Objetivo
 

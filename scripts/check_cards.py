@@ -2,37 +2,34 @@
 #
 # Desde a Fase 7 (remoção do legado), as habilidades das cartas não vivem mais
 # em card-abilities.js (switch-case) — são resolvidas por src/js/card-rules.js
-# (motor determinístico). Este script chama o Node para consultar
-# `CardRules.isMigrated()` por carta, em vez de fazer regex no arquivo antigo.
+# (motor determinístico). Muitas cartas são registradas em tabelas
+# declarativas (SUMMON_RULES, EQUIPMENT_RULES etc.), mas várias outras são
+# resolvidas por checagens `definitionId === 'card_XXX'` embutidas em
+# handlers de evento compartilhados (ex.: validação de alvo de ataque,
+# handlers de combate) — por isso o sinal mais confiável de "carta com
+# alguma regra própria no motor" é a própria carta ser mencionada em
+# card-rules.js, não a presença em uma tabela específica.
 import json
-import subprocess
+import re
 
-NODE_SNIPPET = """
-const CardRules = require('./src/js/card-rules.js');
-const db = require('./data/cards_database.json');
-const ids = db.cards.map(c => c.id.replace('card_', ''));
-const migrated = ids.filter(id => CardRules.isMigrated(`card_${id}`));
-console.log(JSON.stringify(migrated));
-"""
+with open('src/js/card-rules.js', 'r', encoding='utf-8') as f:
+    rules_source = f.read()
 
-result = subprocess.run(
-    ['node', '-e', NODE_SNIPPET],
-    capture_output=True, text=True, check=True, cwd='.'
-)
-implemented_cards = set(json.loads(result.stdout.strip()))
-
-# Ler o database
 with open('data/cards_database.json', 'r', encoding='utf-8') as f:
     db = json.load(f)
 
+all_ids = {card['id'] for card in db['cards']}
+implemented_ids = {
+    card_id for card_id in all_ids
+    if re.search(rf'\b{re.escape(card_id)}\b', rules_source)
+}
+implemented_cards = {card_id.replace('card_', '') for card_id in implemented_ids}
+
 # Extrair todas as cartas do database
-all_cards = set()
-for card in db['cards']:
-    card_id = card['id'].replace('card_', '')
-    all_cards.add(card_id)
+all_cards = {card_id.replace('card_', '') for card_id in all_ids}
 
 # Encontrar cartas não implementadas
-missing_cards = sorted(all_cards - implemented_cards, key=lambda x: int(x))
+missing_cards = sorted(all_cards - implemented_cards, key=lambda x: int(x.split('_')[0]))
 
 print(f'Total de cartas no database: {len(all_cards)}')
 print(f'Cartas implementadas: {len(implemented_cards)}')
