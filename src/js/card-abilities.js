@@ -234,6 +234,18 @@ class CardAbilitiesSystem {
         this.turnEffects = new Map(); // Efeitos que duram X turnos
         this.permanentEffects = new Map(); // Efeitos permanentes
         this.oneShotEffects = new Set(); // Efeitos únicos usados
+        this.engine = null;
+    }
+
+    attachEngine(engine) {
+        this.engine = engine;
+    }
+
+    reset() {
+        this.activeEffects.clear();
+        this.turnEffects.clear();
+        this.permanentEffects.clear();
+        this.oneShotEffects.clear();
     }
 
     // ========================================

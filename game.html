@@ -1995,6 +1995,7 @@
 
     <!-- Sistema de Habilidades das Cartas -->
     <script src="src/js/game-state.js"></script>
+    <script src="src/js/game-engine.js"></script>
     <script src="src/js/card-abilities.js"></script>
     <script src="src/js/deck_system.js"></script>
     <script src="tests/browser/test_features.js"></script>
@@ -2015,6 +2016,10 @@
         // Estado do jogo
         let gameState = window.GameStateModel.createInitialGameState(window.gameConfig);
         window.gameState = gameState;
+        window.gameEngine = window.GameEngine.createEngine(gameState);
+        if (window.cardAbilities?.attachEngine) {
+            window.cardAbilities.attachEngine(window.gameEngine);
+        }
 
         // Sistema de cartas será carregado do JSON
         let cardsDatabase = null;
@@ -2154,7 +2159,7 @@
 
         // Funções do jogo
         function nextPhase() {
-            const phases = ['energy', 'summon', 'combat'];
+            const phases = ['energy', 'invocation', 'combat'];
             const currentIndex = phases.indexOf(gameState.currentPhase);
             
             // Limpar estado de combate ao sair da fase
@@ -2163,7 +2168,7 @@
             }
             
             if (currentIndex < phases.length - 1) {
-                gameState.currentPhase = phases[currentIndex + 1];
+                setPhase(phases[currentIndex + 1]);
             } else {
                 endTurn();
                 return;
@@ -2192,9 +2197,60 @@
         }
 
         function endTurn() {
-            gameState.currentPlayer = gameState.currentPlayer === 'p1' ? 'p2' : 'p1';
-            gameState.currentPhase = 'energy';
-            gameState.turn++;
+            const endingPlayer = gameState.currentPlayer;
+            const endingPhase = gameState.currentPhase;
+            const endingTurn = gameState.turn;
+            const nextPlayer = endingPlayer === 'p1' ? 'p2' : 'p1';
+            const result = window.gameEngine.resolveAction({
+                type: 'END_TURN',
+                actorId: endingPlayer,
+                requiresTurn: true,
+                effects: [
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.EMIT_EVENT,
+                        type: window.GameEngine.EVENT_TYPES.PHASE_ENDING,
+                        payload: { playerId: endingPlayer, phase: endingPhase, turnNumber: endingTurn },
+                        immediate: true
+                    },
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.EMIT_EVENT,
+                        type: window.GameEngine.EVENT_TYPES.TURN_ENDING,
+                        payload: { playerId: endingPlayer, turnNumber: endingTurn },
+                        immediate: true
+                    },
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.SET_TURN_STATE,
+                        changes: {
+                            currentPlayer: nextPlayer,
+                            currentPhase: 'energy',
+                            turn: endingTurn + 1
+                        }
+                    },
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.EMIT_EVENT,
+                        type: window.GameEngine.EVENT_TYPES.TURN_ENDED,
+                        payload: { playerId: endingPlayer, turnNumber: endingTurn },
+                        immediate: true
+                    },
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.EMIT_EVENT,
+                        type: window.GameEngine.EVENT_TYPES.TURN_STARTED,
+                        payload: { playerId: nextPlayer, turnNumber: endingTurn + 1 },
+                        immediate: true
+                    },
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.EMIT_EVENT,
+                        type: window.GameEngine.EVENT_TYPES.PHASE_STARTED,
+                        payload: { playerId: nextPlayer, phase: 'energy', turnNumber: endingTurn + 1 },
+                        immediate: true
+                    }
+                ]
+            });
+
+            if (result.status !== 'resolved') {
+                showMessage(result.reason, 'warning');
+                return;
+            }
             
             // Processar efeitos temporários das habilidades
             if (window.cardAbilities) {
@@ -2230,8 +2286,7 @@
             
             // Automaticamente mudar para fase de invocação após delay
             setTimeout(() => {
-                gameState.currentPhase = 'invocation';
-                updateUI();
+                setPhase('invocation');
                 
                 // Mostrar segunda notificação da fase
                 showTurnNotification(`🃏 ${currentPlayerName}<br/>Fase de Invocação`, 1500);
@@ -2243,12 +2298,47 @@
         // Nova função para definir fase diretamente
         function setPhase(phase) {
             console.log('Mudando para fase:', phase);
+            const previousPhase = gameState.currentPhase;
+            if (previousPhase === phase) return;
             
-            if (gameState.currentPhase === 'combat') {
+            if (previousPhase === 'combat') {
                 clearCombatHighlights();
             }
-            
-            gameState.currentPhase = phase;
+
+            const result = window.gameEngine.resolveAction({
+                type: 'CHANGE_PHASE',
+                actorId: gameState.currentPlayer,
+                effects: [
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.EMIT_EVENT,
+                        type: window.GameEngine.EVENT_TYPES.PHASE_ENDING,
+                        payload: {
+                            playerId: gameState.currentPlayer,
+                            phase: previousPhase,
+                            turnNumber: gameState.turn
+                        },
+                        immediate: true
+                    },
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.SET_TURN_STATE,
+                        changes: { currentPhase: phase }
+                    },
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.EMIT_EVENT,
+                        type: window.GameEngine.EVENT_TYPES.PHASE_STARTED,
+                        payload: {
+                            playerId: gameState.currentPlayer,
+                            phase,
+                            turnNumber: gameState.turn
+                        },
+                        immediate: true
+                    }
+                ]
+            });
+            if (result.status !== 'resolved') {
+                showMessage(result.reason, 'warning');
+                return;
+            }
             updateUI();
             
             // Tocar som de confirmação
@@ -2856,6 +2946,7 @@
             document.getElementById('field-p1').innerHTML = '';
             document.getElementById('field-p2').innerHTML = '';
 
+            if (window.cardAbilities?.reset) window.cardAbilities.reset();
             startNewMatch();
 
             ['p1', 'p2'].forEach(player => {
@@ -3317,14 +3408,44 @@
                 return;
             }
 
-            // Gastar energia e mover carta
-            changeStat('energy', targetPlayer, -cardData.data.cost);
-            playSound('energySound');
-            
-            // Mover da mão para o campo
-            const handIndex = gameState.cards[targetPlayer].hand.findIndex(c => c.id === cardId);
-            if (handIndex !== -1) {
-                window.GameStateModel.moveCard(gameState, cardId, 'field', targetPlayer);
+            const summonResult = window.gameEngine.resolveAction({
+                type: 'SUMMON_CARD',
+                actorId: targetPlayer,
+                sourceId: cardId,
+                sourceZone: 'hand',
+                requiredPhase: 'invocation',
+                requiresTurn: true,
+                costs: [{
+                    kind: 'PLAYER_STAT',
+                    stat: 'energy',
+                    playerId: targetPlayer,
+                    amount: cardData.data.cost
+                }],
+                effects: [{
+                    kind: window.GameEngine.EFFECT_KINDS.MOVE_CARD,
+                    instanceId: cardId,
+                    destinationZone: 'field',
+                    destinationPlayerId: targetPlayer
+                }],
+                events: [
+                    {
+                        type: window.GameEngine.EVENT_TYPES.CARD_MOVED,
+                        payload: { cardId, playerId: targetPlayer, from: 'hand', to: 'field' }
+                    },
+                    {
+                        type: window.GameEngine.EVENT_TYPES.CARD_PLAYED,
+                        payload: { cardId, playerId: targetPlayer, definitionId: cardData.definitionId }
+                    },
+                    ...(cardData.data.type === 'criatura' ? [{
+                        type: window.GameEngine.EVENT_TYPES.CREATURE_SUMMONED,
+                        payload: { cardId, playerId: targetPlayer, definitionId: cardData.definitionId }
+                    }] : [])
+                ]
+            });
+
+            if (summonResult.status === 'resolved') {
+                renderPlayerStat('energy', targetPlayer);
+                playSound('energySound');
                 
                 // Remover da mão e adicionar ao campo
                 cardElement.remove();
@@ -3357,6 +3478,8 @@
                         updatePhaseInstructions();
                     }
                 }, 2000);
+            } else {
+                showMessage(summonResult.reason, 'warning');
             }
         }
 
@@ -3732,8 +3855,63 @@ Cartas restantes:
             
             if (!supportCardData || !creatureCardData) return;
             
-            // Gastar energia
-            changeStat('energy', supportCardData.player, -supportCardData.data.cost);
+            const equipResult = window.gameEngine.resolveAction({
+                type: 'EQUIP_CARD',
+                actorId: supportCardData.player,
+                sourceId: supportCardId,
+                sourceZone: 'hand',
+                requiredPhase: 'invocation',
+                requiresTurn: true,
+                costs: [{
+                    kind: 'PLAYER_STAT',
+                    stat: 'energy',
+                    playerId: supportCardData.player,
+                    amount: supportCardData.data.cost
+                }],
+                validators: [() => {
+                    const target = findCardData(creatureCardId);
+                    return target?.data.type === 'criatura' || 'Alvo de equipamento inválido';
+                }],
+                effects: [
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: supportCardId,
+                        destinationZone: 'equipment',
+                        destinationPlayerId: supportCardData.player
+                    },
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.ATTACH_CARD,
+                        equipmentId: supportCardId,
+                        targetId: creatureCardId
+                    }
+                ],
+                events: [
+                    {
+                        type: window.GameEngine.EVENT_TYPES.CARD_MOVED,
+                        payload: {
+                            cardId: supportCardId,
+                            playerId: supportCardData.player,
+                            from: 'hand',
+                            to: 'equipment'
+                        }
+                    },
+                    {
+                        type: window.GameEngine.EVENT_TYPES.EQUIPMENT_ATTACHED,
+                        payload: {
+                            equipmentId: supportCardId,
+                            targetId: creatureCardId,
+                            playerId: supportCardData.player
+                        }
+                    }
+                ]
+            });
+
+            if (equipResult.status !== 'resolved') {
+                showMessage(equipResult.reason, 'warning');
+                return;
+            }
+
+            renderPlayerStat('energy', supportCardData.player);
             playSound('energySound');
             
             // Aplicar bônus da carta de suporte à criatura
@@ -3755,15 +3933,6 @@ Cartas restantes:
             // Criar carta de equipamento visual empilhada
             createEquipmentVisual(creatureElement, supportCardData.data);
             
-            const equippedCard = window.GameStateModel.moveCard(
-                gameState,
-                supportCardId,
-                'equipment',
-                supportCardData.player
-            );
-            equippedCard.attachedTo = creatureCardId;
-            creatureCardData.attachments.push(supportCardId);
-
             // Ativar habilidades do equipamento
             if (window.cardAbilities) {
                 window.cardAbilities.onCardEquipped(supportCardId, supportCardData.data, creatureCardId);
