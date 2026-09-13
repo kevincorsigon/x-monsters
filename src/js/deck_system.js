@@ -96,22 +96,23 @@ class DeckBuilder {
     
     // Estatísticas do deck
     getDeckStats(deck) {
+        const cards = deck.map(card => card.data || card);
         const stats = {
-            total: deck.length,
-            criaturas: deck.filter(c => c.type === 'criatura').length,
-            suportes: deck.filter(c => c.type === 'suporte').length,
-            evolucoes: deck.filter(c => c.type === 'evolução').length,
+            total: cards.length,
+            criaturas: cards.filter(c => c.type === 'criatura').length,
+            suportes: cards.filter(c => c.type === 'suporte').length,
+            evolucoes: cards.filter(c => c.type === 'evolução').length,
             custoPorTipo: {},
             custoMedio: 0
         };
         
         // Calcular custo médio
-        const custoTotal = deck.reduce((sum, card) => sum + card.cost, 0);
-        stats.custoMedio = (custoTotal / deck.length).toFixed(1);
+        const custoTotal = cards.reduce((sum, card) => sum + card.cost, 0);
+        stats.custoMedio = cards.length > 0 ? (custoTotal / cards.length).toFixed(1) : '0.0';
         
         // Agrupar por tipo e custo
         ['criatura', 'suporte', 'evolução'].forEach(tipo => {
-            const cartasTipo = deck.filter(c => c.type === tipo);
+            const cartasTipo = cards.filter(c => c.type === tipo);
             if (cartasTipo.length > 0) {
                 const custoMedioTipo = cartasTipo.reduce((sum, c) => sum + c.cost, 0) / cartasTipo.length;
                 stats.custoPorTipo[tipo] = custoMedioTipo.toFixed(1);
@@ -472,29 +473,29 @@ function getFallbackCardData() {
 
 // Função para inicializar uma nova partida com decks balanceados
 function startNewMatch() {
-    if (!window.deckBuilder) {
+    if (!window.deckBuilder || !window.GameStateModel) {
         console.error('Sistema de cartas não carregado!');
         return;
     }
     
     const matchDecks = window.deckBuilder.createMatchDecks(30);
     
-    // Atualizar estado do jogo com os novos decks
-    gameState.decks = {
+    window.GameStateModel.resetMatchState(gameState, {
         p1: matchDecks.player1,
         p2: matchDecks.player2
-    };
-    
-    // Limpar mãos e campo
-    gameState.cards = {
-        p1: { hand: [], field: [] },
-        p2: { hand: [], field: [] }
-    };
+    }, window.gameConfig);
     
     // Dar cartas iniciais (5 para cada jogador)
     for (let i = 0; i < 5; i++) {
         drawCardFromDeck('p1');
         drawCardFromDeck('p2');
+    }
+
+    if (window.renderHandsFromState) {
+        window.renderHandsFromState();
+    }
+    if (window.renderPlayerStats) {
+        window.renderPlayerStats();
     }
     
     // Estatísticas dos decks
@@ -511,24 +512,18 @@ function startNewMatch() {
 
 // Função para sacar carta do deck
 function drawCardFromDeck(player) {
-    if (!gameState.decks || !gameState.decks[player] || gameState.decks[player].length === 0) {
+    if (!window.GameStateModel) {
+        console.error('Modelo de estado não carregado!');
+        return null;
+    }
+
+    const cardInstance = window.GameStateModel.drawCard(gameState, player);
+    if (!cardInstance) {
         console.log(`Deck do ${player} está vazio!`);
         return null;
     }
-    
-    // Sacar carta do topo do deck
-    const drawnCard = gameState.decks[player].shift();
-    
-    // Criar cópia com ID único para esta instância
-    const cardInstance = {
-        ...drawnCard,
-        instanceId: `${drawnCard.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    };
-    
-    // Adicionar à mão
-    gameState.cards[player].hand.push(cardInstance);
-    
-    console.log(`${player} sacou: ${cardInstance.name}`);
+
+    console.log(`${player} sacou: ${cardInstance.data.name}`);
     return cardInstance;
 }
 

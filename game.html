@@ -1994,6 +1994,7 @@
     <audio id="wasteSound" preload="auto"><source src="assets/audio/waste.mp3" type="audio/mpeg"></audio>
 
     <!-- Sistema de Habilidades das Cartas -->
+    <script src="src/js/game-state.js"></script>
     <script src="src/js/card-abilities.js"></script>
     <script src="src/js/deck_system.js"></script>
     <script src="tests/browser/test_features.js"></script>
@@ -2009,36 +2010,45 @@
         const INITIAL_PV = 200;
         const INITIAL_ENERGY = 6;
         const MAX_ENERGY = 20;
+        window.gameConfig = { initialPv: INITIAL_PV, initialEnergy: INITIAL_ENERGY };
 
         // Estado do jogo
-        let gameState = {
-            currentPlayer: 'p1',
-            currentPhase: 'energy', // energy, summon, combat
-            turn: 1,
-            diceUsed: { p1: false, p2: false },
-            selectedCard: null,
-            attackingCard: null,
-            targetCard: null,
-            attackedThisTurn: [], // IDs das cartas que já atacaram este turno
-            maxEnergy: { p1: INITIAL_ENERGY, p2: INITIAL_ENERGY }, // Máximo de energia atual de cada jogador
-            cards: {
-                p1: { hand: [], field: [], discard: [] },
-                p2: { hand: [], field: [], discard: [] }
-            }
-        };
+        let gameState = window.GameStateModel.createInitialGameState(window.gameConfig);
+        window.gameState = gameState;
 
         // Sistema de cartas será carregado do JSON
         let cardsDatabase = null;
         let deckBuilder = null;
 
+        function renderPlayerStat(stat, player) {
+            const element = document.getElementById(`${stat}-${player}`);
+            if (!element) return;
+
+            const value = window.GameStateModel.getPlayerStat(gameState, stat, player);
+            element.innerText = value;
+
+            if (stat === 'pv') {
+                element.classList.toggle('pv-zero', value <= 0);
+            }
+        }
+
+        function renderPlayerStats() {
+            ['p1', 'p2'].forEach(player => {
+                renderPlayerStat('pv', player);
+                renderPlayerStat('energy', player);
+            });
+        }
+        window.renderPlayerStats = renderPlayerStats;
+
         // Funções de controle de stats (do contador original)
         function changeStat(stat, player, amount) {
-            const element = document.getElementById(`${stat}-${player}`);
-            let currentValue = parseInt(element.innerText);
-            let newValue = currentValue + amount;
-
-            if (newValue < 0) newValue = 0;
-            if (stat === 'energy' && newValue > MAX_ENERGY) newValue = MAX_ENERGY;
+            const newValue = window.GameStateModel.changePlayerStat(
+                gameState,
+                stat,
+                player,
+                amount,
+                { energyCap: MAX_ENERGY }
+            );
 
             // Sons
             if (stat === 'pv' && amount < 0) playSound('punchSound');
@@ -2046,7 +2056,8 @@
             if (stat === 'energy' && amount > 0) playSound('energySound');
             if (stat === 'energy' && amount < 0) playSound('wasteSound');
 
-            element.innerText = newValue;
+            renderPlayerStat(stat, player);
+            const element = document.getElementById(`${stat}-${player}`);
 
             // Efeito visual para energia ganha automaticamente no turno
             if (stat === 'energy' && amount > 0) {
@@ -2082,12 +2093,16 @@
         function editStatValue(stat, player) {
             const element = document.getElementById(`${stat}-${player}`);
             const newValue = prompt(`Digite o novo valor para ${stat}:`, element.innerText);
-            if (newValue && !isNaN(newValue)) {
+            if (newValue !== null && newValue !== '' && !isNaN(newValue)) {
                 let parsedValue = parseInt(newValue);
-                if (parsedValue < 0) parsedValue = 0;
-                if (stat === 'energy' && parsedValue > MAX_ENERGY) parsedValue = MAX_ENERGY;
-                
-                element.innerText = parsedValue;
+                parsedValue = window.GameStateModel.setPlayerStat(
+                    gameState,
+                    stat,
+                    player,
+                    parsedValue,
+                    { energyCap: MAX_ENERGY }
+                );
+                renderPlayerStat(stat, player);
                 
                 if (stat === 'pv') {
                     if (parsedValue <= 0) {
@@ -2106,7 +2121,7 @@
                 return;
             }
 
-            const currentEnergy = parseInt(document.getElementById(`energy-${player}`).innerText);
+            const currentEnergy = window.GameStateModel.getPlayerStat(gameState, 'energy', player);
             if (currentEnergy < 2) {
                 alert('Você precisa de pelo menos 2 pontos de energia para usar o dado da sorte!');
                 return;
@@ -2199,8 +2214,14 @@
             }
             
             // Restaurar energia para o novo máximo
-            const energyElement = document.getElementById(`energy-${gameState.currentPlayer}`);
-            energyElement.innerText = gameState.maxEnergy[gameState.currentPlayer];
+            window.GameStateModel.setPlayerStat(
+                gameState,
+                'energy',
+                gameState.currentPlayer,
+                gameState.maxEnergy[gameState.currentPlayer],
+                { energyCap: MAX_ENERGY }
+            );
+            renderPlayerStat('energy', gameState.currentPlayer);
             
             // Mostrar notificação de energia
             showTurnNotification(`⚡ ${currentPlayerName}<br/>Energia: ${gameState.maxEnergy[gameState.currentPlayer]}`, 1000);
@@ -2326,7 +2347,7 @@
 
         function highlightSummonableCards() {
             const currentPlayer = gameState.currentPlayer;
-            const currentEnergy = parseInt(document.getElementById(`energy-${currentPlayer}`).innerText);
+            const currentEnergy = window.GameStateModel.getPlayerStat(gameState, 'energy', currentPlayer);
             const playerHand = gameState.cards[currentPlayer].hand;
             
             // Destacar cartas que podem ser invocadas
@@ -2796,19 +2817,18 @@
             console.log('💥 Destruindo carta:', cardData.data.name, 'do jogador', cardData.player);
             console.log('💥 Estado antes da destruição - Field:', gameState.cards[cardData.player] ? gameState.cards[cardData.player].field.length : 'PLAYER UNDEFINED', 'cartas');
 
-            // Adicionar ao descarte antes de remover do campo
-            addToDiscard(cardData.player, cardData.data);
-
-            // Remover da lista do jogador
-            const fieldIndex = gameState.cards[cardData.player].field.findIndex(c => c.id === cardId);
-            console.log('💥 Índice da carta no campo:', fieldIndex);
-            
-            if (fieldIndex !== -1) {
-                gameState.cards[cardData.player].field.splice(fieldIndex, 1);
-                console.log('💥 Carta removida do gameState. Field agora tem:', gameState.cards[cardData.player].field.length, 'cartas');
-            } else {
-                console.log('💥 ERRO: Carta não encontrada no campo!');
-            }
+            const zonePlayerId = cardData.zonePlayerId || cardData.player;
+            cardData.attachments.forEach(attachmentId => {
+                const attachment = gameState.cardInstances[attachmentId];
+                if (attachment) {
+                    window.GameStateModel.moveCard(gameState, attachmentId, 'discard', attachment.ownerId);
+                    attachment.attachedTo = null;
+                }
+            });
+            cardData.attachments = [];
+            window.GameStateModel.moveCard(gameState, cardId, 'discard', cardData.ownerId);
+            updateDiscardCount(cardData.ownerId);
+            console.log('💥 Carta movida para o descarte. Field agora tem:', gameState.cards[zonePlayerId].field.length, 'cartas');
 
             // Remover do DOM com animação
             const cardElement = document.getElementById(cardId);
@@ -2831,14 +2851,14 @@
         }
 
         function resetGame() {
-            // Reset stats
+            document.getElementById('hand-p1').innerHTML = '';
+            document.getElementById('hand-p2').innerHTML = '';
+            document.getElementById('field-p1').innerHTML = '';
+            document.getElementById('field-p2').innerHTML = '';
+
+            startNewMatch();
+
             ['p1', 'p2'].forEach(player => {
-                document.getElementById(`pv-${player}`).innerText = INITIAL_PV;
-                document.getElementById(`pv-${player}`).classList.remove('pv-zero');
-                document.getElementById(`energy-${player}`).innerText = INITIAL_ENERGY;
-                
-                // Reset dice
-                gameState.diceUsed[player] = false;
                 const diceButton = document.getElementById(`dice-${player}`);
                 diceButton.disabled = false;
                 diceButton.title = 'Dado da Sorte (2 energia)';
@@ -2846,36 +2866,9 @@
                 // Reset names
                 const nameElement = document.querySelector(`.player${player === 'p1' ? '1' : '2'}-stats .player-name`);
                 nameElement.innerText = player === 'p1' ? 'Jogador 1' : 'Jogador 2';
+                updateHandCounter(player);
+                updateDiscardCount(player);
             });
-
-            // Reset game state
-            gameState.currentPlayer = 'p1';
-            gameState.currentPhase = 'energy';
-            gameState.turn = 1;
-            gameState.selectedCard = null;
-            gameState.attackingCard = null;
-            gameState.targetCard = null;
-            gameState.maxEnergy = { p1: INITIAL_ENERGY, p2: INITIAL_ENERGY }; // Reset dos máximos de energia
-            gameState.cards = { p1: { hand: [], field: [], discard: [] }, p2: { hand: [], field: [], discard: [] } };
-
-            // Clear fields and hands
-            ['p1', 'p2'].forEach(player => {
-                document.getElementById(`hand-${player}`).innerHTML = '';
-                document.getElementById(`field-${player}`).innerHTML = '';
-                updateHandCounter(player); // Reset contador de cartas
-                updateDiscardCount(player); // Reset contador de descarte
-            });
-
-            // Reinicializar decks se sistema estiver carregado
-            if (typeof startNewMatch === 'function') {
-                startNewMatch();
-            } else {
-                // Fallback
-                for (let i = 0; i < 5; i++) {
-                    addCardToHand('p1');
-                    addCardToHand('p2');
-                }
-            }
 
             updateUI();
             
@@ -2887,7 +2880,10 @@
 
         // Funções de cartas
         function createCard(cardData, player) {
-            const cardId = `card-${Date.now()}-${Math.random()}`;
+            const cardInstance = cardData.instanceId && cardData.data
+                ? cardData
+                : window.GameStateModel.createCardInstance(cardData, player, { zone: 'hand' });
+            const cardId = cardInstance.instanceId;
             const card = document.createElement('div');
             
             // Mapear tipos em português para inglês para as classes CSS
@@ -2897,7 +2893,7 @@
                 'monster': 'monster',
                 'support': 'support'
             };
-            const cssType = typeMapping[cardData.type] || cardData.type;
+            const cssType = typeMapping[cardInstance.data.type] || cardInstance.data.type;
             
             card.className = `card ${cssType}`;
             card.draggable = true;
@@ -2921,11 +2917,7 @@
             console.log('🃏 Card created:', cardId, 'draggable:', card.draggable);
 
             // Criar cópia dos dados da carta para evitar modificação do original
-            const cardDataCopy = {
-                ...cardData,
-                attack: cardData.attack,
-                defense: cardData.defense
-            };
+            const cardDataCopy = cardInstance.data;
 
             // Usar apenas imagem real, sem fallback de ícone
             const cardImage = cardDataCopy.image ? 
@@ -2943,8 +2935,26 @@
                 </div>
             `;
 
-            return { element: card, data: cardDataCopy, id: cardId, player: player };
+            cardInstance.element = card;
+            cardInstance.player = cardInstance.controllerId;
+            gameState.cardInstances[cardInstance.instanceId] = cardInstance;
+            return cardInstance;
         }
+
+        function renderHandsFromState() {
+            ['p1', 'p2'].forEach(player => {
+                const handElement = document.getElementById(`hand-${player}`);
+                handElement.innerHTML = '';
+
+                gameState.cards[player].hand.forEach(cardInstance => {
+                    const renderedCard = createCard(cardInstance, player);
+                    handElement.appendChild(renderedCard.element);
+                });
+
+                updateHandCounter(player);
+            });
+        }
+        window.renderHandsFromState = renderHandsFromState;
 
         function getCardIcon(type) {
             const icons = {
@@ -2970,9 +2980,8 @@
         }
 
         function addCardToHand(player) {
-            // Verificar limite de 7 cartas na mão usando DOM (mais confiável)
             const handElement = document.getElementById(`hand-${player}`);
-            const currentCards = handElement ? handElement.children.length : 0;
+            const currentCards = gameState.cards[player].hand.length;
             
             if (currentCards >= 7) {
                 console.log(`❌ Não é possível sacar: limite de 7 cartas na mão atingido (atual: ${currentCards})`);
@@ -2985,7 +2994,6 @@
                 const drawnCard = drawCardFromDeck(player);
                 if (drawnCard) {
                     const newCard = createCard(drawnCard, player);
-                    gameState.cards[player].hand.push(newCard);
                     
                     // Adicionar animação de entrada
                     newCard.element.classList.add('new-card');
@@ -2998,7 +3006,7 @@
                         newCard.element.classList.remove('new-card');
                     }, 800);
                     
-                    console.log('📜 Card added to gameState:', newCard.id, 'Player:', player);
+                    console.log('📜 Card rendered from gameState:', newCard.id, 'Player:', player);
                     console.log('📜 Total cards in hand:', gameState.cards[player].hand.length);
                 }
                 return;
@@ -3010,8 +3018,8 @@
             ];
             const randomCard = fallbackCards[0];
             const newCard = createCard(randomCard, player);
-            
-            gameState.cards[player].hand.push(newCard);
+
+            window.GameStateModel.registerCard(gameState, newCard, 'hand', player);
             document.getElementById(`hand-${player}`).appendChild(newCard.element);
         }
 
@@ -3207,7 +3215,7 @@
                 console.log('🎯 Card cost:', cardData.data.cost);
                 
                 if (gameState.currentPhase === 'invocation' && cardData.player === gameState.currentPlayer) {
-                    const currentEnergy = parseInt(document.getElementById(`energy-${gameState.currentPlayer}`).innerText);
+                    const currentEnergy = window.GameStateModel.getPlayerStat(gameState, 'energy', gameState.currentPlayer);
                     console.log('🎯 Current energy:', currentEnergy);
                     
                     // Verificar se é carta de suporte
@@ -3303,7 +3311,7 @@
             }
 
             // Verificar energia
-            const currentEnergy = parseInt(document.getElementById(`energy-${targetPlayer}`).innerText);
+            const currentEnergy = window.GameStateModel.getPlayerStat(gameState, 'energy', targetPlayer);
             if (currentEnergy < cardData.data.cost) {
                 alert('Energia insuficiente para invocar esta carta!');
                 return;
@@ -3316,8 +3324,7 @@
             // Mover da mão para o campo
             const handIndex = gameState.cards[targetPlayer].hand.findIndex(c => c.id === cardId);
             if (handIndex !== -1) {
-                const card = gameState.cards[targetPlayer].hand.splice(handIndex, 1)[0];
-                gameState.cards[targetPlayer].field.push(card);
+                window.GameStateModel.moveCard(gameState, cardId, 'field', targetPlayer);
                 
                 // Remover da mão e adicionar ao campo
                 cardElement.remove();
@@ -3452,7 +3459,8 @@
                 const sortedDiscard = [...discardPile].reverse();
                 
                 sortedDiscard.forEach((cardData, index) => {
-                    const cardElement = createCard(cardData, player);
+                    const renderedCard = createCard(cardData, player);
+                    const cardElement = renderedCard.element;
                     cardElement.classList.add('discard-card-item');
                     
                     // Adicionar indicador de ordem
@@ -3478,7 +3486,7 @@
                     // Clique para ver carta em detalhe
                     cardElement.addEventListener('click', () => {
                         closeDiscardModal();
-                        showCardModal(cardData);
+                        showCardModal(renderedCard.data);
                     });
                     
                     grid.appendChild(cardElement);
@@ -3513,11 +3521,26 @@
             }
             
             if (!gameState.cards[player].discard) {
-                console.log(`💥 ERRO: gameState.cards[${player}].discard não existe, criando...`);
-                gameState.cards[player].discard = [];
+                console.log(`💥 ERRO: zona de descarte de ${player} não existe`);
+                return;
             }
             
-            gameState.cards[player].discard.push(cardData);
+            let cardInstance = cardData;
+            if (!cardData.instanceId) {
+                cardInstance = window.GameStateModel.createCardInstance(cardData, player, {
+                    zone: 'discard'
+                });
+            }
+
+            const locations = window.GameStateModel.findCardLocations(
+                gameState,
+                cardInstance.instanceId
+            );
+            if (locations.length === 0) {
+                window.GameStateModel.registerCard(gameState, cardInstance, 'discard', player);
+            } else {
+                window.GameStateModel.moveCard(gameState, cardInstance.instanceId, 'discard', player);
+            }
             updateDiscardCount(player);
             console.log(`📥 ✅ Carta adicionada com sucesso ao descarte de ${player}`);
         }
@@ -3694,7 +3717,7 @@ Cartas restantes:
             }
             
             // Verificar energia
-            const currentEnergy = parseInt(document.getElementById(`energy-${supportCardData.player}`).innerText);
+            const currentEnergy = window.GameStateModel.getPlayerStat(gameState, 'energy', supportCardData.player);
             if (currentEnergy < supportCardData.data.cost) {
                 alert('Energia insuficiente para equipar esta carta!');
                 return;
@@ -3732,15 +3755,18 @@ Cartas restantes:
             // Criar carta de equipamento visual empilhada
             createEquipmentVisual(creatureElement, supportCardData.data);
             
+            const equippedCard = window.GameStateModel.moveCard(
+                gameState,
+                supportCardId,
+                'equipment',
+                supportCardData.player
+            );
+            equippedCard.attachedTo = creatureCardId;
+            creatureCardData.attachments.push(supportCardId);
+
             // Ativar habilidades do equipamento
             if (window.cardAbilities) {
                 window.cardAbilities.onCardEquipped(supportCardId, supportCardData.data, creatureCardId);
-            }
-            
-            // Remover carta de suporte da mão
-            const handIndex = gameState.cards[supportCardData.player].hand.findIndex(c => c.id === supportCardId);
-            if (handIndex !== -1) {
-                gameState.cards[supportCardData.player].hand.splice(handIndex, 1);
             }
             
             // Remover elemento visual da carta de suporte
