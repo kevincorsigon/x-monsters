@@ -1999,14 +1999,7 @@
     <script src="src/js/card-rules.js"></script>
     <script src="src/js/card-abilities.js"></script>
     <script src="src/js/deck_system.js"></script>
-    <script src="tests/browser/test_features.js"></script>
-    <script src="tests/browser/ability_guide.js"></script>
-    <script src="tests/browser/test_tobinha.js"></script>
-    <script src="tests/browser/test_all_protections.js"></script>
-    <script src="tests/browser/test_attack_calculation.js"></script>
-    <script src="tests/browser/ability_audit.js"></script>
     <script src="src/js/manual_abilities.js"></script>
-    <script src="tests/browser/test_mago_arcano.js"></script>
     <script>
         // Constantes do jogo
         const INITIAL_PV = 200;
@@ -2443,7 +2436,7 @@
             // Destacar cartas que podem ser invocadas
             playerHand.forEach(card => {
                 const cardElement = document.getElementById(card.id);
-                if (cardElement && card.data.cost <= currentEnergy) {
+                if (cardElement && getEffectiveCardCost(card.id, card.data) <= currentEnergy) {
                     cardElement.classList.add('can-be-summoned');
                 } else if (cardElement) {
                     cardElement.classList.remove('can-be-summoned');
@@ -2643,79 +2636,6 @@
             );
             if (!migratedCheck.valid) {
                 return { canAttack: false, reason: migratedCheck.reason };
-            }
-
-            // Verificar proteções do alvo via sistema de habilidades
-            if (window.cardAbilities) {
-                const targetProtections = window.cardAbilities.permanentEffects.get(targetId);
-                
-                if (targetProtections) {
-                    // Verificar proteção de fofura (Tobinha e Boguinha)
-                    if (targetProtections.has('cuteness_protection')) {
-                        const protection = targetProtections.get('cuteness_protection');
-                        if (protection.immuneToHighCostAttacks && attacker.data.cost > protection.maxAttackerCost) {
-                            return { 
-                                canAttack: false, 
-                                reason: `${target.data.name} está protegido contra criaturas com custo > ${protection.maxAttackerCost}! (${attacker.data.name} tem custo ${attacker.data.cost})` 
-                            };
-                        }
-                    }
-                    
-                    // Verificar imunidade a habilidades fracas (Turtol)
-                    if (targetProtections.has('ability_immunity')) {
-                        const protection = targetProtections.get('ability_immunity');
-                        if (protection.immuneToLowCostAbilities && attacker.data.cost < protection.maxAbilityCost) {
-                            return { 
-                                canAttack: false, 
-                                reason: `${target.data.name} é imune a habilidades de criaturas com custo < ${protection.maxAbilityCost}! (${attacker.data.name} tem custo ${attacker.data.cost})` 
-                            };
-                        }
-                    }
-                    
-                    // Verificar imunidade total a habilidades (Iron Dragon)
-                    if (targetProtections.has('total_ability_immunity')) {
-                        const protection = targetProtections.get('total_ability_immunity');
-                        if (protection.immuneToAllAbilities) {
-                            return { 
-                                canAttack: false, 
-                                reason: `${target.data.name} é completamente imune a todas as habilidades inimigas!` 
-                            };
-                        }
-                    }
-                    
-                    // Verificar pele de pedra (Golem de Pedra)
-                    if (targetProtections.has('stone_immunity')) {
-                        const protection = targetProtections.get('stone_immunity');
-                        if (protection.immuneToAbilityDamage) {
-                            return { 
-                                canAttack: false, 
-                                reason: `${target.data.name} tem Pele de Pedra e é imune a danos de habilidades especiais!` 
-                            };
-                        }
-                    }
-                    
-                    // Verificar evasão da montanha (Sábio da Montanha)
-                    if (targetProtections.has('mountain_evasion')) {
-                        const protection = targetProtections.get('mountain_evasion');
-                        if (protection.immuneToLowCostAttacks && attacker.data.cost <= protection.maxAttackerCost) {
-                            return { 
-                                canAttack: false, 
-                                reason: `${target.data.name} usa evasão contra criaturas com custo ≤ ${protection.maxAttackerCost}! (${attacker.data.name} tem custo ${attacker.data.cost})` 
-                            };
-                        }
-                    }
-                    
-                    // Verificar proteção de licantropia (O Lica)
-                    if (targetProtections.has('lycanthropy_protection')) {
-                        const protection = targetProtections.get('lycanthropy_protection');
-                        if (protection.cannotBeTargeted) {
-                            return { 
-                                canAttack: false, 
-                                reason: `${target.data.name} não pode ser atacado devido à Licantropia (oponente tem apenas 1 criatura)!` 
-                            };
-                        }
-                    }
-                }
             }
 
             return { canAttack: true, reason: 'Ataque permitido' };
@@ -2987,7 +2907,7 @@
                 `<div class="card-image" style="pointer-events: none;"></div>`;
 
             card.innerHTML = `
-                <div class="card-cost" style="pointer-events: none;">${cardDataCopy.cost}</div>
+                <div class="card-cost" style="pointer-events: none;">${getEffectiveCardCost(cardId, cardDataCopy)}</div>
                 ${cardImage}
                 <div class="card-name" style="pointer-events: none;">${cardDataCopy.name}</div>
                 <div class="card-stats" style="pointer-events: none;">
@@ -3286,7 +3206,8 @@
             if (cardData) {
                 console.log('🎯 Card player:', cardData.player);
                 console.log('🎯 Current player:', gameState.currentPlayer);
-                console.log('🎯 Card cost:', cardData.data.cost);
+                const effectiveCost = getEffectiveCardCost(cardId, cardData.data);
+                console.log('🎯 Card cost:', effectiveCost);
                 
                 if (gameState.currentPhase === 'invocation' && cardData.player === gameState.currentPlayer) {
                     const currentEnergy = window.GameStateModel.getPlayerStat(gameState, 'energy', gameState.currentPlayer);
@@ -3295,24 +3216,24 @@
                     // Verificar se é carta de suporte
                     if (cardData.data.type === 'suporte') {
                         // Destacar criaturas que podem ser equipadas
-                        if (currentEnergy >= cardData.data.cost) {
+                        if (currentEnergy >= effectiveCost) {
                             highlightEquippableCreatures(cardData);
-                            updateInvocationInfo(`Arraste para uma criatura para equipar ou para o campo para invocar (Custo: ${cardData.data.cost})`);
+                            updateInvocationInfo(`Arraste para uma criatura para equipar ou para o campo para invocar (Custo: ${effectiveCost})`);
                             console.log('🎯 Support card - highlighting equippable creatures');
                         }
                     }
                     
                     // Destacar campos válidos para drop (sempre disponível para invocação normal)
                     const playerField = document.getElementById(`field-${gameState.currentPlayer}`);
-                    if (currentEnergy >= cardData.data.cost) {
+                    if (currentEnergy >= effectiveCost) {
                         playerField.classList.add('field-drop-zone');
                         if (cardData.data.type !== 'suporte') {
-                            updateInvocationInfo(`Arraste para o campo para invocar (Custo: ${cardData.data.cost})`);
+                            updateInvocationInfo(`Arraste para o campo para invocar (Custo: ${effectiveCost})`);
                         }
                         console.log('🎯 Field marked as valid drop zone');
                     } else {
                         playerField.classList.add('field-invalid-drop');
-                        updateInvocationInfo(`Energia insuficiente! Precisa de ${cardData.data.cost}, você tem ${currentEnergy}`);
+                        updateInvocationInfo(`Energia insuficiente! Precisa de ${effectiveCost}, você tem ${currentEnergy}`);
                         console.log('🎯 Field marked as invalid - insufficient energy');
                     }
                 } else {
@@ -3386,7 +3307,8 @@
 
             // Verificar energia
             const currentEnergy = window.GameStateModel.getPlayerStat(gameState, 'energy', targetPlayer);
-            if (currentEnergy < cardData.data.cost) {
+            const summonCost = getEffectiveCardCost(cardId, cardData.data);
+            if (currentEnergy < summonCost) {
                 alert('Energia insuficiente para invocar esta carta!');
                 return;
             }
@@ -3402,7 +3324,7 @@
                     kind: 'PLAYER_STAT',
                     stat: 'energy',
                     playerId: targetPlayer,
-                    amount: cardData.data.cost
+                    amount: summonCost
                 }],
                 effects: [{
                     kind: window.GameEngine.EFFECT_KINDS.MOVE_CARD,
@@ -3498,6 +3420,19 @@
             }
             console.log('🔍 Card not found anywhere!');
             return null;
+        }
+
+        // Custo efetivo (base + modificadores do motor, ex: Trox invocado grátis, Roller custando mais a cada retorno).
+        // Faz fallback para o custo bruto do catálogo quando o motor ainda não conhece a instância.
+        function getEffectiveCardCost(cardId, cardData) {
+            if (window.gameEngine && gameState.cardInstances[cardId]) {
+                try {
+                    return window.gameEngine.getEffectiveStat(cardId, 'cost');
+                } catch (e) {
+                    // Instância desconhecida do motor: cai para o custo bruto abaixo.
+                }
+            }
+            return cardData.cost;
         }
 
         function showCardModal(cardData) {

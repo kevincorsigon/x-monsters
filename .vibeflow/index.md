@@ -18,18 +18,24 @@ counter.
   (energy/invocation/combat), combat resolution, drag & drop, card
   rendering, initialization (`DOMContentLoaded` → `loadCardSystem` →
   `startNewMatch`).
-- **`src/js/card-abilities.js`** — `CardAbilitiesSystem` class: switch-dispatched
-  per-card ability triggers and effect bookkeeping (turn/permanent/one-shot).
+- **`src/js/card-abilities.js`** — thin integration bridge (`CardAbilitiesSystem`,
+  `window.cardAbilities`): forwards `onCardSummoned`/`onCardEquipped` to the
+  feedback already computed by `CardRules`/`game-engine.js`. No per-card game
+  logic lives here anymore (removed in Fase 7 of the ability-engine migration).
+- **`src/js/game-engine.js` + `src/js/card-rules.js`** — deterministic
+  event/effect engine resolving all 110 cards' rules (summon, equipment,
+  activated abilities, combat, zone/ownership tracking). Source of truth for
+  game logic; see `.vibeflow/specs/motor-habilidades-eventos-e-efeitos.md`.
 - **`src/js/deck_system.js`** — `DeckBuilder` class, `loadCardSystem` (fetch +
   fallback), deck balancing, card drawing.
 - **`data/cards_database.json`** — authoritative 110-card dataset.
 - **`index.html`** — legacy standalone PV/Energy counter (no card system),
   simpler and independent of the files above.
-- **Browser diagnostics loaded into `game.html`** — files under
-  `tests/browser/`: `ability_guide.js`, `ability_audit.js`, `test_features.js`,
-  `test_tobinha.js`, `test_all_protections.js`,
-  `test_attack_calculation.js`, `test_mago_arcano.js`. Not automated tests
-  (no test runner); console-driven manual scripts shipped in production.
+- **Browser diagnostics** — files under `tests/browser/`: `ability_guide.js`,
+  `ability_audit.js`, `test_features.js`, `test_tobinha.js`,
+  `test_all_protections.js`, `test_attack_calculation.js`,
+  `test_mago_arcano.js`. Console-driven manual scripts for development; no
+  longer loaded by `game.html` (removed in Fase 7).
 - **`src/js/manual_abilities.js`** — runtime interface for manually activated
   card abilities.
 - **Python asset/data scripts** — canonical copies under `scripts/`:
@@ -93,8 +99,7 @@ patterns:
 ## Known Issues / Tech Debt
 - `fetch('data/cards_database.json')` fails under `file://` and silently falls
   back to a 30-card sample; use the documented local HTTP server.
-- Browser diagnostics under `tests/browser/` are still loaded directly by
-  `game.html`; there is no automated browser test runner.
-- `src/js/card-abilities.js` ability coverage can drift relative to
-  `data/cards_database.json`; use the Python and browser audits after changes.
-- No automated tests for either the JS game logic or the Python scripts; verification is manual/console-log based throughout.
+- No automated tests for the Python scripts; verification is manual/console-log
+  based.
+- card_038's trait-based search is implemented in the engine but currently
+  inert pending a catalog trait tag (`aquatico`) — see `.vibeflow/decisions.md`.

@@ -925,7 +925,7 @@
         },
         card_039: {
             abilityId: 'retirada_tatica',
-            feedback: 'Trox: retorna à mão (1x por partida).',
+            feedback: 'Trox: retorna à mão e pode ser invocado sem custo (1x por partida).',
             limit: { kind: GameEngine.LIMIT_KINDS.PER_MATCH, count: 1 },
             minTargets: 0,
             maxTargets: 0,
@@ -938,6 +938,18 @@
                         instanceId: sourceId,
                         destinationZone: 'hand',
                         destinationPlayerId: source.ownerId
+                    },
+                    {
+                        kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                        targetId: sourceId,
+                        modifier: {
+                            id: `${sourceId}:free_resummon:${context.state.turn}`,
+                            sourceId,
+                            stat: 'cost',
+                            operation: GameEngine.MODIFIER_OPERATIONS.SET,
+                            value: 0,
+                            duration: { kind: GameEngine.DURATION_KINDS.PERMANENT_ON_INSTANCE }
+                        }
                     },
                     ...detachAttachedEquipment(context.state, source)
                 ];
@@ -1355,6 +1367,7 @@
         card_080: Object.freeze(['lobisomem', 'fogo']),
         card_081: Object.freeze(['lobisomem']),
         card_082: Object.freeze(['lobisomem']),
+        card_083: Object.freeze(['aquatico']),
         card_084: Object.freeze(['elite', 'robotico']),
         card_086: Object.freeze(['elite']),
         card_087: Object.freeze(['elite', 'guerreiro', 'humanoide'])
@@ -2544,7 +2557,7 @@
                             modifier: {
                                 id: `${destroyedCard.instanceId}:cost_penalty:${context.state.turn}`,
                                 sourceId: destroyedCard.instanceId,
-                                stat: 'costPenalty',
+                                stat: 'cost',
                                 operation: GameEngine.MODIFIER_OPERATIONS.ADD,
                                 value: 1,
                                 duration: { kind: GameEngine.DURATION_KINDS.PERMANENT_ON_INSTANCE }

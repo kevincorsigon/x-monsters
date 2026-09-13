@@ -89,18 +89,7 @@ function updateManualAbilitiesList() {
     const currentPlayer = gameState.currentPlayer;
     const playerCards = gameState.cards[currentPlayer].field;
     const playerEquipment = gameState.cards[currentPlayer].equipment;
-    
-    // Cartas com habilidades manuais conhecidas
-    const manualAbilities = {
-        'card_055': { // Mago Arcano
-            name: 'Mago Arcano',
-            ability: 'Rajada de Mana',
-            description: 'Causa 5 de dano direto (1x por turno)',
-            action: 'magoArcano_manaBlast',
-            cooldown: 'mana_blast'
-        }
-    };
-    
+
     let hasManualAbilities = false;
     let htmlContent = '';
 
@@ -153,24 +142,6 @@ function updateManualAbilitiesList() {
         if (migratedRule) {
             hasManualAbilities = true;
             htmlContent += renderMigratedAbilityCard(card, cardData, migratedRule);
-        } else if (cardData && manualAbilities[cardData.id]) {
-            hasManualAbilities = true;
-            const ability = manualAbilities[cardData.id];
-            
-            // Verificar se já foi usada neste turno
-            const canUse = !window.cardAbilities?.hasUsedAbilityThisTurn(card.id, ability.cooldown);
-            
-            htmlContent += `
-                <div style="border: 1px solid #444; border-radius: 5px; padding: 8px; margin: 5px 0; ${canUse ? 'background: rgba(0,100,0,0.2)' : 'background: rgba(100,0,0,0.2)'}">
-                    <div style="font-weight: bold; color: ${canUse ? 'lightgreen' : 'lightcoral'}">${ability.name}</div>
-                    <div style="font-size: 10px; color: #ccc; margin: 2px 0;">${ability.ability}: ${ability.description}</div>
-                    <button onclick="activateManualAbility('${card.id}', '${ability.action}', '${currentPlayer}')" 
-                            ${!canUse ? 'disabled' : ''} 
-                            style="background: ${canUse ? 'var(--primary-color)' : '#666'}; color: white; border: none; border-radius: 3px; padding: 4px 8px; font-size: 10px; cursor: ${canUse ? 'pointer' : 'not-allowed'}; width: 100%; margin-top: 5px;">
-                        ${canUse ? '⚡ Ativar' : '❌ Já usada'}
-                    </button>
-                </div>
-            `;
         }
     });
     
@@ -218,36 +189,6 @@ function activateMigratedAbility(cardId) {
     ['p1', 'p2'].forEach(playerId => window.updateDiscardCount?.(playerId));
     window.cardAbilities?.showAbilityFeedback(affectedTargetIds[0] || cardId, rule.feedback);
     updateManualAbilitiesList();
-}
-
-function activateManualAbility(cardId, abilityFunction, playerId) {
-    console.log(`🎯 Ativando habilidade: ${abilityFunction} para carta ${cardId}`);
-    
-    if (!window.cardAbilities) {
-        alert('Sistema de habilidades não carregado!');
-        return;
-    }
-    
-    try {
-        // Chamar a função de habilidade
-        if (typeof window.cardAbilities[abilityFunction] === 'function') {
-            window.cardAbilities[abilityFunction](cardId, playerId);
-            
-            // Atualizar interface
-            updateManualAbilitiesList();
-            
-            // Feedback visual
-            showMessage(`Habilidade ativada com sucesso!`, 'success');
-            
-            console.log('✅ Habilidade ativada com sucesso!');
-        } else {
-            console.log('❌ Função de habilidade não encontrada:', abilityFunction);
-            alert('Erro: Habilidade não implementada!');
-        }
-    } catch (error) {
-        console.error('❌ Erro ao ativar habilidade:', error);
-        alert('Erro ao ativar habilidade: ' + error.message);
-    }
 }
 
 // Integrar com mudanças de turno

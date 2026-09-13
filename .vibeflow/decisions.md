@@ -1,6 +1,100 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-13 — Fechado o gap de custo do Trox/Roller
+Fechamento da limitação #1 registrada na entrada da Fase 6 ("039 Trox / 069
+Roller — cláusulas de custo dependiam do fluxo de invocação por arrasto em
+`game.html`, que lia `cardData.data.cost` direto").
+
+Mudanças:
+- **`src/js/card-rules.js`**: a habilidade de 039 Trox agora também emite um
+  `ADD_MODIFIER` (`stat: 'cost'`, `SET 0`, `PERMANENT_ON_INSTANCE`) junto do
+  retorno à mão, tornando a próxima invocação de fato gratuita. O modificador
+  de 069 Roller (emitido em `CREATURE_DESTROYED`) trocou o stat livre
+  `costPenalty` (nunca lido por ninguém) para `stat: 'cost'` com `ADD 1`,
+  que já é o nome que `getEffectiveStat(instanceId, 'cost')` lê nativamente
+  — nenhuma mudança de engine foi necessária, só o nome do stat no
+  modificador.
+- **`game.html`**: novo helper `getEffectiveCardCost(cardId, cardData)`
+  (usa `gameEngine.getEffectiveStat(cardId, 'cost')` quando a instância já
+  está registrada no motor, com fallback para o custo bruto do catálogo).
+  Substituído `cardData.data.cost` por esse helper nos 4 pontos que faziam
+  gating de invocação por arrasto (`highlightSummonableCards`, `dragStart`,
+  `dropCard` — highlight de campo/suporte, alerta de energia insuficiente e
+  o custo efetivamente cobrado em `SUMMON_CARD`) e no badge de custo exibido
+  no card da mão (`createCard`), para não mostrar um número que diverge do
+  que será cobrado.
+- **`tests/unit/run-tests.js`**: teste do Trox passou a afirmar
+  `getEffectiveStat(..., 'cost') === 0` após a habilidade; teste do Roller
+  passou a afirmar `getEffectiveStat(..., 'cost') === 3` (custo base 2 do
+  fixture + 1 de penalidade) em vez de inspecionar o modificador bruto.
+
+Validação: `node tests/unit/run-tests.js` → 141/141; smoke test no
+navegador confirmando que `getEffectiveCardCost` (usado por `game.html`)
+concorda exatamente com `gameEngine.getEffectiveStat` para uma instância de
+Trox pós-habilidade (custo 0) e uma de Roller pós-morte (custo 7→8); sem
+erros de console.
+
+Escopo intencionalmente não tocado: **038 Tlantidu** continua inerte (gap de
+tagueamento de trait `aquatico` no catálogo, item de dados e não de lógica —
+não fazia parte deste pedido).
+
+## 2026-09-13 — Fase 7 completada: remoção do legado
+Escopo: `.vibeflow/specs/motor-habilidades-eventos-e-efeitos.md`, seção
+"Fase 7 - Remoção do legado". Com as 110 cartas resolvidas pelo motor
+(confirmado via `CardRules.isMigrated` cobrindo 100% do catálogo), todo o
+caminho legado em `src/js/card-abilities.js` era código morto — nunca
+executado, pois `onCardSummoned`/`onCardEquipped` retornavam cedo para
+qualquer carta migrada, e `onSupportCardPlayed`/`onBeforeAttack`/
+`onAfterAttack` não eram mais chamados por `game.html`.
+
+Achado adicional: as primeiras ~229 linhas de `card-abilities.js` eram um
+comentário de bloco (`/** ... */`) corrompido que continha, por acidente,
+uma cópia inteira e não-executável do switch de invocação — puro ruído,
+sem relação com o código real abaixo dele.
+
+Mudanças:
+- **`src/js/card-abilities.js`** reescrito de ~2400 linhas para uma ponte
+  fina (~100 linhas): mantém apenas `attachEngine`, `reset`,
+  `onCombatDeclared`/`onCombatResolved` (logs), `processTurnEffects`
+  (no-op — os ticks já são resolvidos pelo motor via `TURN_STARTED`/
+  `TURN_ENDED`), `onCardSummoned`/`onCardEquipped` (repassam o feedback de
+  `CardRules.getFeedback`/`getEquipmentRule`) e `showAbilityFeedback`
+  (notificação visual). Todas as ~100 funções de habilidade por carta, os
+  switches de invocação/equipar/suporte/antes-ataque/depois-ataque e as
+  helpers internas (`addPermanentEffect`, `addTurnEffect`,
+  `hasUsedAbilityThisTurn` etc.) foram removidas — nenhuma delas era
+  alcançável.
+- **`game.html`**: removido o bloco de `canAttackTarget` que lia
+  `cardAbilities.permanentEffects` (sempre vazio, pois nada mais escrevia
+  nele) — as mesmas proteções (fofura, imunidade a habilidade, evasão,
+  licantropia etc.) já são verificadas por
+  `CardRules.validateAttackTarget`, confirmado por leitura direta de
+  `card-rules.js` antes da remoção. Removidas as 7 tags `<script>` de
+  `tests/browser/*.js` (diagnóstico de console, nunca eram testes
+  automatizados) — os arquivos continuam no repositório para uso manual.
+- **`src/js/manual_abilities.js`**: removida a entrada hardcoded do Mago
+  Arcano (`card_055`) e o ramo `else if` que a acionava — a carta já é
+  resolvida dinamicamente via `CardRules.getActivatedRule`, então o ramo
+  legado nunca era mais alcançado; removida também a função
+  `activateManualAbility` (sem chamador restante).
+- **Docs**: `docs/PROGRESSO_HABILIDADES.md` reescrito com o status atual
+  (110/110, 141/141 testes); `docs/RELATORIO_FINAL_HABILIDADES.md` recebeu
+  um aviso de atualização no topo, mantendo o corpo como registro
+  histórico da migração.
+
+Validação: `node tests/unit/run-tests.js` → 141/141; `get_errors` limpo nos
+3 arquivos JS/HTML alterados; smoke test no navegador (reload sem erros de
+console, `onCardSummoned`/`onCardEquipped` disparando o feedback correto do
+`CardRules` para uma carta ativada migrada e um equipamento migrado, painel
+de habilidades manuais abrindo sem erro, ciclo de fim de turno completo sem
+exceções); checagem de referências de `<script src>` quebradas = 0.
+
+Gate da Fase 7 atendido: nenhuma regra de jogo depende mais de leitura/
+escrita direta do DOM em `card-abilities.js`, e nenhuma carta migrada possui
+caminho alternativo no motor legado (o "motor legado" como implementação de
+regras deixou de existir).
+
 ## 2026-09-20 — Fase 6 completada: 30 cartas (Zonas, vínculos e habilidades especiais)
 Escopo integral solicitado pelo usuário ("Fase 6 inteira de uma vez"), sem
 sub-lotes. `075` Turtol Maximus já estava migrado (nenhuma ação necessária).

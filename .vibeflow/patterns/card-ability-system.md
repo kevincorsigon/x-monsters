@@ -4,7 +4,19 @@ modules: [card-abilities.js]
 applies_to: [services]
 confidence: inferred
 ---
-# Pattern: Card Ability Trigger System
+# Pattern: Card Ability Trigger System (deprecated — removed in Fase 7)
+
+> ⚠️ **Removed.** `card-abilities.js` no longer contains any of the switch-case
+> logic described below — it was dead code (every card is migrated to the
+> engine) and was deleted in Fase 7 of the ability-engine migration. The file
+> is now a ~100-line bridge that only forwards feedback text from
+> `CardRules`/`game-engine.js` to the UI. For adding or changing card
+> abilities, use `src/js/card-rules.js` (`SUMMON_RULES`, `EQUIPMENT_RULES`,
+> `ACTIVATED_RULES`, and the event handlers registered in `install()`) instead
+> — see `.vibeflow/specs/motor-habilidades-eventos-e-efeitos.md` and
+> `.vibeflow/decisions.md` for the current architecture and per-card
+> modeling decisions. This doc is kept only as historical reference for the
+> pattern that used to exist.
 
 <!-- vibeflow:auto:start -->
 ## What

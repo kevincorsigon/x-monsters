@@ -1,5 +1,17 @@
 # 🎊 **SISTEMA DE HABILIDADES COMPLETO - X MONSTERS**
 
+> ⚠️ **Atualização pós-Fase 7 (remoção do legado):** este relatório documenta
+> um marco histórico (86%) do antigo sistema switch-case em
+> `card-abilities.js`. Esse sistema foi completamente substituído pelo motor
+> determinístico (`src/js/game-engine.js` + `src/js/card-rules.js`), que hoje
+> resolve as **110/110 cartas** do catálogo com **141/141 testes**
+> comportamentais passando (`node tests/unit/run-tests.js`).
+> `card-abilities.js` não contém mais lógica de jogo — é só uma ponte de
+> feedback visual para o motor. Ver
+> [PROGRESSO_HABILIDADES.md](PROGRESSO_HABILIDADES.md) para o status atual e
+> `.vibeflow/decisions.md` para as decisões de modelagem por carta. O
+> conteúdo abaixo é mantido como registro histórico da migração.
+
 ## ✅ **MISSÃO CUMPRIDA!**
 
 ---

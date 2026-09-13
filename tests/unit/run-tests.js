@@ -3294,7 +3294,7 @@ test('Medusa de Lama paralisa um inimigo por 1 turno', () => {
     );
 });
 
-test('Trox retorna à mão uma vez por partida', () => {
+test('Trox retorna à mão uma vez por partida e pode ser reinvocado sem custo', () => {
     const state = GameStateModel.createInitialGameState();
     const engine = GameEngine.createEngine(state);
     CardRules.install(engine);
@@ -3304,6 +3304,7 @@ test('Trox retorna à mão uma vez por partida', () => {
     const result = CardRules.activateAbility(engine, trox.instanceId);
     assert.equal(result.status, 'resolved');
     assert.equal(trox.zone, 'hand');
+    assert.equal(engine.getEffectiveStat(trox.instanceId, 'cost'), 0);
 });
 
 test('Invocador das Trevas invoca um Diabrete Alado da mão pagando 1 de energia', () => {
@@ -3393,14 +3394,19 @@ test('Marik 2 ataca todos os inimigos e perde toda a defesa depois', () => {
     assert.equal(fixture.engine.getEffectiveStat(fixture.source.instanceId, 'defense'), 0);
 });
 
-test('Tlantidu tenta buscar um monstro aquático ao ser destruído (atualmente inerte)', () => {
+test('Tlantidu busca um monstro aquático no deck ao ser destruído', () => {
     const fixture = createCombatFixture({ attackerAttack: 30, targetDefense: 5, targetAttack: 0 });
     fixture.target.definitionId = 'card_038';
     CardRules.install(fixture.engine);
-    const deckCard = GameStateModel.createCardInstance({
+    const nonAquaticCard = GameStateModel.createCardInstance({
         id: 'tlantidu_deck_card', name: 'Deck', type: 'criatura', cost: 1, attack: 1, defense: 1
     }, 'p2', { instanceId: 'tlantidu_deck_1' });
-    GameStateModel.registerCard(fixture.state, deckCard, 'deck', 'p2');
+    nonAquaticCard.definitionId = 'card_target';
+    const aquaticCard = GameStateModel.createCardInstance({
+        id: 'card_083', name: 'Hidra das Profundezas', type: 'criatura', cost: 12, attack: 59, defense: 59
+    }, 'p2', { instanceId: 'tlantidu_deck_2' });
+    GameStateModel.registerCard(fixture.state, nonAquaticCard, 'deck', 'p2');
+    GameStateModel.registerCard(fixture.state, aquaticCard, 'deck', 'p2');
 
     const result = fixture.engine.resolveCombat({
         attackerId: fixture.attacker.instanceId,
@@ -3409,7 +3415,8 @@ test('Tlantidu tenta buscar um monstro aquático ao ser destruído (atualmente i
 
     assert.equal(result.status, 'resolved');
     assert.equal(fixture.target.zone, 'discard');
-    assert.equal(deckCard.zone, 'deck');
+    assert.equal(nonAquaticCard.zone, 'deck');
+    assert.equal(aquaticCard.zone, 'hand');
 });
 
 test('Alucard ressuscita um aliado do cemitério diretamente para o campo ao derrotar', () => {
@@ -3440,10 +3447,7 @@ test('Roller retorna à mão ao morrer e acumula penalidade de custo', () => {
 
     assert.equal(result.status, 'resolved');
     assert.equal(fixture.target.zone, 'hand');
-    assert.equal(
-        fixture.target.modifiers.some(modifier => modifier.stat === 'costPenalty' && modifier.value === 1),
-        true
-    );
+    assert.equal(fixture.engine.getEffectiveStat(fixture.target.instanceId, 'cost'), 3);
 });
 
 test('Gulosinho ganha +5/+5 permanentes ao abdicar de atacar no turno', () => {

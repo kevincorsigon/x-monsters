@@ -1,13 +1,25 @@
 # Executar da raiz do repo: python scripts/check_cards.py
-import re
+#
+# Desde a Fase 7 (remoção do legado), as habilidades das cartas não vivem mais
+# em card-abilities.js (switch-case) — são resolvidas por src/js/card-rules.js
+# (motor determinístico). Este script chama o Node para consultar
+# `CardRules.isMigrated()` por carta, em vez de fazer regex no arquivo antigo.
 import json
+import subprocess
 
-# Ler o arquivo de habilidades
-with open('src/js/card-abilities.js', 'r', encoding='utf-8') as f:
-    content = f.read()
+NODE_SNIPPET = """
+const CardRules = require('./src/js/card-rules.js');
+const db = require('./data/cards_database.json');
+const ids = db.cards.map(c => c.id.replace('card_', ''));
+const migrated = ids.filter(id => CardRules.isMigrated(`card_${id}`));
+console.log(JSON.stringify(migrated));
+"""
 
-# Encontrar todas as cartas implementadas
-implemented_cards = set(re.findall(r"case 'card_(\d+)':", content))
+result = subprocess.run(
+    ['node', '-e', NODE_SNIPPET],
+    capture_output=True, text=True, check=True, cwd='.'
+)
+implemented_cards = set(json.loads(result.stdout.strip()))
 
 # Ler o database
 with open('data/cards_database.json', 'r', encoding='utf-8') as f:
