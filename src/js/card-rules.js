@@ -231,6 +231,23 @@
             feedback: 'Manoplas de Gelo: +15 dano contra criaturas de fogo.',
             targetSide: 'ALLY',
             modifiers: {}
+        },
+        card_092: {
+            feedback: 'Cajado da Ilusão: 1x/turno o hospedeiro pode ficar intocável.',
+            targetSide: 'ALLY',
+            requiredTrait: 'magico',
+            modifiers: {}
+        },
+        card_097: {
+            feedback: 'Flecha de Prata: ataques ignoram habilidades defensivas do alvo.',
+            targetSide: 'ALLY',
+            requiredTraitsAny: ['humanoide', 'besta'],
+            modifiers: {}
+        },
+        card_101: {
+            feedback: 'Olho de Águia: ataques ignoram Evasão e Intocável do alvo.',
+            targetSide: 'ALLY',
+            modifiers: {}
         }
     });
 
@@ -284,6 +301,32 @@
             minTargets: 1,
             maxTargets: 3,
             damage: 5
+        },
+        card_092: {
+            abilityId: 'cajado_intocavel',
+            feedback: 'Cajado da Ilusão: o hospedeiro fica intocável até o próximo ataque.',
+            limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+            minTargets: 0,
+            maxTargets: 0,
+            sourceZone: 'equipment',
+            buildEffects(sourceId, context) {
+                const equipment = context.state.cardInstances[sourceId];
+                const hostId = equipment?.attachedTo;
+                if (!hostId) return [];
+                return [{
+                    kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                    effect: {
+                        id: `${sourceId}:untouchable_shield:${context.state.turn}`,
+                        effectType: 'UNTOUCHABLE_SHIELD',
+                        sourceId,
+                        targetId: hostId,
+                        duration: {
+                            kind: GameEngine.DURATION_KINDS.UNTIL_SOURCE_LEAVES,
+                            sourceId
+                        }
+                    }
+                }];
+            }
         }
     });
 
@@ -409,6 +452,7 @@
         card_043: Object.freeze(['humanoide', 'guerreiro']),
         card_052: Object.freeze(['dragao']),
         card_054: Object.freeze(['elite', 'vampiro']),
+        card_055: Object.freeze(['magico']),
         card_056: Object.freeze(['guerreiro', 'humanoide']),
         card_057: Object.freeze(['fogo']),
         card_059: Object.freeze(['lobisomem']),
@@ -530,6 +574,8 @@
         const attachedDefinitions = attacker.attachments
             .map(instanceId => state.cardInstances[instanceId]?.definitionId)
             .filter(Boolean);
+        const bypassesAllDefenses = attachedDefinitions.includes('card_097');
+        const bypassesEvasion = bypassesAllDefenses || attachedDefinitions.includes('card_101');
         const attackedTargets = attacker.usage?.combatAttacks?.turnNumber === state.turn
             ? attacker.usage.combatAttacks.targets || []
             : [];
@@ -539,13 +585,13 @@
         const defendingField = state.players[target.controllerId].zones.field;
         const taunts = defendingField.filter(card => card.definitionId === 'card_018');
 
-        if (taunts.length > 0 && target.definitionId !== 'card_018') {
+        if (!bypassesAllDefenses && taunts.length > 0 && target.definitionId !== 'card_018') {
             return { valid: false, reason: 'CP-2 deve ser atacado primeiro.' };
         }
-        if (target.definitionId === 'card_014' && attacker.data.cost > 3) {
+        if (!bypassesAllDefenses && target.definitionId === 'card_014' && attacker.data.cost > 3) {
             return { valid: false, reason: 'Fofura bloqueia criaturas de custo maior que 3.' };
         }
-        if (target.definitionId === 'card_025') {
+        if (!bypassesAllDefenses && target.definitionId === 'card_025') {
             const hasOtherAlly = defendingField.some(card =>
                 card.instanceId !== target.instanceId &&
                 ['criatura', 'evolução'].includes(card.data.type)
@@ -554,16 +600,16 @@
                 return { valid: false, reason: 'Esta criatura está protegida por outro aliado.' };
             }
         }
-        if (target.definitionId === 'card_044' && attacker.data.cost <= 4) {
+        if (!bypassesAllDefenses && target.definitionId === 'card_044' && attacker.data.cost <= 4) {
             return { valid: false, reason: 'Voar Alto bloqueia criaturas de custo 4 ou menor.' };
         }
         if (target.definitionId === 'card_058') {
             const isAlone = defendingField.filter(isCreatureCard).length === 1;
-            if (isAlone && attacker.data.cost <= 4) {
+            if (!bypassesEvasion && isAlone && attacker.data.cost <= 4) {
                 return { valid: false, reason: 'Evasão bloqueia criaturas de custo 4 ou menor.' };
             }
         }
-        if (target.definitionId === 'card_059') {
+        if (!bypassesAllDefenses && target.definitionId === 'card_059') {
             const attackingField = state.players[attacker.controllerId].zones.field
                 .filter(isCreatureCard);
             if (attackingField.length === 1) {
@@ -572,6 +618,7 @@
         }
         const trancaRua = defendingField.find(card => card.definitionId === 'card_060');
         if (
+            !bypassesAllDefenses &&
             trancaRua &&
             target.instanceId !== trancaRua.instanceId &&
             defendingField.filter(isCreatureCard).length > 1
@@ -620,7 +667,7 @@
             type: 'ACTIVATE_CARD_ABILITY',
             actorId: source.controllerId,
             sourceId,
-            sourceZone: 'field',
+            sourceZone: rule.sourceZone || 'field',
             requiredPhase: ['invocation', 'combat'],
             requiresTurn: true,
             abilityId: rule.abilityId,
@@ -631,6 +678,9 @@
                 max: rule.maxTargets
             } : null,
             effects: context => {
+                if (rule.buildEffects) {
+                    return rule.buildEffects(sourceId, context);
+                }
                 const legalTargets = getActivatedTargets(context.state, sourceId);
                 const selectedTargets = rule.allEnemies ? legalTargets : context.selection;
                 if (rule.damage !== null) {
@@ -1233,7 +1283,17 @@
                     effect.effectType === 'MAGIC_SHIELD' &&
                     effect.targetId === event.payload.targetId
                 );
-                if (shield) {
+                const attackerAttachments = (attacker?.attachments || [])
+                    .map(instanceId => context.state.cardInstances[instanceId])
+                    .filter(attachment =>
+                        attachment?.zone === 'equipment' &&
+                        attachment.attachedTo === attacker.instanceId
+                    )
+                    .map(attachment => attachment.definitionId)
+                    .filter(Boolean);
+                const bypassesAllShields = attackerAttachments.includes('card_097');
+                const bypassesUntouchableShield = bypassesAllShields || attackerAttachments.includes('card_101');
+                if (shield && !bypassesAllShields) {
                     effects.push({
                         kind: GameEngine.EFFECT_KINDS.MODIFY_COMBAT,
                         combatId: event.payload.combatId,
@@ -1242,6 +1302,21 @@
                     }, {
                         kind: GameEngine.EFFECT_KINDS.REMOVE_EFFECT,
                         effectId: shield.id
+                    });
+                }
+                const untouchableShield = context.state.effects.find(effect =>
+                    effect.effectType === 'UNTOUCHABLE_SHIELD' &&
+                    effect.targetId === event.payload.targetId
+                );
+                if (untouchableShield && !bypassesUntouchableShield) {
+                    effects.push({
+                        kind: GameEngine.EFFECT_KINDS.MODIFY_COMBAT,
+                        combatId: event.payload.combatId,
+                        field: 'cancelled',
+                        value: true
+                    }, {
+                        kind: GameEngine.EFFECT_KINDS.REMOVE_EFFECT,
+                        effectId: untouchableShield.id
                     });
                 }
                 return effects;

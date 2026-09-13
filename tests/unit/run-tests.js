@@ -2489,12 +2489,35 @@ test('dano de suporte atravessa Golem e é bloqueado por Iron inimigo', () => {
     }
 });
 
+test('Manto do mesmo controlador do Iron Dragon não é bloqueado', () => {
+    const fixture = createCombatFixture();
+    fixture.target.definitionId = 'card_065';
+    const sameControllerMantle = GameStateModel.createCardInstance({
+        id: 'card_095', name: 'Manto', type: 'suporte', cost: 2, attack: 0, defense: 0
+    }, 'p2', { instanceId: 'same_controller_mantle' });
+    GameStateModel.registerCard(fixture.state, sameControllerMantle, 'equipment', 'p2');
+    CardRules.install(fixture.engine);
+    applyAbilityEffect(fixture.engine, sameControllerMantle, {
+        kind: GameEngine.EFFECT_KINDS.APPLY_CARD_DAMAGE,
+        targetId: fixture.target.instanceId,
+        amount: 15
+    });
+    assert.equal(fixture.target.damage, 15);
+});
+
 test('Estaca concede +10 apenas em host elegível contra Vampiro/Lobisomem', () => {
     const fixture = createCombatFixture({ attackerAttack: 20, targetDefense: 100, targetAttack: 0 });
     fixture.attacker.definitionId = 'card_056';
     fixture.target.definitionId = 'card_076';
     const stake = attachTraitEquipment(fixture, 'card_102');
     assert.equal(CardRules.validateEquipmentTarget(stake, fixture.attacker).valid, true);
+
+    const ineligibleHost = addFieldCreature(fixture.state, 'p1', 'ineligible_host', 'ineligible_stake_host');
+    const stakeForIneligible = GameStateModel.createCardInstance({
+        id: 'card_102', name: 'card_102', type: 'suporte', cost: 2, attack: 99, defense: 99
+    }, 'p1', { instanceId: 'stake_ineligible_equipment' });
+    assert.equal(CardRules.validateEquipmentTarget(stakeForIneligible, ineligibleHost).valid, false);
+
     CardRules.install(fixture.engine);
     const result = fixture.engine.resolveCombat({
         attackerId: fixture.attacker.instanceId,
@@ -2519,6 +2542,19 @@ test('Estaca concede +10 apenas em host elegível contra Vampiro/Lobisomem', () 
     }).damageToTarget, 20);
 });
 
+test('Estaca não concede bônus contra alvo sem trait Vampiro/Lobisomem', () => {
+    const fixture = createCombatFixture({ attackerAttack: 20, targetDefense: 100, targetAttack: 0 });
+    fixture.attacker.definitionId = 'card_056';
+    attachTraitEquipment(fixture, 'card_102');
+    CardRules.install(fixture.engine);
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+    assert.equal(result.attackPower, 20);
+    assert.equal(result.damageToTarget, 20);
+});
+
 test('Manoplas adiciona 15 dano somente contra fogo sem alterar ATK', () => {
     const fire = createCombatFixture({ attackerAttack: 20, targetDefense: 100, targetAttack: 0 });
     fire.target.definitionId = 'card_057';
@@ -2538,6 +2574,263 @@ test('Manoplas adiciona 15 dano somente contra fogo sem alterar ATK', () => {
         attackerId: normal.attacker.instanceId,
         targetId: normal.target.instanceId
     }).damageToTarget, 20);
+});
+
+test('Flecha de Prata equipa somente em host humanoide ou besta', () => {
+    const state = GameStateModel.createInitialGameState();
+    const humanoid = GameStateModel.createCardInstance({
+        id: 'card_056', name: 'Humanoide', type: 'criatura', cost: 2, attack: 10, defense: 10
+    }, 'p1', { instanceId: 'arrow_humanoid_host' });
+    const nonHumanoid = GameStateModel.createCardInstance({
+        id: 'normal_host', name: 'Normal', type: 'criatura', cost: 2, attack: 10, defense: 10
+    }, 'p1', { instanceId: 'arrow_normal_host' });
+    GameStateModel.registerCard(state, humanoid, 'field', 'p1');
+    GameStateModel.registerCard(state, nonHumanoid, 'field', 'p1');
+    const arrow = GameStateModel.createCardInstance({
+        id: 'card_097', name: 'Flecha', type: 'suporte', cost: 3, attack: 8, defense: 0
+    }, 'p1', { instanceId: 'arrow_equipment' });
+
+    assert.equal(CardRules.validateEquipmentTarget(arrow, humanoid).valid, true);
+    assert.equal(CardRules.validateEquipmentTarget(arrow, nonHumanoid).valid, false);
+});
+
+test('Flecha de Prata ignora todas as restrições de alvo migradas', () => {
+    const { state, attacker, target } = createCombatFixture();
+    const arrow = GameStateModel.createCardInstance({
+        id: 'card_097', name: 'Flecha', type: 'suporte', cost: 3, attack: 8, defense: 0
+    }, 'p1', { instanceId: 'silver_arrow' });
+    GameStateModel.registerCard(state, arrow, 'equipment', 'p1');
+    arrow.attachedTo = attacker.instanceId;
+    attacker.attachments.push(arrow.instanceId);
+
+    attacker.data.cost = 5;
+    target.definitionId = 'card_014';
+    assert.equal(CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId).valid, true);
+
+    target.definitionId = 'card_044';
+    assert.equal(CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId).valid, true);
+
+    target.definitionId = 'card_025';
+    const ally = GameStateModel.createCardInstance(target.data, 'p2', { instanceId: 'ze_protected_ally' });
+    GameStateModel.registerCard(state, ally, 'field', 'p2');
+    assert.equal(CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId).valid, true);
+    GameStateModel.moveCard(state, ally.instanceId, 'discard', 'p2');
+
+    target.definitionId = 'card_058';
+    attacker.data.cost = 3;
+    assert.equal(CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId).valid, true);
+
+    target.definitionId = 'card_059';
+    assert.equal(CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId).valid, true);
+
+    target.definitionId = 'normal_target';
+    const cp2 = GameStateModel.createCardInstance({
+        id: 'card_018', name: 'CP-2', type: 'criatura', cost: 3, attack: 12, defense: 23
+    }, 'p2', { instanceId: 'cp2_bypass' });
+    GameStateModel.registerCard(state, cp2, 'field', 'p2');
+    assert.equal(CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId).valid, true);
+    GameStateModel.moveCard(state, cp2.instanceId, 'discard', 'p2');
+
+    const tranca = GameStateModel.createCardInstance({
+        id: 'card_060', name: 'Tranca Rua', type: 'criatura', cost: 6, attack: 30, defense: 30
+    }, 'p2', { instanceId: 'tranca_bypass' });
+    GameStateModel.registerCard(state, tranca, 'field', 'p2');
+    assert.equal(CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId).valid, true);
+});
+
+test('Flecha de Prata ignora Estrela Mágica e o Intocável do Cajado da Ilusão', () => {
+    const fixture = createCombatFixture({ attackerAttack: 20, targetDefense: 100 });
+    CardRules.install(fixture.engine);
+    const star = GameStateModel.createCardInstance({
+        id: 'card_002', name: 'Estrela', type: 'suporte', cost: 1, attack: 0, defense: 0
+    }, 'p2', { instanceId: 'flecha_star_shield' });
+    GameStateModel.registerCard(fixture.state, star, 'equipment', 'p2');
+    star.attachedTo = fixture.target.instanceId;
+    fixture.target.attachments.push(star.instanceId);
+    fixture.engine.resolveAction({
+        type: 'ADD_SHIELD', actorId: 'p2', sourceId: star.instanceId, requiresControl: false,
+        effects: CardRules.createEquipmentEffects(star, fixture.target.instanceId, fixture.state)
+    });
+    const staff = GameStateModel.createCardInstance({
+        id: 'card_092', name: 'Cajado', type: 'suporte', cost: 2, attack: 5, defense: 5
+    }, 'p2', { instanceId: 'flecha_staff' });
+    GameStateModel.registerCard(fixture.state, staff, 'equipment', 'p2');
+    staff.attachedTo = fixture.target.instanceId;
+    fixture.target.attachments.push(staff.instanceId);
+    fixture.engine.resolveAction({
+        type: 'ADD_UNTOUCHABLE', actorId: 'p2', sourceId: staff.instanceId, requiresControl: false,
+        effects: [{
+            kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+            effect: {
+                id: `${staff.instanceId}:untouchable_shield:manual`,
+                effectType: 'UNTOUCHABLE_SHIELD',
+                sourceId: staff.instanceId,
+                targetId: fixture.target.instanceId,
+                duration: { kind: GameEngine.DURATION_KINDS.UNTIL_SOURCE_LEAVES, sourceId: staff.instanceId }
+            }
+        }]
+    });
+    attachTraitEquipment(fixture, 'card_097');
+
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+
+    assert.equal(result.status, 'resolved');
+    assert.equal(result.cancelled, false);
+    assert.equal(fixture.target.damage, 20);
+});
+
+test('Olho de Águia ignora somente Evasão e Intocável, não outras restrições', () => {
+    const { state, attacker, target } = createCombatFixture();
+    const eye = GameStateModel.createCardInstance({
+        id: 'card_101', name: 'Olho', type: 'suporte', cost: 3, attack: 3, defense: 3
+    }, 'p1', { instanceId: 'eagle_eye' });
+    GameStateModel.registerCard(state, eye, 'equipment', 'p1');
+    eye.attachedTo = attacker.instanceId;
+    attacker.attachments.push(eye.instanceId);
+
+    attacker.data.cost = 5;
+    target.definitionId = 'card_014';
+    assert.equal(CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId).valid, false);
+
+    attacker.data.cost = 3;
+    target.definitionId = 'card_044';
+    assert.equal(CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId).valid, false);
+
+    target.definitionId = 'card_025';
+    const ally = GameStateModel.createCardInstance(target.data, 'p2', { instanceId: 'eye_ze_ally' });
+    GameStateModel.registerCard(state, ally, 'field', 'p2');
+    assert.equal(CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId).valid, false);
+    GameStateModel.moveCard(state, ally.instanceId, 'discard', 'p2');
+
+    target.definitionId = 'card_059';
+    assert.equal(CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId).valid, false);
+
+    target.definitionId = 'normal_target';
+    const cp2 = GameStateModel.createCardInstance({
+        id: 'card_018', name: 'CP-2', type: 'criatura', cost: 3, attack: 12, defense: 23
+    }, 'p2', { instanceId: 'eye_cp2' });
+    GameStateModel.registerCard(state, cp2, 'field', 'p2');
+    assert.equal(CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId).valid, false);
+    GameStateModel.moveCard(state, cp2.instanceId, 'discard', 'p2');
+
+    const tranca = GameStateModel.createCardInstance({
+        id: 'card_060', name: 'Tranca Rua', type: 'criatura', cost: 6, attack: 30, defense: 30
+    }, 'p2', { instanceId: 'eye_tranca' });
+    GameStateModel.registerCard(state, tranca, 'field', 'p2');
+    assert.equal(CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId).valid, false);
+    GameStateModel.moveCard(state, tranca.instanceId, 'discard', 'p2');
+
+    target.definitionId = 'card_058';
+    assert.equal(CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId).valid, true);
+});
+
+test('Olho de Águia ignora o Intocável do Cajado mas não a Estrela Mágica', () => {
+    const fixture = createCombatFixture({ attackerAttack: 20, targetDefense: 100 });
+    CardRules.install(fixture.engine);
+    const star = GameStateModel.createCardInstance({
+        id: 'card_002', name: 'Estrela', type: 'suporte', cost: 1, attack: 0, defense: 0
+    }, 'p2', { instanceId: 'eye_star_shield' });
+    GameStateModel.registerCard(fixture.state, star, 'equipment', 'p2');
+    star.attachedTo = fixture.target.instanceId;
+    fixture.target.attachments.push(star.instanceId);
+    fixture.engine.resolveAction({
+        type: 'ADD_SHIELD', actorId: 'p2', sourceId: star.instanceId, requiresControl: false,
+        effects: CardRules.createEquipmentEffects(star, fixture.target.instanceId, fixture.state)
+    });
+    attachTraitEquipment(fixture, 'card_101');
+
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+
+    assert.equal(result.cancelled, true);
+    assert.equal(fixture.target.damage, 0);
+});
+
+test('Olho de Águia consegue atacar hospedeiro protegido pelo Intocável do Cajado', () => {
+    const fixture = createCombatFixture({ attackerAttack: 20, targetDefense: 100 });
+    CardRules.install(fixture.engine);
+    const staff = GameStateModel.createCardInstance({
+        id: 'card_092', name: 'Cajado', type: 'suporte', cost: 2, attack: 5, defense: 5
+    }, 'p2', { instanceId: 'eye_staff' });
+    GameStateModel.registerCard(fixture.state, staff, 'equipment', 'p2');
+    staff.attachedTo = fixture.target.instanceId;
+    fixture.target.attachments.push(staff.instanceId);
+    fixture.engine.resolveAction({
+        type: 'ADD_UNTOUCHABLE', actorId: 'p2', sourceId: staff.instanceId, requiresControl: false,
+        effects: [{
+            kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+            effect: {
+                id: `${staff.instanceId}:untouchable_shield:manual`,
+                effectType: 'UNTOUCHABLE_SHIELD',
+                sourceId: staff.instanceId,
+                targetId: fixture.target.instanceId,
+                duration: { kind: GameEngine.DURATION_KINDS.UNTIL_SOURCE_LEAVES, sourceId: staff.instanceId }
+            }
+        }]
+    });
+    attachTraitEquipment(fixture, 'card_101');
+
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+
+    assert.equal(result.cancelled, false);
+    assert.equal(fixture.target.damage, 20);
+});
+
+test('Cajado da Ilusão equipa somente host mágico, ativa 1x/turno e cancela o próximo ataque', () => {
+    const fixture = createCombatFixture({ attackerAttack: 20, targetDefense: 100 });
+    CardRules.install(fixture.engine);
+    const staff = GameStateModel.createCardInstance({
+        id: 'card_092', name: 'Cajado', type: 'suporte', cost: 2, attack: 5, defense: 5
+    }, 'p2', { instanceId: 'illusion_staff' });
+    GameStateModel.registerCard(fixture.state, staff, 'equipment', 'p2');
+    staff.attachedTo = fixture.target.instanceId;
+    fixture.target.attachments.push(staff.instanceId);
+    fixture.target.definitionId = 'card_055';
+
+    assert.equal(CardRules.validateEquipmentTarget(staff, fixture.target).valid, true);
+    const ineligibleHost = addFieldCreature(fixture.state, 'p2', 'ineligible_magic_host', 'ineligible_magic_host_id');
+    assert.equal(CardRules.validateEquipmentTarget(staff, ineligibleHost).valid, false);
+
+    fixture.state.currentPlayer = 'p2';
+    fixture.state.currentPhase = 'invocation';
+    const activation = CardRules.activateAbility(fixture.engine, staff.instanceId);
+    assert.equal(activation.status, 'resolved');
+    assert.equal(
+        fixture.state.effects.some(effect =>
+            effect.effectType === 'UNTOUCHABLE_SHIELD' && effect.targetId === fixture.target.instanceId
+        ),
+        true
+    );
+
+    const secondActivation = CardRules.activateAbility(fixture.engine, staff.instanceId);
+    assert.equal(secondActivation.status, 'rejected');
+
+    fixture.state.currentPlayer = 'p1';
+    fixture.state.currentPhase = 'combat';
+    const attack = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+    assert.equal(attack.cancelled, true);
+    assert.equal(fixture.target.damage, 0);
+    assert.equal(
+        fixture.state.effects.some(effect => effect.effectType === 'UNTOUCHABLE_SHIELD'),
+        false
+    );
+
+    fixture.state.turn++;
+    fixture.state.currentPlayer = 'p2';
+    fixture.state.currentPhase = 'invocation';
+    const reactivation = CardRules.activateAbility(fixture.engine, staff.instanceId);
+    assert.equal(reactivation.status, 'resolved');
 });
 
 let failures = 0;

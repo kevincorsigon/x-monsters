@@ -88,6 +88,7 @@ function updateManualAbilitiesList() {
     
     const currentPlayer = gameState.currentPlayer;
     const playerCards = gameState.cards[currentPlayer].field;
+    const playerEquipment = gameState.cards[currentPlayer].equipment;
     
     // Cartas com habilidades manuais conhecidas
     const manualAbilities = {
@@ -102,43 +103,56 @@ function updateManualAbilitiesList() {
     
     let hasManualAbilities = false;
     let htmlContent = '';
-    
+
+    function renderMigratedAbilityCard(card, cardData, migratedRule) {
+        const targetIds = window.CardRules.getActivatedTargets(window.gameState, card.id);
+        const canUse = window.gameEngine.canUseAbility(
+            card.id,
+            migratedRule.abilityId,
+            migratedRule.limit
+        );
+        const targetOptions = targetIds.map(targetId => {
+            const target = window.gameState.cardInstances[targetId];
+            return `<option value="${targetId}">${target.data.name}</option>`;
+        }).join('');
+        const needsTargets = migratedRule.maxTargets > 0;
+        const canActivate = canUse && (!needsTargets || targetIds.length >= migratedRule.minTargets);
+        const targetControl = needsTargets ? `
+            <select id="ability-target-${card.id}" ${migratedRule.maxTargets > 1 ? 'multiple' : ''} ${targetIds.length === 0 ? 'disabled' : ''} style="width: 100%; margin: 5px 0;">
+                ${targetOptions || '<option>Nenhum alvo válido</option>'}
+            </select>
+        ` : '';
+
+        return `
+            <div style="border: 1px solid #444; border-radius: 5px; padding: 8px; margin: 5px 0; ${canActivate ? 'background: rgba(0,100,0,0.2)' : 'background: rgba(100,0,0,0.2)'}">
+                <div style="font-weight: bold; color: ${canActivate ? 'lightgreen' : 'lightcoral'}">${cardData.name}</div>
+                <div style="font-size: 10px; color: #ccc; margin: 2px 0;">${migratedRule.feedback}</div>
+                ${targetControl}
+                <button onclick="activateMigratedAbility('${card.id}')"
+                        ${!canActivate ? 'disabled' : ''}
+                        style="background: ${canActivate ? 'var(--primary-color)' : '#666'}; color: white; border: none; border-radius: 3px; padding: 4px 8px; font-size: 10px; cursor: ${canActivate ? 'pointer' : 'not-allowed'}; width: 100%;">
+                    ${canUse ? '⚡ Ativar' : '❌ Já usada'}
+                </button>
+            </div>
+        `;
+    }
+
+    playerEquipment.forEach(card => {
+        const cardData = window.cardsDatabase?.cards?.find(c => c.id === card.data.id);
+        const migratedRule = window.CardRules?.getActivatedRule(card.data.id);
+        if (migratedRule && cardData) {
+            hasManualAbilities = true;
+            htmlContent += renderMigratedAbilityCard(card, cardData, migratedRule);
+        }
+    });
+
     playerCards.forEach(card => {
         const cardData = window.cardsDatabase?.cards?.find(c => c.id === card.data.id);
         const migratedRule = window.CardRules?.getActivatedRule(card.data.id);
 
         if (migratedRule) {
             hasManualAbilities = true;
-            const targetIds = window.CardRules.getActivatedTargets(window.gameState, card.id);
-            const canUse = window.gameEngine.canUseAbility(
-                card.id,
-                migratedRule.abilityId,
-                migratedRule.limit
-            );
-            const targetOptions = targetIds.map(targetId => {
-                const target = window.gameState.cardInstances[targetId];
-                return `<option value="${targetId}">${target.data.name}</option>`;
-            }).join('');
-            const needsTargets = migratedRule.maxTargets > 0;
-            const canActivate = canUse && (!needsTargets || targetIds.length >= migratedRule.minTargets);
-            const targetControl = needsTargets ? `
-                <select id="ability-target-${card.id}" ${migratedRule.maxTargets > 1 ? 'multiple' : ''} ${targetIds.length === 0 ? 'disabled' : ''} style="width: 100%; margin: 5px 0;">
-                    ${targetOptions || '<option>Nenhum alvo válido</option>'}
-                </select>
-            ` : '';
-
-            htmlContent += `
-                <div style="border: 1px solid #444; border-radius: 5px; padding: 8px; margin: 5px 0; ${canActivate ? 'background: rgba(0,100,0,0.2)' : 'background: rgba(100,0,0,0.2)'}">
-                    <div style="font-weight: bold; color: ${canActivate ? 'lightgreen' : 'lightcoral'}">${cardData.name}</div>
-                    <div style="font-size: 10px; color: #ccc; margin: 2px 0;">${migratedRule.feedback}</div>
-                    ${targetControl}
-                    <button onclick="activateMigratedAbility('${card.id}')"
-                            ${!canActivate ? 'disabled' : ''}
-                            style="background: ${canActivate ? 'var(--primary-color)' : '#666'}; color: white; border: none; border-radius: 3px; padding: 4px 8px; font-size: 10px; cursor: ${canActivate ? 'pointer' : 'not-allowed'}; width: 100%;">
-                        ${canUse ? '⚡ Ativar' : '❌ Já usada'}
-                    </button>
-                </div>
-            `;
+            htmlContent += renderMigratedAbilityCard(card, cardData, migratedRule);
         } else if (cardData && manualAbilities[cardData.id]) {
             hasManualAbilities = true;
             const ability = manualAbilities[cardData.id];

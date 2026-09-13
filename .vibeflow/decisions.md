@@ -1,6 +1,80 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-13 — Fase 5D2 reauditada PASS após fechar o gap de cobertura do Olho de Águia
+O único gap do audit anterior (FAIL) — 5 asserts negativos ausentes contra
+`card_018` (CP-2), `card_025` (Zé Mulherzinha), `card_044` (Grifo Real),
+`card_059` (Licantropia) e `card_060` (Tranca Rua) no teste "Olho de Águia
+ignora somente Evasão e Intocável, não outras restrições" — foi fechado
+dentro do mesmo teste (sem novo bloco `test(...)`), suíte em 102/102. Cada
+assert configura o gate correspondente para realmente disparar (aliado extra
+para Zé Mulherzinha, custo do atacante ≤ 4 explicitamente ajustado para o
+gate do Grifo Real, campo do atacante com uma única criatura para
+Licantropia, campo defensor com 2+ criaturas para Tranca Rua), evitando o
+risco apontado no ciclo anterior de um assert "passar" por motivo errado
+(ex.: bloqueio pelo próprio gate de custo do Grifo em vez de por Olho não
+ignorá-lo). Nenhuma mudança em `card-rules.js`, `manual_abilities.js` ou
+`game-engine.js` neste ciclo — confirmado por timestamps de arquivo e
+leitura direta do conteúdo de `validateAttackTarget`, já que não há commit
+intermediário isolando o estado do audit anterior (todo o lote 5D2 segue não
+commitado sobre o mesmo `HEAD`). Ver
+[audits/motor-habilidades-fase-5d2-prevencao-bypass-audit.md](audits/motor-habilidades-fase-5d2-prevencao-bypass-audit.md).
+Fase 5D2 encerrada.
+
+## 2026-09-13 — Escopo do lote 5D2 e semântica de bypass defensivo
+Para `092` Cajado da Ilusão, `097` Flecha de Prata e `101` Olho de Águia:
+"Intocável" (092) é modelado como um efeito reativo `UNTOUCHABLE_SHIELD`,
+igual em mecânica ao `MAGIC_SHIELD` de Estrela Mágica (002): consome o
+próximo ataque contra o equipado e é removido. A ativação é 1x/turno,
+sem seleção de alvo (o alvo é sempre o próprio hospedeiro), e a fonte da
+habilidade é o equipamento na zona `equipment`, não uma criatura em campo —
+isso exige que a ação ativada aceite uma zona de origem configurável e que
+o painel manual descubra habilidades também nas zonas de equipamento dos
+jogadores, não somente no campo.
+
+"Evasão" (058, citado literalmente no texto de Sábio da Montanha) e
+"Intocável" (092) são os dois únicos conceitos que Olho de Águia (101)
+ignora, por serem os únicos nomeados literalmente com esses termos no
+catálogo; Olho NÃO ignora Estrela Mágica (002), Zé Mulherzinha (025), Grifo
+Real (044), CP-2 (018), O Lica (059), Tranca Rua (060) ou Licantropia,
+porque nenhum desses textos usa "evasão" ou "intocável".
+
+Flecha de Prata (097) ignora "todas as habilidades especiais defensivas do
+monstro alvo", interpretado como o conjunto completo de restrições de alvo
+migradas (014, 018, 025, 044, 058, 059, 060) mais os escudos reativos
+migrados (002 MAGIC_SHIELD, 092 UNTOUCHABLE_SHIELD) — é estritamente mais
+amplo que Olho de Águia.
+
+Bilugação Astral (090, "intransponível") permanece bloqueada por decisão
+de produto já registrada; seu termo não é literalmente "intocável" e não
+entra no escopo de bypass desta fase.
+
+## 2026-09-13 — Fase 5D4 reauditada PASS após pacote incremental de cobertura
+Os 3 gaps de teste do FAIL anterior (mesmo dia) foram fechados só em
+`tests/unit/run-tests.js`: um assert inline em "Estaca concede +10 apenas em
+host elegível contra Vampiro/Lobisomem" (host sem trait rejeitado por
+`validateEquipmentTarget`), um novo teste "Estaca não concede bônus contra
+alvo sem trait Vampiro/Lobisomem", e um novo teste "Manto do mesmo
+controlador do Iron Dragon não é bloqueado". Suíte em 95/95;
+`src/js/card-rules.js` confirmado sem diff frente ao commit já auditado
+(`git diff --stat` só mostra `run-tests.js`, 36 inserções). Ver
+[audits/motor-habilidades-fase-5d4-matchups-trait-audit.md](audits/motor-habilidades-fase-5d4-matchups-trait-audit.md).
+Fase 5D4 encerrada.
+
+## 2026-09-13 — Fase 5D4 auditada FAIL por cobertura de teste, não por bug de lógica
+Manto da Luz Solar (095), Estaca do Caçador (102) e Manoplas de Gelo (105)
+estão implementados corretamente (proveniência composta com a infra do 5D1,
+sem stats implícitos, traits só via `TRAITS_BY_DEFINITION`), mas 3 dos 6
+cenários adversariais exigidos pelo lote não têm assert dedicado em
+`tests/unit/run-tests.js`: Estaca equipando host sem trait válida (rejeição),
+Estaca contra alvo sem trait vampiro/lobisomem (sem bônus), e Manto vs Iron
+Dragon do mesmo controlador do Manto (não deveria bloquear). Ver
+[audits/motor-habilidades-fase-5d4-matchups-trait-audit.md](audits/motor-habilidades-fase-5d4-matchups-trait-audit.md).
+Pitfall para specs futuras do motor de habilidades: exigir que o DoD liste os
+cenários negativos/adversariais explicitamente como "testes obrigatórios",
+não só o comportamento positivo — este lote descrevia os matchups em prosa
+mas não obrigava o caminho de rejeição.
+
 ## 2026-09-12 — Defaults conservadores aprovados para habilidades ambíguas
 O usuário aprovou aplicar os defaults recomendados da spec durante as Fases 4
 e 5, registrando cada interpretação. Para o lote 4B: o texto da habilidade é
