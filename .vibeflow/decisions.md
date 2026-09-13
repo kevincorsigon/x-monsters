@@ -32,6 +32,17 @@ ataque” significa primeiro ataque de cada turno; “ignorar N DEF” transform
 pontos adicionais em penetração sem impedir o dano normal à criatura; “ignorar
 toda DEF” faz o ATK completo penetrar no PV se o ataque for contra criatura.
 
+Para o lote 5B1: reflexão de metade arredonda para baixo; Fantom retorna
+automaticamente à mão e remove todo dano quando substituir a morte; efeitos
+opcionais benéficos de abate (novo ataque e drenagem) são aplicados
+automaticamente; drenagem transfere até 10 PV, limitada pelo PV disponível do
+oponente; Aura de Vingança usa o ATK efetivo imediatamente anterior à morte.
+
+Para matchups de traits: Vampiros são Lorde Sanguinário, Alucard e Condessa
+Carmilla; Lobisomens são O Lica e a família Lobo; fogo é Quimera de Fogo e
+Lobo Omega Pyro. Guerreiro/humanoide inclui Goblin Mestre de Armas, Minotauro
+Guerreiro, Paladinos e Superior. Esses valores ficam em mapa explícito por ID.
+
 ## 2026-09-12 — Complete root organization implemented and audited
 The repository root now contains only the two HTML entry points, primary
 README, requirements, and configuration. Runtime JavaScript moved to

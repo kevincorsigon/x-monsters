@@ -115,7 +115,8 @@
             baseStats: {
                 attack: definition.attack || 0,
                 defense: definition.defense || 0,
-                cost: definition.cost || 0
+                cost: definition.cost || 0,
+                attackLimit: 1
             },
             damage: 0,
             attachments: [],

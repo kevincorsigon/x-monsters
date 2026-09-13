@@ -119,15 +119,19 @@ function updateManualAbilitiesList() {
                 const target = window.gameState.cardInstances[targetId];
                 return `<option value="${targetId}">${target.data.name}</option>`;
             }).join('');
-            const canActivate = canUse && targetIds.length > 0;
+            const needsTargets = migratedRule.maxTargets > 0;
+            const canActivate = canUse && (!needsTargets || targetIds.length >= migratedRule.minTargets);
+            const targetControl = needsTargets ? `
+                <select id="ability-target-${card.id}" ${migratedRule.maxTargets > 1 ? 'multiple' : ''} ${targetIds.length === 0 ? 'disabled' : ''} style="width: 100%; margin: 5px 0;">
+                    ${targetOptions || '<option>Nenhum alvo válido</option>'}
+                </select>
+            ` : '';
 
             htmlContent += `
                 <div style="border: 1px solid #444; border-radius: 5px; padding: 8px; margin: 5px 0; ${canActivate ? 'background: rgba(0,100,0,0.2)' : 'background: rgba(100,0,0,0.2)'}">
                     <div style="font-weight: bold; color: ${canActivate ? 'lightgreen' : 'lightcoral'}">${cardData.name}</div>
                     <div style="font-size: 10px; color: #ccc; margin: 2px 0;">${migratedRule.feedback}</div>
-                    <select id="ability-target-${card.id}" ${targetIds.length === 0 ? 'disabled' : ''} style="width: 100%; margin: 5px 0;">
-                        ${targetOptions || '<option>Nenhum alvo válido</option>'}
-                    </select>
+                    ${targetControl}
                     <button onclick="activateMigratedAbility('${card.id}')"
                             ${!canActivate ? 'disabled' : ''}
                             style="background: ${canActivate ? 'var(--primary-color)' : '#666'}; color: white; border: none; border-radius: 3px; padding: 4px 8px; font-size: 10px; cursor: ${canActivate ? 'pointer' : 'not-allowed'}; width: 100%;">
@@ -165,32 +169,40 @@ function updateManualAbilitiesList() {
 
 function activateMigratedAbility(cardId) {
     const targetSelect = document.getElementById(`ability-target-${cardId}`);
-    const targetId = targetSelect?.value;
     const rule = window.CardRules?.getActivatedRule(
         window.gameState.cardInstances[cardId]?.definitionId
     );
+    const legalTargetIds = window.CardRules?.getActivatedTargets(window.gameState, cardId) || [];
+    const selectedTargetIds = targetSelect
+        ? [...targetSelect.selectedOptions].map(option => option.value)
+        : undefined;
 
-    if (!targetId || !rule) {
+    if (!rule || (rule.maxTargets > 0 && selectedTargetIds.length < rule.minTargets)) {
         showMessage('Nenhum alvo válido para esta habilidade.', 'warning');
         return;
     }
 
-    const result = window.CardRules.activateAbility(window.gameEngine, cardId, [targetId]);
+    const result = window.CardRules.activateAbility(
+        window.gameEngine,
+        cardId,
+        selectedTargetIds
+    );
     if (result.status !== 'resolved') {
         showMessage(result.reason, 'warning');
         updateManualAbilitiesList();
         return;
     }
 
-    const target = window.gameState.cardInstances[targetId];
-    if (target && window.updateCardDisplay) {
-        window.updateCardDisplay(targetId, {
-            ...target.data,
-            attack: window.gameEngine.getEffectiveStat(targetId, 'attack'),
-            defense: window.gameEngine.getRemainingDefense(targetId)
-        });
-    }
-    window.cardAbilities?.showAbilityFeedback(targetId, rule.feedback);
+    const affectedTargetIds = rule.allEnemies ? legalTargetIds : selectedTargetIds || [];
+    affectedTargetIds.forEach(targetId => {
+        const target = window.gameState.cardInstances[targetId];
+        if (target?.zone !== 'field') {
+            document.getElementById(targetId)?.remove();
+        }
+    });
+    window.renderFieldsFromState?.();
+    ['p1', 'p2'].forEach(playerId => window.updateDiscardCount?.(playerId));
+    window.cardAbilities?.showAbilityFeedback(affectedTargetIds[0] || cardId, rule.feedback);
     updateManualAbilitiesList();
 }
 

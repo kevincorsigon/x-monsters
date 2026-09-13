@@ -1474,6 +1474,1072 @@ test('Núcleo de Energia Pura aceita dragão ou elite e aplica somente +5/+5', (
     assert.equal(engine.getEffectiveStat(dragon.instanceId, 'defense'), 10);
 });
 
+test('Paladar e Hipool aplicam bônus somente nas comparações aprovadas', () => {
+    const paladar = createCombatFixture({ attackerAttack: 10, targetDefense: 15, targetAttack: 0 });
+    paladar.attacker.definitionId = 'card_021';
+    CardRules.install(paladar.engine);
+    const paladarResult = paladar.engine.resolveCombat({
+        attackerId: paladar.attacker.instanceId,
+        targetId: paladar.target.instanceId
+    });
+    assert.equal(paladarResult.attackPower, 20);
+    assert.equal(paladarResult.damageToTarget, 20);
+
+    const hipool = createCombatFixture({
+        attackerAttack: 10,
+        attackerDefense: 30,
+        targetDefense: 20,
+        targetAttack: 0
+    });
+    hipool.attacker.definitionId = 'card_032';
+    CardRules.install(hipool.engine);
+    assert.equal(hipool.engine.resolveCombat({
+        attackerId: hipool.attacker.instanceId,
+        targetId: hipool.target.instanceId
+    }).damageToTarget, 20);
+});
+
+test('Puma e Minotauro fazem o ATK final penetrar conforme a regra', () => {
+    const puma = createCombatFixture({ attackerAttack: 10, targetDefense: 50, targetAttack: 0 });
+    puma.attacker.definitionId = 'card_022';
+    CardRules.install(puma.engine);
+    const pumaResult = puma.engine.resolveCombat({
+        attackerId: puma.attacker.instanceId,
+        targetId: puma.target.instanceId
+    });
+    assert.equal(pumaResult.penetratingDamage, 10);
+    assert.equal(puma.state.players.p2.pv, 190);
+
+    const minotaur = createCombatFixture({ attackerAttack: 12, targetDefense: 100, targetAttack: 0 });
+    minotaur.attacker.definitionId = 'card_056';
+    minotaur.attacker.modifiers.push({
+        id: 'minotaur_two_attacks', stat: 'attackLimit',
+        operation: GameEngine.MODIFIER_OPERATIONS.SET, value: 2
+    });
+    CardRules.install(minotaur.engine);
+    const first = minotaur.engine.resolveCombat({
+        attackerId: minotaur.attacker.instanceId,
+        targetId: minotaur.target.instanceId
+    });
+    const second = minotaur.engine.resolveCombat({
+        attackerId: minotaur.attacker.instanceId,
+        targetId: minotaur.target.instanceId
+    });
+    assert.equal(first.penetratingDamage, 12);
+    assert.equal(second.penetratingDamage, 0);
+});
+
+test('Gamaa, Tiranossauro e Lobo Alfa ignoram a quantidade declarada de DEF', () => {
+    const gamaa = createCombatFixture({ attackerAttack: 10, targetDefense: 25, targetAttack: 0 });
+    gamaa.attacker.definitionId = 'card_064';
+    addFieldCreature(gamaa.state, 'p1', 'card_018', 'gamaa_robot_1');
+    addFieldCreature(gamaa.state, 'p1', 'card_033', 'gamaa_robot_2');
+    CardRules.install(gamaa.engine);
+    assert.equal(gamaa.engine.resolveCombat({
+        attackerId: gamaa.attacker.instanceId,
+        targetId: gamaa.target.instanceId
+    }).penetratingDamage, 5);
+
+    const tyrannosaurus = createCombatFixture({ attackerAttack: 50, targetDefense: 55, targetAttack: 0 });
+    tyrannosaurus.attacker.definitionId = 'card_070';
+    CardRules.install(tyrannosaurus.engine);
+    assert.equal(tyrannosaurus.engine.resolveCombat({
+        attackerId: tyrannosaurus.attacker.instanceId,
+        targetId: tyrannosaurus.target.instanceId
+    }).penetratingDamage, 5);
+
+    const alpha = createCombatFixture({ attackerAttack: 57, targetDefense: 70, targetAttack: 0 });
+    alpha.attacker.definitionId = 'card_078';
+    CardRules.install(alpha.engine);
+    assert.equal(alpha.engine.resolveCombat({
+        attackerId: alpha.attacker.instanceId,
+        targetId: alpha.target.instanceId
+    }).penetratingDamage, 7);
+});
+
+test('Mexica dobra somente o primeiro ataque de cada turno', () => {
+    const { state, attacker, engine } = createCombatFixture({ attackerAttack: 10 });
+    attacker.definitionId = 'card_066';
+    attacker.modifiers.push({
+        id: 'mexica_two_attacks', stat: 'attackLimit',
+        operation: GameEngine.MODIFIER_OPERATIONS.SET, value: 2
+    });
+    CardRules.install(engine);
+    assert.equal(engine.resolveCombat({ attackerId: attacker.instanceId, isDirect: true }).directDamage, 20);
+    assert.equal(engine.resolveCombat({ attackerId: attacker.instanceId, isDirect: true }).directDamage, 10);
+    assert.equal(state.players.p2.pv, 170);
+});
+
+test('Nucles e Couraça reduzem dano físico e podem empilhar', () => {
+    const fixture = createCombatFixture({ attackerAttack: 30, targetDefense: 100, targetAttack: 0 });
+    fixture.attacker.data.cost = 8;
+    fixture.target.definitionId = 'card_074';
+    fixture.target.definitionId = 'card_018';
+    const armor = GameStateModel.createCardInstance({
+        id: 'card_103', name: 'Couraça', type: 'suporte', cost: 4, attack: 0, defense: 10
+    }, 'p2', { instanceId: 'nano_armor' });
+    GameStateModel.registerCard(fixture.state, armor, 'equipment', 'p2');
+    armor.attachedTo = fixture.target.instanceId;
+    fixture.target.attachments.push(armor.instanceId);
+    CardRules.install(fixture.engine);
+    fixture.engine.resolveAction({
+        type: 'ARMOR_TEST', actorId: 'p2', sourceId: armor.instanceId,
+        requiresControl: false,
+        effects: CardRules.createEquipmentEffects(armor, fixture.target.instanceId, fixture.state)
+    });
+    const armorResult = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+    assert.equal(armorResult.damageToTarget, 20);
+
+    const nucles = createCombatFixture({ attackerAttack: 30, targetDefense: 100, targetAttack: 0 });
+    nucles.target.definitionId = 'card_074';
+    CardRules.install(nucles.engine);
+    assert.equal(nucles.engine.resolveCombat({
+        attackerId: nucles.attacker.instanceId,
+        targetId: nucles.target.instanceId
+    }).damageToTarget, 20);
+});
+
+test('Condessa usa ATK-15 e acumula +10 ATK por abate com rollback', () => {
+    const fixture = createCombatFixture({ attackerAttack: 47, targetDefense: 30, targetAttack: 0 });
+    fixture.attacker.definitionId = 'card_076';
+    CardRules.install(fixture.engine);
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+    assert.equal(result.damageToTarget, 32);
+    assert.equal(result.targetDestroyed, true);
+    assert.equal(fixture.engine.getEffectiveStat(fixture.attacker.instanceId, 'attack'), 57);
+
+    const rollback = createCombatFixture({ attackerAttack: 47, targetDefense: 30, targetAttack: 0 });
+    rollback.attacker.definitionId = 'card_076';
+    CardRules.install(rollback.engine);
+    rollback.engine.registerEventHandler(GameEngine.EVENT_TYPES.AFTER_ATTACK, () => ({
+        kind: 'UNKNOWN_EFFECT'
+    }), -1);
+    assert.equal(rollback.engine.resolveCombat({
+        attackerId: rollback.attacker.instanceId,
+        targetId: rollback.target.instanceId
+    }).status, 'failed');
+    assert.equal(rollback.engine.getEffectiveStat(rollback.attacker.instanceId, 'attack'), 47);
+    assert.equal(rollback.target.zone, 'field');
+});
+
+test('Aladar recupera orçamento de ataque após abate', () => {
+    const fixture = createCombatFixture({ attackerAttack: 20, targetDefense: 20, targetAttack: 0 });
+    fixture.attacker.definitionId = 'card_029';
+    CardRules.install(fixture.engine);
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+
+    assert.equal(result.targetDestroyed, true);
+    assert.equal(fixture.engine.getAttackCount(fixture.attacker.instanceId), 1);
+    assert.equal(fixture.engine.getAttackLimit(fixture.attacker.instanceId), 2);
+    assert.equal(fixture.engine.canAttack(fixture.attacker.instanceId).canAttack, true);
+    fixture.engine.emit(GameEngine.EVENT_TYPES.TURN_ENDED, { playerId: 'p1', turnNumber: 1 });
+    assert.equal(fixture.engine.getAttackLimit(fixture.attacker.instanceId), 1);
+});
+
+test('Rei das Feras e Dragão de Cobre causam 10 PV após abate', () => {
+    for (const definitionId of ['card_036', 'card_052']) {
+        const fixture = createCombatFixture({ attackerAttack: 20, targetDefense: 20, targetAttack: 0 });
+        fixture.attacker.definitionId = definitionId;
+        CardRules.install(fixture.engine);
+        const result = fixture.engine.resolveCombat({
+            attackerId: fixture.attacker.instanceId,
+            targetId: fixture.target.instanceId
+        });
+        assert.equal(result.targetDestroyed, true);
+        assert.equal(fixture.state.players.p2.pv, 190);
+    }
+});
+
+test('Cacton reflete metade do dano físico arredondando para baixo', () => {
+    const fixture = createCombatFixture({
+        attackerAttack: 21,
+        attackerDefense: 50,
+        targetDefense: 100,
+        targetAttack: 0
+    });
+    fixture.target.definitionId = 'card_030';
+    CardRules.install(fixture.engine);
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.target.damage, 21);
+    assert.equal(fixture.attacker.damage, 10);
+});
+
+test('Dragão de Jade causa 10 ao atacante quando vira alvo', () => {
+    const fixture = createCombatFixture({
+        attackerAttack: 10,
+        attackerDefense: 50,
+        targetDefense: 100,
+        targetAttack: 0
+    });
+    fixture.target.definitionId = 'card_071';
+    CardRules.install(fixture.engine);
+    fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+    assert.equal(fixture.attacker.damage, 10);
+    assert.equal(fixture.target.damage, 10);
+});
+
+test('Fantom substitui morte por retorno à mão sem dano residual', () => {
+    const fixture = createCombatFixture({ attackerAttack: 15, targetDefense: 10, targetAttack: 0 });
+    fixture.target.definitionId = 'card_042';
+    CardRules.install(fixture.engine);
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+
+    assert.equal(result.status, 'resolved');
+    assert.equal(result.targetDestroyed, false);
+    assert.equal(result.penetratingDamage, 0);
+    assert.equal(fixture.target.zone, 'hand');
+    assert.equal(fixture.target.damage, 0);
+    assert.equal(fixture.state.cards.p2.hand.includes(fixture.target), true);
+});
+
+test('Lorde Sanguinário transfere até 10 PV somente uma vez por turno', () => {
+    const fixture = createCombatFixture({ attackerAttack: 20, targetDefense: 20, targetAttack: 0 });
+    fixture.attacker.definitionId = 'card_054';
+    fixture.attacker.modifiers.push({
+        id: 'lorde_two_attacks', stat: 'attackLimit',
+        operation: GameEngine.MODIFIER_OPERATIONS.SET, value: 2
+    });
+    const secondTarget = addFieldCreature(
+        fixture.state,
+        'p2',
+        'second_target',
+        'lorde_second_target',
+        { attack: 0, defense: 20 }
+    );
+    CardRules.install(fixture.engine);
+
+    fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+    assert.equal(fixture.state.players.p1.pv, 210);
+    assert.equal(fixture.state.players.p2.pv, 190);
+    fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: secondTarget.instanceId
+    });
+    assert.equal(fixture.state.players.p1.pv, 210);
+    assert.equal(fixture.state.players.p2.pv, 190);
+});
+
+function attachVengeanceAura(fixture) {
+    fixture.target.definitionId = 'card_087';
+    const aura = GameStateModel.createCardInstance({
+        id: 'card_108', name: 'Aura', type: 'suporte', cost: 5, attack: 10, defense: 5
+    }, 'p2', { instanceId: 'vengeance_aura' });
+    GameStateModel.registerCard(fixture.state, aura, 'equipment', 'p2');
+    aura.attachedTo = fixture.target.instanceId;
+    fixture.target.attachments.push(aura.instanceId);
+    return aura;
+}
+
+test('Aura de Vingança usa ATK efetivo pré-morte e respeita owner', () => {
+    const fixture = createCombatFixture({ attackerAttack: 40, targetDefense: 10, targetAttack: 30 });
+    const aura = attachVengeanceAura(fixture);
+    CardRules.install(fixture.engine);
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+
+    assert.equal(result.targetDestroyed, true);
+    assert.equal(fixture.state.players.p1.pv, 170);
+    assert.equal(aura.zone, 'discard');
+    assert.equal(fixture.state.cards.p2.discard.includes(aura), true);
+});
+
+test('rollback tardio desfaz Aura, morte, dano e descarte', () => {
+    const fixture = createCombatFixture({ attackerAttack: 40, targetDefense: 10, targetAttack: 30 });
+    const aura = attachVengeanceAura(fixture);
+    CardRules.install(fixture.engine);
+    fixture.engine.registerEventHandler(GameEngine.EVENT_TYPES.CREATURE_DESTROYED, () => ({
+        kind: 'UNKNOWN_EFFECT'
+    }), -1);
+
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+
+    assert.equal(result.status, 'failed');
+    assert.equal(fixture.state.players.p1.pv, 200);
+    assert.equal(fixture.target.zone, 'field');
+    assert.equal(aura.zone, 'equipment');
+    assert.equal(aura.attachedTo, fixture.target.instanceId);
+    assert.equal(fixture.target.attachments.includes(aura.instanceId), true);
+});
+
+function installAttackEquipment(fixture, definitionId) {
+    const equipment = GameStateModel.createCardInstance({
+        id: definitionId,
+        name: definitionId,
+        type: 'suporte',
+        cost: 1,
+        attack: 99,
+        defense: 99
+    }, 'p1', { instanceId: `${definitionId}_attack_equipment` });
+    GameStateModel.registerCard(fixture.state, equipment, 'equipment', 'p1');
+    equipment.attachedTo = fixture.attacker.instanceId;
+    fixture.attacker.attachments.push(equipment.instanceId);
+    const result = fixture.engine.resolveAction({
+        type: 'ATTACK_EQUIPMENT_TEST',
+        actorId: 'p1',
+        sourceId: equipment.instanceId,
+        effects: CardRules.createEquipmentEffects(
+            equipment,
+            fixture.attacker.instanceId,
+            fixture.state
+        )
+    });
+    assert.equal(result.status, 'resolved');
+    return equipment;
+}
+
+test('Tobias e Botas causam metade no segundo ataque', () => {
+    for (const kind of ['card_047', 'card_100']) {
+        const fixture = createCombatFixture({
+            attackerAttack: 25,
+            targetDefense: 100,
+            targetAttack: 0
+        });
+        CardRules.install(fixture.engine);
+        if (kind === 'card_047') {
+            fixture.attacker.definitionId = kind;
+            emitSummoned(fixture.engine, fixture.attacker);
+        } else {
+            installAttackEquipment(fixture, kind);
+        }
+
+        const first = fixture.engine.resolveCombat({
+            attackerId: fixture.attacker.instanceId,
+            targetId: fixture.target.instanceId
+        });
+        const second = fixture.engine.resolveCombat({
+            attackerId: fixture.attacker.instanceId,
+            targetId: fixture.target.instanceId
+        });
+        assert.equal(first.damageToTarget, 25);
+        assert.equal(second.damageToTarget, 12);
+        assert.equal(fixture.engine.getAttackCount(fixture.attacker.instanceId), 2);
+    }
+});
+
+test('Imperial X realiza dois ataques integrais', () => {
+    const fixture = createCombatFixture({ attackerAttack: 25, targetDefense: 100, targetAttack: 0 });
+    fixture.attacker.definitionId = 'card_084';
+    CardRules.install(fixture.engine);
+    emitSummoned(fixture.engine, fixture.attacker);
+
+    assert.equal(fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    }).damageToTarget, 25);
+    assert.equal(fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    }).damageToTarget, 25);
+    assert.equal(fixture.engine.canAttack(fixture.attacker.instanceId).canAttack, false);
+});
+
+test('Machado exige alvo diferente e reduz o segundo ataque pela metade', () => {
+    const fixture = createCombatFixture({ attackerAttack: 25, targetDefense: 100, targetAttack: 0 });
+    const secondTarget = addFieldCreature(
+        fixture.state,
+        'p2',
+        'second',
+        'machado_second_target',
+        { attack: 0, defense: 100 }
+    );
+    CardRules.install(fixture.engine);
+    installAttackEquipment(fixture, 'card_096');
+    const targetValidator = ({ state, attacker, target }) =>
+        CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId);
+
+    assert.equal(fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId,
+        targetValidator
+    }).damageToTarget, 25);
+    assert.equal(fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId,
+        targetValidator
+    }).status, 'rejected');
+    assert.equal(fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: secondTarget.instanceId,
+        targetValidator
+    }).damageToTarget, 12);
+    assert.deepEqual(fixture.engine.getAttackTargets(fixture.attacker.instanceId), [
+        fixture.target.instanceId,
+        secondTarget.instanceId
+    ]);
+});
+
+test('Apelino permite vários ataques e volta ao limite base ao sair', () => {
+    const fixture = createCombatFixture({ attackerAttack: 10, targetDefense: 100, targetAttack: 0 });
+    CardRules.install(fixture.engine);
+    const equipment = installAttackEquipment(fixture, 'card_089');
+    GameStateModel.moveCard(fixture.state, fixture.target.instanceId, 'discard', 'p2');
+
+    for (let count = 0; count < 3; count++) {
+        assert.equal(fixture.engine.resolveCombat({
+            attackerId: fixture.attacker.instanceId,
+            isDirect: true
+        }).status, 'resolved');
+    }
+    assert.equal(fixture.engine.getAttackCount(fixture.attacker.instanceId), 3);
+
+    fixture.engine.resolveAction({
+        type: 'REMOVE_APELINO', actorId: 'p1', sourceId: equipment.instanceId,
+        effects: [{
+            kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+            instanceId: equipment.instanceId,
+            destinationZone: 'discard',
+            destinationPlayerId: 'p1'
+        }]
+    });
+    assert.equal(fixture.engine.getAttackLimit(fixture.attacker.instanceId), 1);
+    assert.equal(fixture.engine.canAttack(fixture.attacker.instanceId).canAttack, false);
+});
+
+test('Beluga ataca diretamente pela metade mesmo com defensor', () => {
+    const fixture = createCombatFixture({ attackerAttack: 33, targetDefense: 100, targetAttack: 0 });
+    fixture.attacker.definitionId = 'card_063';
+    CardRules.install(fixture.engine);
+
+    assert.equal(CardRules.canDirectAttack(fixture.state, fixture.attacker.instanceId), true);
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        isDirect: true,
+        allowDirectAttack: true
+    });
+    assert.equal(result.directDamage, 16);
+    assert.equal(fixture.state.players.p2.pv, 184);
+    assert.equal(fixture.engine.canAttack(fixture.attacker.instanceId).canAttack, false);
+});
+
+test('fontes de dois ataques não acumulam acima de dois e Apelino prevalece', () => {
+    const fixture = createCombatFixture();
+    fixture.attacker.definitionId = 'card_047';
+    CardRules.install(fixture.engine);
+    emitSummoned(fixture.engine, fixture.attacker);
+    installAttackEquipment(fixture, 'card_100');
+    installAttackEquipment(fixture, 'card_096');
+    assert.equal(fixture.engine.getAttackLimit(fixture.attacker.instanceId), 2);
+
+    installAttackEquipment(fixture, 'card_089');
+    assert.equal(
+        fixture.engine.getAttackLimit(fixture.attacker.instanceId),
+        Number.MAX_SAFE_INTEGER
+    );
+});
+
+test('Beluga usa bypass direto uma vez e mantém ataque adicional contra criatura', () => {
+    const fixture = createCombatFixture({ attackerAttack: 33, targetDefense: 100, targetAttack: 0 });
+    fixture.attacker.definitionId = 'card_063';
+    CardRules.install(fixture.engine);
+    installAttackEquipment(fixture, 'card_100');
+
+    assert.equal(CardRules.canDirectAttack(fixture.state, fixture.attacker.instanceId), true);
+    const direct = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        isDirect: true,
+        allowDirectAttack: CardRules.canDirectAttack(fixture.state, fixture.attacker.instanceId)
+    });
+    assert.equal(direct.directDamage, 16);
+    assert.equal(CardRules.canDirectAttack(fixture.state, fixture.attacker.instanceId), false);
+    const secondDirect = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        isDirect: true,
+        allowDirectAttack: CardRules.canDirectAttack(fixture.state, fixture.attacker.instanceId)
+    });
+    assert.equal(secondDirect.status, 'rejected');
+
+    const creatureAttack = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+    assert.equal(creatureAttack.status, 'resolved');
+    assert.equal(creatureAttack.damageToTarget, 16);
+    assert.equal(fixture.engine.getAttackCount(fixture.attacker.instanceId), 2);
+});
+
+function createAreaAbilityFixture(definitionId) {
+    const state = GameStateModel.createInitialGameState();
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+    const source = addFieldCreature(state, 'p1', definitionId, `${definitionId}_area_source`, {
+        attack: 30,
+        defense: 30
+    });
+    const ally = addFieldCreature(state, 'p1', 'ally', `${definitionId}_area_ally`, {
+        defense: 20
+    });
+    const enemy1 = addFieldCreature(state, 'p2', 'enemy1', `${definitionId}_area_enemy_1`, {
+        defense: 20
+    });
+    const enemy2 = addFieldCreature(state, 'p2', 'enemy2', `${definitionId}_area_enemy_2`, {
+        defense: 20
+    });
+    state.currentPhase = 'combat';
+    return { state, engine, source, ally, enemy1, enemy2 };
+}
+
+test('Dino Elétrico causa 10 a todos os inimigos e não atinge aliados', () => {
+    const fixture = createAreaAbilityFixture('card_051');
+    const result = CardRules.activateAbility(fixture.engine, fixture.source.instanceId);
+
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.ally.damage, 0);
+    assert.equal(fixture.enemy1.damage, 10);
+    assert.equal(fixture.enemy2.damage, 10);
+    assert.equal(CardRules.activateAbility(fixture.engine, fixture.source.instanceId).status, 'rejected');
+});
+
+test('Quimera aceita de um a três alvos distintos e rejeita seleção inválida', () => {
+    const fixture = createAreaAbilityFixture('card_057');
+    const enemy3 = addFieldCreature(fixture.state, 'p2', 'enemy3', 'quimera_enemy_3', {
+        defense: 20
+    });
+    const enemy4 = addFieldCreature(fixture.state, 'p2', 'enemy4', 'quimera_enemy_4', {
+        defense: 20
+    });
+    const pending = CardRules.activateAbility(fixture.engine, fixture.source.instanceId);
+    const rule = CardRules.getActivatedRule(fixture.source.definitionId);
+
+    assert.equal(pending.status, 'pending_choice');
+    assert.equal(fixture.engine.resolveChoice(pending.choiceId, []).status, 'rejected');
+    assert.equal(fixture.engine.resolveChoice(pending.choiceId, [
+        fixture.enemy1.instanceId,
+        fixture.enemy1.instanceId
+    ]).status, 'rejected');
+    assert.equal(fixture.engine.resolveChoice(pending.choiceId, [
+        fixture.enemy1.instanceId,
+        fixture.enemy2.instanceId,
+        enemy3.instanceId,
+        enemy4.instanceId
+    ]).status, 'rejected');
+    assert.equal(
+        fixture.engine.getUsageCount(fixture.source.instanceId, rule.abilityId, rule.limit),
+        0
+    );
+
+    assert.equal(fixture.engine.resolveChoice(pending.choiceId, [
+        fixture.enemy1.instanceId,
+        fixture.enemy2.instanceId,
+        enemy3.instanceId
+    ]).status, 'resolved');
+    assert.equal(fixture.enemy1.damage, 5);
+    assert.equal(fixture.enemy2.damage, 5);
+    assert.equal(enemy3.damage, 5);
+    assert.equal(enemy4.damage, 0);
+});
+
+test('Quimera recupera após quatro alvos inválidos e aceita três na tentativa seguinte', () => {
+    const fixture = createAreaAbilityFixture('card_057');
+    const enemy3 = addFieldCreature(fixture.state, 'p2', 'enemy3', 'quimera_retry_3', {
+        defense: 20
+    });
+    const enemy4 = addFieldCreature(fixture.state, 'p2', 'enemy4', 'quimera_retry_4', {
+        defense: 20
+    });
+    const invalid = CardRules.activateAbility(fixture.engine, fixture.source.instanceId, [
+        fixture.enemy1.instanceId,
+        fixture.enemy2.instanceId,
+        enemy3.instanceId,
+        enemy4.instanceId
+    ]);
+
+    assert.equal(invalid.status, 'rejected');
+    assert.equal(fixture.state.pendingChoice, null);
+    assert.deepEqual([
+        fixture.enemy1.damage,
+        fixture.enemy2.damage,
+        enemy3.damage,
+        enemy4.damage
+    ], [0, 0, 0, 0]);
+
+    const valid = CardRules.activateAbility(fixture.engine, fixture.source.instanceId, [
+        fixture.enemy1.instanceId,
+        fixture.enemy2.instanceId,
+        enemy3.instanceId
+    ]);
+    const rule = CardRules.getActivatedRule(fixture.source.definitionId);
+    assert.equal(valid.status, 'resolved');
+    assert.equal(fixture.state.pendingChoice, null);
+    assert.deepEqual([
+        fixture.enemy1.damage,
+        fixture.enemy2.damage,
+        enemy3.damage,
+        enemy4.damage
+    ], [5, 5, 5, 0]);
+    assert.equal(
+        fixture.engine.getUsageCount(fixture.source.instanceId, rule.abilityId, rule.limit),
+        1
+    );
+});
+
+test('dano em lote move letais e attachments aos descartes dos owners', () => {
+    const fixture = createAreaAbilityFixture('card_051');
+    fixture.enemy1.baseStats.defense = 10;
+    fixture.enemy1.data.defense = 10;
+    const equipment = GameStateModel.createCardInstance({
+        id: 'equipment', name: 'Equipamento', type: 'suporte', cost: 1, attack: 0, defense: 0
+    }, 'p2', { instanceId: 'area_equipment' });
+    GameStateModel.registerCard(fixture.state, equipment, 'equipment', 'p2');
+    equipment.attachedTo = fixture.enemy1.instanceId;
+    fixture.enemy1.attachments.push(equipment.instanceId);
+
+    assert.equal(CardRules.activateAbility(fixture.engine, fixture.source.instanceId).status, 'resolved');
+    assert.equal(fixture.enemy1.zone, 'discard');
+    assert.equal(equipment.zone, 'discard');
+    assert.equal(equipment.attachedTo, null);
+    assert.equal(fixture.enemy2.zone, 'field');
+    assert.equal(fixture.enemy2.damage, 10);
+});
+
+test('falha tardia reverte todo o dano em lote, mortes, attachments e uso', () => {
+    const fixture = createAreaAbilityFixture('card_051');
+    fixture.enemy1.baseStats.defense = 10;
+    fixture.enemy1.data.defense = 10;
+    const equipment = GameStateModel.createCardInstance({
+        id: 'equipment', name: 'Equipamento', type: 'suporte', cost: 1, attack: 0, defense: 0
+    }, 'p2', { instanceId: 'area_rollback_equipment' });
+    GameStateModel.registerCard(fixture.state, equipment, 'equipment', 'p2');
+    equipment.attachedTo = fixture.enemy1.instanceId;
+    fixture.enemy1.attachments.push(equipment.instanceId);
+    fixture.engine.registerEventHandler(GameEngine.EVENT_TYPES.CREATURE_DESTROYED, () => ({
+        kind: 'UNKNOWN_EFFECT'
+    }), -1);
+
+    const result = CardRules.activateAbility(fixture.engine, fixture.source.instanceId);
+    const rule = CardRules.getActivatedRule(fixture.source.definitionId);
+    assert.equal(result.status, 'failed');
+    assert.equal(fixture.enemy1.zone, 'field');
+    assert.equal(fixture.enemy1.damage, 0);
+    assert.equal(fixture.enemy2.damage, 0);
+    assert.equal(equipment.zone, 'equipment');
+    assert.equal(equipment.attachedTo, fixture.enemy1.instanceId);
+    assert.equal(
+        fixture.engine.getUsageCount(fixture.source.instanceId, rule.abilityId, rule.limit),
+        0
+    );
+    assert.equal(fixture.state.eventLog.length, 0);
+});
+
+function applyAbilityEffect(engine, source, effect) {
+    return engine.resolveAction({
+        type: 'ABILITY_EFFECT_TEST',
+        actorId: source.controllerId,
+        sourceId: source.instanceId,
+        effects: [{
+            ...effect,
+            provenance: {
+                kind: 'ability',
+                sourceId: source.instanceId,
+                abilityId: 'test_ability'
+            }
+        }]
+    });
+}
+
+test('Turtol bloqueia habilidade de criatura custo menor que 4, mas não combate', () => {
+    const fixture = createCombatFixture({ attackerAttack: 10, targetDefense: 100, targetAttack: 0 });
+    fixture.target.definitionId = 'card_048';
+    fixture.attacker.data.cost = 3;
+    CardRules.install(fixture.engine);
+    const blocked = applyAbilityEffect(fixture.engine, fixture.attacker, {
+        kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+        targetId: fixture.target.instanceId,
+        modifier: {
+            id: 'low_cost_debuff', sourceId: fixture.attacker.instanceId,
+            stat: 'attack', operation: GameEngine.MODIFIER_OPERATIONS.ADD, value: -5
+        }
+    });
+    assert.equal(blocked.status, 'resolved');
+    assert.equal(fixture.target.modifiers.length, 0);
+
+    const combat = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+    assert.equal(combat.damageToTarget, 10);
+    assert.equal(fixture.target.damage, 10);
+
+    const highCostSource = addFieldCreature(
+        fixture.state, 'p1', 'high_source', 'high_cost_source', { cost: 4 }
+    );
+    assert.equal(applyAbilityEffect(fixture.engine, highCostSource, {
+        kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+        targetId: fixture.target.instanceId,
+        modifier: {
+            id: 'cost_four_debuff', sourceId: highCostSource.instanceId,
+            stat: 'attack', operation: GameEngine.MODIFIER_OPERATIONS.ADD, value: -5
+        }
+    }).status, 'resolved');
+    assert.equal(fixture.target.modifiers.length, 1);
+});
+
+test('Iron Dragon bloqueia habilidades inimigas e aceita habilidade aliada e combate', () => {
+    const fixture = createCombatFixture({ attackerAttack: 10, targetDefense: 100, targetAttack: 0 });
+    fixture.target.definitionId = 'card_065';
+    CardRules.install(fixture.engine);
+    applyAbilityEffect(fixture.engine, fixture.attacker, {
+        kind: GameEngine.EFFECT_KINDS.APPLY_CARD_DAMAGE,
+        targetId: fixture.target.instanceId,
+        amount: 10
+    });
+    assert.equal(fixture.target.damage, 0);
+
+    const allySource = addFieldCreature(fixture.state, 'p2', 'ally_source', 'iron_ally_source');
+    applyAbilityEffect(fixture.engine, allySource, {
+        kind: GameEngine.EFFECT_KINDS.APPLY_CARD_DAMAGE,
+        targetId: fixture.target.instanceId,
+        amount: 10
+    });
+    assert.equal(fixture.target.damage, 10);
+
+    fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+    assert.equal(fixture.target.damage, 20);
+});
+
+test('Golem bloqueia apenas dano de habilidade de criatura inimiga', () => {
+    const fixture = createCombatFixture({ attackerAttack: 10, targetDefense: 100, targetAttack: 10 });
+    fixture.target.definitionId = 'card_073';
+    CardRules.install(fixture.engine);
+    applyAbilityEffect(fixture.engine, fixture.attacker, {
+        kind: GameEngine.EFFECT_KINDS.APPLY_CARD_DAMAGE,
+        targetId: fixture.target.instanceId,
+        amount: 10
+    });
+    assert.equal(fixture.target.damage, 0);
+
+    applyAbilityEffect(fixture.engine, fixture.attacker, {
+        kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+        targetId: fixture.target.instanceId,
+        modifier: {
+            id: 'golem_debuff', sourceId: fixture.attacker.instanceId,
+            stat: 'attack', operation: GameEngine.MODIFIER_OPERATIONS.ADD, value: -5
+        }
+    });
+    assert.equal(fixture.engine.getEffectiveStat(fixture.target.instanceId, 'attack'), 5);
+
+    fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+    assert.equal(fixture.target.damage, 10);
+});
+
+function createSolarBarrierFixture(sourceAttack = 30) {
+    const state = GameStateModel.createInitialGameState();
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+    const sentinel = addFieldCreature(state, 'p2', 'card_086', 'solar_sentinel', {
+        attack: 59,
+        defense: 59
+    });
+    const source = addFieldCreature(state, 'p1', 'solar_source', 'solar_attacker', {
+        attack: sourceAttack,
+        defense: 100
+    });
+    state.currentPhase = 'combat';
+    engine.emit(GameEngine.EVENT_TYPES.CREATURE_SUMMONED, {
+        cardId: sentinel.instanceId,
+        playerId: 'p2',
+        definitionId: sentinel.definitionId
+    });
+    return { state, engine, sentinel, source };
+}
+
+test('Sentinela bloqueia dano de fonte ATK até 30 contra si e seu controlador', () => {
+    const fixture = createSolarBarrierFixture(30);
+    const physical = fixture.engine.resolveCombat({
+        attackerId: fixture.source.instanceId,
+        targetId: fixture.sentinel.instanceId
+    });
+    assert.equal(physical.damageToTarget, 0);
+    assert.equal(fixture.sentinel.damage, 0);
+    assert.equal(fixture.engine.getAttackCount(fixture.source.instanceId), 1);
+
+    fixture.state.turn++;
+    const secondSource = addFieldCreature(
+        fixture.state, 'p1', 'solar_source_2', 'solar_attacker_2', { attack: 30 }
+    );
+    const direct = fixture.engine.resolveCombat({
+        attackerId: secondSource.instanceId,
+        defenderPlayerId: 'p2',
+        isDirect: true,
+        allowDirectAttack: true
+    });
+    assert.equal(direct.directDamage, 0);
+    assert.equal(fixture.state.players.p2.pv, 200);
+});
+
+test('Sentinela permite ATK acima de 30 e expira no fim do turno adversário', () => {
+    const fixture = createSolarBarrierFixture(31);
+    assert.equal(fixture.engine.resolveCombat({
+        attackerId: fixture.source.instanceId,
+        targetId: fixture.sentinel.instanceId
+    }).damageToTarget, 31);
+
+    fixture.engine.emit(GameEngine.EVENT_TYPES.TURN_ENDED, {
+        playerId: 'p1',
+        turnNumber: fixture.state.turn
+    });
+    assert.equal(fixture.state.effects.some(effect => effect.effectType === 'SOLAR_BARRIER'), false);
+});
+
+test('Dino aplica dano por alvo conforme Turtol, Iron, Golem e Sentinela', () => {
+    const fixture = createAreaAbilityFixture('card_051');
+    fixture.source.data.attack = 35;
+    fixture.source.baseStats.attack = 35;
+    fixture.source.data.cost = 6;
+    fixture.source.baseStats.cost = 6;
+    fixture.enemy1.definitionId = 'card_048';
+    fixture.enemy2.definitionId = 'card_065';
+    const golem = addFieldCreature(fixture.state, 'p2', 'card_073', 'mixed_golem', {
+        defense: 50
+    });
+    const sentinel = addFieldCreature(fixture.state, 'p2', 'card_086', 'mixed_sentinel', {
+        attack: 59,
+        defense: 59
+    });
+    fixture.engine.emit(GameEngine.EVENT_TYPES.CREATURE_SUMMONED, {
+        cardId: sentinel.instanceId,
+        playerId: 'p2',
+        definitionId: sentinel.definitionId
+    });
+
+    assert.equal(CardRules.activateAbility(fixture.engine, fixture.source.instanceId).status, 'resolved');
+    assert.equal(fixture.enemy1.damage, 10);
+    assert.equal(fixture.enemy2.damage, 0);
+    assert.equal(golem.damage, 0);
+    assert.equal(sentinel.damage, 10);
+    const preventedEvents = fixture.state.eventLog
+        .filter(event => event.type === GameEngine.EVENT_TYPES.EFFECT_PREVENTED);
+    assert.equal(preventedEvents.length, 2);
+});
+
+test('proveniência forjada não atravessa Sentinela Solar', () => {
+    const fixture = createSolarBarrierFixture(30);
+    const result = fixture.engine.resolveAction({
+        type: 'FORGED_SENTINEL_DAMAGE',
+        actorId: 'p1',
+        sourceId: fixture.source.instanceId,
+        effects: [{
+            kind: GameEngine.EFFECT_KINDS.APPLY_CARD_DAMAGE,
+            targetId: fixture.sentinel.instanceId,
+            amount: 10,
+            provenance: {
+                kind: 'combat',
+                sourceId: fixture.sentinel.instanceId,
+                sourceAttack: 99
+            }
+        }]
+    });
+
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.sentinel.damage, 0);
+    const prevented = fixture.state.eventLog.find(event =>
+        event.type === GameEngine.EVENT_TYPES.EFFECT_PREVENTED
+    );
+    assert.equal(prevented.payload.provenance.kind, 'ability');
+    assert.equal(prevented.payload.provenance.sourceId, fixture.source.instanceId);
+    assert.equal(prevented.payload.provenance.sourceAttack, 30);
+});
+
+test('kind e sourceId forjados não atravessam Turtol', () => {
+    const fixture = createCombatFixture();
+    fixture.target.definitionId = 'card_048';
+    fixture.attacker.data.cost = 3;
+    const highCost = addFieldCreature(fixture.state, 'p1', 'high', 'forged_high', { cost: 12 });
+    CardRules.install(fixture.engine);
+    const result = fixture.engine.resolveAction({
+        type: 'FORGED_TURTOL_EFFECT',
+        actorId: 'p1',
+        sourceId: fixture.attacker.instanceId,
+        effects: [{
+            kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+            targetId: fixture.target.instanceId,
+            modifier: {
+                id: 'forged_turtol_debuff',
+                sourceId: highCost.instanceId,
+                stat: 'attack',
+                operation: GameEngine.MODIFIER_OPERATIONS.ADD,
+                value: -5
+            },
+            provenance: { kind: 'combat', sourceId: highCost.instanceId }
+        }]
+    });
+
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.target.modifiers.length, 0);
+});
+
+test('controller forjado não atravessa Iron Dragon', () => {
+    const fixture = createCombatFixture();
+    fixture.target.definitionId = 'card_065';
+    CardRules.install(fixture.engine);
+    const result = fixture.engine.resolveAction({
+        type: 'FORGED_IRON_EFFECT',
+        actorId: 'p1',
+        sourceId: fixture.attacker.instanceId,
+        effects: [{
+            kind: GameEngine.EFFECT_KINDS.APPLY_CARD_DAMAGE,
+            targetId: fixture.target.instanceId,
+            amount: 10,
+            provenance: {
+                kind: 'ability',
+                sourceId: fixture.attacker.instanceId,
+                sourceControllerId: 'p2'
+            }
+        }]
+    });
+
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.target.damage, 0);
+});
+
+function attachTraitEquipment(fixture, definitionId, ownerId = 'p1') {
+    const equipment = GameStateModel.createCardInstance({
+        id: definitionId,
+        name: definitionId,
+        type: 'suporte',
+        cost: 2,
+        attack: 99,
+        defense: 99
+    }, ownerId, { instanceId: `${definitionId}_trait_equipment` });
+    GameStateModel.registerCard(fixture.state, equipment, 'equipment', ownerId);
+    equipment.attachedTo = fixture.attacker.instanceId;
+    fixture.attacker.attachments.push(equipment.instanceId);
+    return equipment;
+}
+
+test('Manto Solar causa 15 somente a atacante Vampiro ou Lobisomem', () => {
+    const vampire = createCombatFixture({ attackerAttack: 20, attackerDefense: 50, targetDefense: 100 });
+    vampire.attacker.definitionId = 'card_076';
+    const mantle = GameStateModel.createCardInstance({
+        id: 'card_095', name: 'Manto', type: 'suporte', cost: 2, attack: 0, defense: 8
+    }, 'p2', { instanceId: 'solar_mantle' });
+    GameStateModel.registerCard(vampire.state, mantle, 'equipment', 'p2');
+    mantle.attachedTo = vampire.target.instanceId;
+    vampire.target.attachments.push(mantle.instanceId);
+    CardRules.install(vampire.engine);
+    vampire.engine.resolveCombat({
+        attackerId: vampire.attacker.instanceId,
+        targetId: vampire.target.instanceId
+    });
+    assert.equal(vampire.attacker.damage, 23);
+
+    const normal = createCombatFixture({ attackerAttack: 20, attackerDefense: 50, targetDefense: 100 });
+    const normalMantle = GameStateModel.createCardInstance(mantle.data, 'p2', {
+        instanceId: 'normal_solar_mantle'
+    });
+    GameStateModel.registerCard(normal.state, normalMantle, 'equipment', 'p2');
+    normalMantle.attachedTo = normal.target.instanceId;
+    normal.target.attachments.push(normalMantle.instanceId);
+    CardRules.install(normal.engine);
+    normal.engine.resolveCombat({
+        attackerId: normal.attacker.instanceId,
+        targetId: normal.target.instanceId
+    });
+    assert.equal(normal.attacker.damage, normal.target.data.attack);
+});
+
+test('dano de suporte atravessa Golem e é bloqueado por Iron inimigo', () => {
+    for (const [definitionId, expectedDamage] of [['card_073', 15], ['card_065', 0]]) {
+        const fixture = createCombatFixture();
+        fixture.target.definitionId = definitionId;
+        const support = GameStateModel.createCardInstance({
+            id: 'card_095', name: 'Manto', type: 'suporte', cost: 2, attack: 0, defense: 0
+        }, 'p1', { instanceId: `support_source_${definitionId}` });
+        GameStateModel.registerCard(fixture.state, support, 'equipment', 'p1');
+        CardRules.install(fixture.engine);
+        applyAbilityEffect(fixture.engine, support, {
+            kind: GameEngine.EFFECT_KINDS.APPLY_CARD_DAMAGE,
+            targetId: fixture.target.instanceId,
+            amount: 15
+        });
+        assert.equal(fixture.target.damage, expectedDamage);
+    }
+});
+
+test('Estaca concede +10 apenas em host elegível contra Vampiro/Lobisomem', () => {
+    const fixture = createCombatFixture({ attackerAttack: 20, targetDefense: 100, targetAttack: 0 });
+    fixture.attacker.definitionId = 'card_056';
+    fixture.target.definitionId = 'card_076';
+    const stake = attachTraitEquipment(fixture, 'card_102');
+    assert.equal(CardRules.validateEquipmentTarget(stake, fixture.attacker).valid, true);
+    CardRules.install(fixture.engine);
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+    assert.equal(result.attackPower, 30);
+    assert.equal(result.damageToTarget, 30);
+
+    fixture.engine.resolveAction({
+        type: 'REMOVE_STAKE', actorId: 'p1', sourceId: stake.instanceId,
+        effects: [{
+            kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+            instanceId: stake.instanceId,
+            destinationZone: 'discard',
+            destinationPlayerId: 'p1'
+        }]
+    });
+    fixture.state.turn++;
+    assert.equal(fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    }).damageToTarget, 20);
+});
+
+test('Manoplas adiciona 15 dano somente contra fogo sem alterar ATK', () => {
+    const fire = createCombatFixture({ attackerAttack: 20, targetDefense: 100, targetAttack: 0 });
+    fire.target.definitionId = 'card_057';
+    attachTraitEquipment(fire, 'card_105');
+    CardRules.install(fire.engine);
+    const fireResult = fire.engine.resolveCombat({
+        attackerId: fire.attacker.instanceId,
+        targetId: fire.target.instanceId
+    });
+    assert.equal(fireResult.attackPower, 20);
+    assert.equal(fireResult.damageToTarget, 35);
+
+    const normal = createCombatFixture({ attackerAttack: 20, targetDefense: 100, targetAttack: 0 });
+    attachTraitEquipment(normal, 'card_105');
+    CardRules.install(normal.engine);
+    assert.equal(normal.engine.resolveCombat({
+        attackerId: normal.attacker.instanceId,
+        targetId: normal.target.instanceId
+    }).damageToTarget, 20);
+});
+
 let failures = 0;
 
 tests.forEach(({ name, callback }) => {

@@ -30,6 +30,7 @@
         CREATURE_DESTROYED: 'CREATURE_DESTROYED',
         CREATURE_DEFEATED: 'CREATURE_DEFEATED',
         AFTER_ATTACK: 'AFTER_ATTACK',
+        EFFECT_PREVENTED: 'EFFECT_PREVENTED',
         CARD_MOVED: 'CARD_MOVED',
         STATE_CHANGED: 'STATE_CHANGED',
         SOURCE_LEFT_FIELD: 'SOURCE_LEFT_FIELD'
@@ -45,8 +46,10 @@
         SET_TURN_STATE: 'SET_TURN_STATE',
         ATTACH_CARD: 'ATTACH_CARD',
         APPLY_CARD_DAMAGE: 'APPLY_CARD_DAMAGE',
+        APPLY_DAMAGE_BATCH: 'APPLY_DAMAGE_BATCH',
         MODIFY_COMBAT: 'MODIFY_COMBAT',
         RECORD_ATTACK: 'RECORD_ATTACK',
+        RECORD_ABILITY_USE: 'RECORD_ABILITY_USE',
         EMIT_EVENT: 'EMIT_EVENT'
     });
 
@@ -77,6 +80,7 @@
         }
 
         const handlers = new Map();
+        const effectInterceptors = [];
         const maxEventsPerResolution = options.maxEventsPerResolution || 100;
         let handlerSequence = 0;
         let actionSequence = 0;
@@ -179,6 +183,78 @@
                 const index = eventHandlers.indexOf(registration);
                 if (index !== -1) eventHandlers.splice(index, 1);
             };
+        }
+
+        function registerEffectInterceptor(interceptor, priority = 0) {
+            if (typeof interceptor !== 'function') {
+                throw new Error('Interceptor de efeito inválido');
+            }
+            const registration = {
+                interceptor,
+                priority,
+                order: handlerSequence++
+            };
+            effectInterceptors.push(registration);
+
+            return function unregister() {
+                const index = effectInterceptors.indexOf(registration);
+                if (index !== -1) effectInterceptors.splice(index, 1);
+            };
+        }
+
+        function resolveProvenance(effect, trusted = {}) {
+            const declared = effect.provenance || {};
+            const declaredSourceId = declared.sourceId || effect.sourceId ||
+                effect.modifier?.sourceId || effect.effect?.sourceId || null;
+            const sourceId = trusted.sourceId ||
+                (trusted.allowEffectSource ? declaredSourceId : null);
+            const source = sourceId ? getCard(sourceId) : null;
+            return Object.freeze({
+                kind: trusted.kind || (source ? 'ability' : 'system'),
+                sourceId,
+                abilityId: trusted.abilityId ||
+                    (trusted.allowEffectSource ? declared.abilityId || effect.abilityId : null) ||
+                    null,
+                sourceDefinitionId: source?.definitionId || null,
+                sourceControllerId: source?.controllerId || null,
+                sourceType: source?.data.type || null,
+                sourceCost: source?.data.cost ?? null,
+                sourceAttack: trusted.sourceAttack ??
+                    (source ? getEffectiveStat(source.instanceId, 'attack') : null)
+            });
+        }
+
+        function getEffectTarget(effect) {
+            const targetId = effect.targetId ||
+                (effect.kind === EFFECT_KINDS.MOVE_CARD ? effect.instanceId : null);
+            return {
+                targetId,
+                target: targetId ? getCard(targetId) : null,
+                playerId: effect.playerId || null
+            };
+        }
+
+        function checkEffectPrevention(effect, trustedProvenance) {
+            const provenance = resolveProvenance(effect, trustedProvenance);
+            const targetInfo = getEffectTarget(effect);
+            const context = Object.freeze({
+                state,
+                effect,
+                provenance,
+                ...targetInfo
+            });
+            const ordered = [...effectInterceptors].sort((left, right) => {
+                if (left.priority !== right.priority) return right.priority - left.priority;
+                return left.order - right.order;
+            });
+
+            for (const registration of ordered) {
+                const result = registration.interceptor(context);
+                if (result?.prevented) {
+                    return { ...result, provenance, ...targetInfo };
+                }
+            }
+            return { prevented: false, provenance, ...targetInfo };
         }
 
         function getOrderedHandlers(type) {
@@ -295,6 +371,16 @@
             if (effect.kind === EFFECT_KINDS.APPLY_CARD_DAMAGE && !getCard(effect.targetId)) {
                 return { valid: false, reason: 'Alvo de dano não encontrado' };
             }
+            if (effect.kind === EFFECT_KINDS.APPLY_DAMAGE_BATCH) {
+                if (
+                    !Array.isArray(effect.targetIds) ||
+                    new Set(effect.targetIds).size !== effect.targetIds.length ||
+                    effect.targetIds.some(targetId => !getCard(targetId)) ||
+                    effect.amount < 0
+                ) {
+                    return { valid: false, reason: 'Lote de dano inválido' };
+                }
+            }
 
             if (effect.kind === EFFECT_KINDS.MODIFY_COMBAT) {
                 const allowedFields = [
@@ -315,6 +401,12 @@
 
             if (effect.kind === EFFECT_KINDS.RECORD_ATTACK && !getCard(effect.attackerId)) {
                 return { valid: false, reason: 'Atacante não encontrado' };
+            }
+            if (
+                effect.kind === EFFECT_KINDS.RECORD_ABILITY_USE &&
+                (!getCard(effect.sourceId) || !effect.abilityId || !effect.limit)
+            ) {
+                return { valid: false, reason: 'Registro de habilidade inválido' };
             }
 
             if (effect.kind === EFFECT_KINDS.EMIT_EVENT && !effect.type) {
@@ -378,8 +470,26 @@
             });
         }
 
-        function applyEffect(effect, transaction, causeId) {
+        function applyEffect(effect, transaction, causeId, trustedProvenance = {}) {
             if (!effect || !effect.kind) throw new Error('Descritor de efeito inválido');
+            const prevention = checkEffectPrevention(effect, trustedProvenance);
+            if (prevention.prevented) {
+                enqueueEvent(EVENT_TYPES.EFFECT_PREVENTED, {
+                    targetId: prevention.targetId,
+                    playerId: prevention.playerId,
+                    effectKind: effect.kind,
+                    attemptedAmount: effect.amount ?? null,
+                    preventionId: prevention.preventionId || null,
+                    provenance: prevention.provenance
+                }, causeId);
+                return {
+                    applied: false,
+                    prevented: true,
+                    attemptedAmount: effect.amount ?? null,
+                    appliedAmount: 0,
+                    provenance: prevention.provenance
+                };
+            }
 
             switch (effect.kind) {
                 case EFFECT_KINDS.CHANGE_PLAYER_STAT: {
@@ -404,7 +514,12 @@
                             { energyCap: Number.POSITIVE_INFINITY }
                         );
                     });
-                    break;
+                    return {
+                        applied: true,
+                        attemptedAmount: effect.amount ?? null,
+                        appliedAmount: effect.amount ?? null,
+                        provenance: prevention.provenance
+                    };
                 }
 
                 case EFFECT_KINDS.MOVE_CARD: {
@@ -444,7 +559,7 @@
                             to: effect.destinationZone
                         }, causeId);
                     }
-                    break;
+                    return { applied: true, provenance: prevention.provenance };
                 }
 
                 case EFFECT_KINDS.ADD_MODIFIER: {
@@ -555,6 +670,116 @@
                     transaction.record(() => {
                         target.damage = previousDamage;
                     });
+                    return {
+                        applied: true,
+                        attemptedAmount: effect.amount,
+                        appliedAmount: effect.amount,
+                        provenance: prevention.provenance
+                    };
+                }
+
+                case EFFECT_KINDS.APPLY_DAMAGE_BATCH: {
+                    const source = getCard(effect.sourceId);
+                    if (!source) throw new Error(`Fonte de dano não encontrada: ${effect.sourceId}`);
+                    const targets = effect.targetIds.map(targetId => getCard(targetId));
+                    const snapshots = targets.map(target => ({
+                        card: target,
+                        ownerId: target.ownerId,
+                        controllerId: target.controllerId,
+                        attackSnapshot: getEffectiveStat(target.instanceId, 'attack'),
+                        attachmentsSnapshot: [...target.attachments]
+                    }));
+
+                    const damageResults = new Map();
+                    targets.forEach(target => {
+                        const result = applyEffect({
+                            kind: EFFECT_KINDS.APPLY_CARD_DAMAGE,
+                            targetId: target.instanceId,
+                            amount: effect.amount,
+                            sourceId: source.instanceId,
+                            provenance: effect.provenance || {
+                                kind: 'ability',
+                                sourceId: source.instanceId,
+                                abilityId: effect.abilityId || null
+                            }
+                        }, transaction, causeId, prevention.provenance);
+                        damageResults.set(target.instanceId, result);
+                    });
+                    targets.forEach(target => {
+                        const result = damageResults.get(target.instanceId);
+                        if (!result?.applied || result.appliedAmount <= 0) return;
+                        applyEffect({
+                            kind: EFFECT_KINDS.EMIT_EVENT,
+                            type: EVENT_TYPES.DAMAGE_DEALT,
+                            payload: {
+                                sourceId: source.instanceId,
+                                damagedId: target.instanceId,
+                                amount: result.appliedAmount,
+                                attemptedAmount: result.attemptedAmount,
+                                damageType: effect.damageType || 'ability',
+                                provenance: result.provenance
+                            },
+                            immediate: true
+                        }, transaction, causeId);
+                    });
+
+                    snapshots.filter(snapshot =>
+                        snapshot.card.zone === 'field' &&
+                        getRemainingDefense(snapshot.card.instanceId) <= 0
+                    ).forEach(snapshot => {
+                        snapshot.attachmentsSnapshot.forEach(attachmentId => {
+                            const attachment = getCard(attachmentId);
+                            if (!attachment || attachment.zone !== 'equipment') return;
+                            const previousAttachedTo = attachment.attachedTo;
+                            attachment.attachedTo = null;
+                            transaction.record(() => {
+                                attachment.attachedTo = previousAttachedTo;
+                            });
+                            applyEffect({
+                                kind: EFFECT_KINDS.MOVE_CARD,
+                                instanceId: attachment.instanceId,
+                                destinationZone: 'discard',
+                                destinationPlayerId: attachment.ownerId
+                            }, transaction, causeId);
+                        });
+
+                        const previousAttachments = [...snapshot.card.attachments];
+                        snapshot.card.attachments = [];
+                        transaction.record(() => {
+                            snapshot.card.attachments = previousAttachments;
+                        });
+                        applyEffect({
+                            kind: EFFECT_KINDS.MOVE_CARD,
+                            instanceId: snapshot.card.instanceId,
+                            destinationZone: 'discard',
+                            destinationPlayerId: snapshot.ownerId
+                        }, transaction, causeId);
+                        applyEffect({
+                            kind: EFFECT_KINDS.EMIT_EVENT,
+                            type: EVENT_TYPES.CREATURE_DESTROYED,
+                            payload: {
+                                cardId: snapshot.card.instanceId,
+                                ownerId: snapshot.ownerId,
+                                controllerId: snapshot.controllerId,
+                                attackSnapshot: snapshot.attackSnapshot,
+                                attachmentsSnapshot: snapshot.attachmentsSnapshot
+                            },
+                            immediate: true
+                        }, transaction, causeId);
+                        applyEffect({
+                            kind: EFFECT_KINDS.EMIT_EVENT,
+                            type: EVENT_TYPES.CREATURE_DEFEATED,
+                            payload: {
+                                sourceId: source.instanceId,
+                                defeatedId: snapshot.card.instanceId,
+                                defeatedOwnerId: snapshot.ownerId,
+                                defeatedControllerId: snapshot.controllerId,
+                                sourceOwnerId: source.ownerId,
+                                sourceControllerId: source.controllerId
+                            },
+                            immediate: true
+                        }, transaction, causeId);
+                    });
                     break;
                 }
 
@@ -563,9 +788,12 @@
                     if (!combat) throw new Error(`Combate não encontrado: ${effect.combatId}`);
                     const previousValue = combat[effect.field];
                     const operation = effect.operation || MODIFIER_OPERATIONS.SET;
-                    if (operation === MODIFIER_OPERATIONS.SET) combat[effect.field] = effect.value;
-                    else if (operation === MODIFIER_OPERATIONS.ADD) combat[effect.field] += effect.value;
-                    else if (operation === MODIFIER_OPERATIONS.MULTIPLY) combat[effect.field] *= effect.value;
+                    const effectValue = typeof effect.value === 'function'
+                        ? effect.value(combat)
+                        : effect.value;
+                    if (operation === MODIFIER_OPERATIONS.SET) combat[effect.field] = effectValue;
+                    else if (operation === MODIFIER_OPERATIONS.ADD) combat[effect.field] += effectValue;
+                    else if (operation === MODIFIER_OPERATIONS.MULTIPLY) combat[effect.field] *= effectValue;
                     else throw new Error(`Operação de combate inválida: ${operation}`);
                     transaction.record(() => {
                         combat[effect.field] = previousValue;
@@ -577,14 +805,26 @@
                     const attacker = getCard(effect.attackerId);
                     if (!attacker) throw new Error(`Atacante não encontrado: ${effect.attackerId}`);
                     const previousUsage = attacker.usage.combatAttacks
-                        ? { ...attacker.usage.combatAttacks }
+                        ? {
+                            ...attacker.usage.combatAttacks,
+                            targets: [...(attacker.usage.combatAttacks.targets || [])]
+                        }
                         : undefined;
                     const currentCount = previousUsage?.turnNumber === state.turn
                         ? previousUsage.count
                         : 0;
+                    const currentTargets = previousUsage?.turnNumber === state.turn
+                        ? previousUsage.targets || []
+                        : [];
                     attacker.usage.combatAttacks = {
                         turnNumber: state.turn,
-                        count: currentCount + 1
+                        count: currentCount + 1,
+                        targets: effect.targetId
+                            ? [...currentTargets, effect.targetId]
+                            : [...currentTargets],
+                        directAttacks: (previousUsage?.turnNumber === state.turn
+                            ? previousUsage.directAttacks || 0
+                            : 0) + (effect.isDirect ? 1 : 0)
                     };
                     transaction.record(() => {
                         if (previousUsage) attacker.usage.combatAttacks = previousUsage;
@@ -592,6 +832,10 @@
                     });
                     break;
                 }
+
+                case EFFECT_KINDS.RECORD_ABILITY_USE:
+                    markAbilityUse(effect.sourceId, effect.abilityId, effect.limit, transaction);
+                    break;
 
                 case EFFECT_KINDS.EMIT_EVENT:
                     enqueueEvent(effect.type, effect.payload, causeId);
@@ -699,7 +943,9 @@
                     getOrderedHandlers(event.type).forEach(registration => {
                         const effects = registration.handler(event, createContext());
                         normalizeEffects(effects).forEach(effect => {
-                            applyEffect(effect, transaction, event.id);
+                            applyEffect(effect, transaction, event.id, {
+                                allowEffectSource: true
+                            });
                         });
                     });
 
@@ -843,7 +1089,7 @@
                         stat: cost.stat,
                         playerId: cost.playerId || action.actorId,
                         amount: -cost.amount
-                    }, transaction, actionId);
+                    }, transaction, actionId, { kind: 'system' });
                 });
 
                 if (action.declaredEvent) {
@@ -851,7 +1097,11 @@
                 }
 
                 normalizedActionEffects.forEach(effect => {
-                    applyEffect(effect, transaction, actionId);
+                    applyEffect(effect, transaction, actionId, {
+                        kind: 'ability',
+                        sourceId: action.sourceId,
+                        abilityId: action.abilityId || null
+                    });
                 });
 
                 (action.events || []).forEach(event => {
@@ -974,9 +1224,29 @@
             return usage?.turnNumber === state.turn ? usage.count : 0;
         }
 
+        function getAttackTargets(instanceId) {
+            const card = getCard(instanceId);
+            const usage = card?.usage?.combatAttacks;
+            return usage?.turnNumber === state.turn ? [...(usage.targets || [])] : [];
+        }
+
         function getAttackLimit(instanceId, context = {}) {
-            const derivedLimit = getEffectiveStat(instanceId, 'attackLimit', context);
-            return derivedLimit > 0 ? derivedLimit : 1;
+            const card = getCard(instanceId);
+            if (!card) return 0;
+            const modifiers = (card.modifiers || []).filter(modifier =>
+                modifier.stat === 'attackLimit' &&
+                (!modifier.condition || modifier.condition(context, state, card))
+            );
+            const valueOf = modifier => typeof modifier.value === 'function'
+                ? modifier.value(context, state, card)
+                : modifier.value;
+            const fixedLimit = modifiers
+                .filter(modifier => modifier.operation === MODIFIER_OPERATIONS.SET)
+                .reduce((maximum, modifier) => Math.max(maximum, valueOf(modifier)), 1);
+            const additionalAttacks = modifiers
+                .filter(modifier => modifier.operation === MODIFIER_OPERATIONS.ADD)
+                .reduce((total, modifier) => total + valueOf(modifier), 0);
+            return Math.max(1, fixedLimit + additionalAttacks);
         }
 
         function canAttack(instanceId, options = {}) {
@@ -1155,7 +1425,9 @@
                 if (combat.cancelled) {
                     applyEffect({
                         kind: EFFECT_KINDS.RECORD_ATTACK,
-                        attackerId: attacker.instanceId
+                        attackerId: attacker.instanceId,
+                        targetId: target?.instanceId || null,
+                        isDirect: combat.isDirect
                     }, transaction, combatId);
                     emitCombatEvent(EVENT_TYPES.AFTER_ATTACK, combat, transaction, { cancelled: true });
                     return {
@@ -1175,42 +1447,88 @@
                 combat.directDamage = Math.max(0, combat.directDamage);
 
                 if (combat.isDirect) {
-                    applyEffect({
+                    const directResult = applyEffect({
                         kind: EFFECT_KINDS.CHANGE_PLAYER_STAT,
                         stat: 'pv',
                         playerId: combat.defenderPlayerId,
-                        amount: -combat.directDamage
-                    }, transaction, combatId);
-                    emitCombatEvent(EVENT_TYPES.DAMAGE_DEALT, combat, transaction, {
+                        amount: -combat.directDamage,
+                        changeType: 'damage',
+                        provenance: {
+                            kind: 'combat',
+                            sourceId: attacker.instanceId,
+                            sourceAttack: combat.attackPower
+                        }
+                    }, transaction, combatId, {
+                        kind: 'combat',
                         sourceId: attacker.instanceId,
-                        playerId: combat.defenderPlayerId,
-                        amount: combat.directDamage,
-                        damageType: 'physical'
+                        sourceAttack: combat.attackPower
                     });
+                    combat.directDamage = directResult.applied
+                        ? Math.abs(directResult.appliedAmount)
+                        : 0;
+                    if (combat.directDamage > 0) {
+                        emitCombatEvent(EVENT_TYPES.DAMAGE_DEALT, combat, transaction, {
+                            sourceId: attacker.instanceId,
+                            playerId: combat.defenderPlayerId,
+                            amount: combat.directDamage,
+                            damageType: 'physical',
+                            provenance: directResult.provenance
+                        });
+                    }
                 } else {
-                    applyEffect({
+                    const targetDamageResult = applyEffect({
                         kind: EFFECT_KINDS.APPLY_CARD_DAMAGE,
                         targetId: target.instanceId,
-                        amount: combat.damageToTarget
-                    }, transaction, combatId);
-                    applyEffect({
+                        amount: combat.damageToTarget,
+                        provenance: {
+                            kind: 'combat',
+                            sourceId: attacker.instanceId,
+                            sourceAttack: combat.attackPower
+                        }
+                    }, transaction, combatId, {
+                        kind: 'combat',
+                        sourceId: attacker.instanceId,
+                        sourceAttack: combat.attackPower
+                    });
+                    const attackerDamageResult = applyEffect({
                         kind: EFFECT_KINDS.APPLY_CARD_DAMAGE,
                         targetId: attacker.instanceId,
-                        amount: combat.damageToAttacker
-                    }, transaction, combatId);
-
-                    emitCombatEvent(EVENT_TYPES.DAMAGE_DEALT, combat, transaction, {
-                        sourceId: attacker.instanceId,
-                        damagedId: target.instanceId,
-                        amount: combat.damageToTarget,
-                        damageType: 'physical'
-                    });
-                    emitCombatEvent(EVENT_TYPES.DAMAGE_DEALT, combat, transaction, {
-                        sourceId: target.instanceId,
-                        damagedId: attacker.instanceId,
                         amount: combat.damageToAttacker,
-                        damageType: 'physical'
+                        provenance: {
+                            kind: 'combat',
+                            sourceId: target.instanceId,
+                            sourceAttack: combat.defenderPower
+                        }
+                    }, transaction, combatId, {
+                        kind: 'combat',
+                        sourceId: target.instanceId,
+                        sourceAttack: combat.defenderPower
                     });
+                    combat.damageToTarget = targetDamageResult.applied
+                        ? targetDamageResult.appliedAmount
+                        : 0;
+                    combat.damageToAttacker = attackerDamageResult.applied
+                        ? attackerDamageResult.appliedAmount
+                        : 0;
+
+                    if (combat.damageToTarget > 0) {
+                        emitCombatEvent(EVENT_TYPES.DAMAGE_DEALT, combat, transaction, {
+                            sourceId: attacker.instanceId,
+                            damagedId: target.instanceId,
+                            amount: combat.damageToTarget,
+                            damageType: 'physical',
+                            provenance: targetDamageResult.provenance
+                        });
+                    }
+                    if (combat.damageToAttacker > 0) {
+                        emitCombatEvent(EVENT_TYPES.DAMAGE_DEALT, combat, transaction, {
+                            sourceId: target.instanceId,
+                            damagedId: attacker.instanceId,
+                            amount: combat.damageToAttacker,
+                            damageType: 'physical',
+                            provenance: attackerDamageResult.provenance
+                        });
+                    }
 
                     const targetWouldDie = getRemainingDefense(target.instanceId) <= 0;
                     const attackerWouldDie = getRemainingDefense(attacker.instanceId) <= 0;
@@ -1237,12 +1555,25 @@
                             : 0);
 
                     if (combat.penetratingDamage > 0) {
-                        applyEffect({
+                        const penetratingResult = applyEffect({
                             kind: EFFECT_KINDS.CHANGE_PLAYER_STAT,
                             stat: 'pv',
                             playerId: combat.defenderPlayerId,
-                            amount: -combat.penetratingDamage
-                        }, transaction, combatId);
+                            amount: -combat.penetratingDamage,
+                            changeType: 'damage',
+                            provenance: {
+                                kind: 'combat',
+                                sourceId: attacker.instanceId,
+                                sourceAttack: combat.attackPower
+                            }
+                        }, transaction, combatId, {
+                            kind: 'combat',
+                            sourceId: attacker.instanceId,
+                            sourceAttack: combat.attackPower
+                        });
+                        combat.penetratingDamage = penetratingResult.applied
+                            ? Math.abs(penetratingResult.appliedAmount)
+                            : 0;
                     }
 
                     const destroyedCards = [];
@@ -1251,7 +1582,11 @@
                             card: target,
                             defeatedBy: attacker,
                             ownerId: target.ownerId,
-                            controllerId: target.controllerId
+                            controllerId: target.controllerId,
+                            attackSnapshot: getEffectiveStat(target.instanceId, 'attack'),
+                            attachmentsSnapshot: [...target.attachments],
+                            defeatedByOwnerId: attacker.ownerId,
+                            defeatedByControllerId: attacker.controllerId
                         });
                     }
                     if (attackerDestroyed) {
@@ -1259,7 +1594,11 @@
                             card: attacker,
                             defeatedBy: target,
                             ownerId: attacker.ownerId,
-                            controllerId: attacker.controllerId
+                            controllerId: attacker.controllerId,
+                            attackSnapshot: getEffectiveStat(attacker.instanceId, 'attack'),
+                            attachmentsSnapshot: [...attacker.attachments],
+                            defeatedByOwnerId: target.ownerId,
+                            defeatedByControllerId: target.controllerId
                         });
                     }
                     destroyedCards.forEach(item => moveDestroyedCard(item.card, combat, transaction));
@@ -1269,20 +1608,26 @@
                         emitCombatEvent(EVENT_TYPES.CREATURE_DESTROYED, combat, transaction, {
                             cardId: item.card.instanceId,
                             ownerId: item.ownerId,
-                            controllerId: item.controllerId
+                            controllerId: item.controllerId,
+                            attackSnapshot: item.attackSnapshot,
+                            attachmentsSnapshot: item.attachmentsSnapshot
                         });
                         emitCombatEvent(EVENT_TYPES.CREATURE_DEFEATED, combat, transaction, {
                             sourceId: item.defeatedBy.instanceId,
                             defeatedId: item.card.instanceId,
                             defeatedOwnerId: item.ownerId,
-                            defeatedControllerId: item.controllerId
+                            defeatedControllerId: item.controllerId,
+                            sourceOwnerId: item.defeatedByOwnerId,
+                            sourceControllerId: item.defeatedByControllerId
                         });
                     });
                 }
 
                 applyEffect({
                     kind: EFFECT_KINDS.RECORD_ATTACK,
-                    attackerId: attacker.instanceId
+                    attackerId: attacker.instanceId,
+                    targetId: target?.instanceId || null,
+                    isDirect: combat.isDirect
                 }, transaction, combatId);
                 emitCombatEvent(EVENT_TYPES.AFTER_ATTACK, combat, transaction, {
                     defeated: [...combat.defeated]
@@ -1320,6 +1665,7 @@
         return {
             state,
             registerEventHandler,
+            registerEffectInterceptor,
             emit,
             resolveAction,
             resolveChoice,
@@ -1327,6 +1673,7 @@
             getEffectiveStat,
             getRemainingDefense,
             getAttackCount,
+            getAttackTargets,
             getAttackLimit,
             canAttack,
             validateCombat,

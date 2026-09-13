@@ -2775,6 +2775,16 @@
                 return;
             }
 
+            const returnedToHand = [attacker, target]
+                .filter(card => card.zone === 'hand');
+            if (returnedToHand.length > 0) {
+                returnedToHand.forEach(card => {
+                    document.getElementById(card.instanceId)?.remove();
+                });
+                renderHandsFromState();
+                renderFieldsFromState();
+            }
+
             updateCardDisplay(attackerId, {
                 ...attacker.data,
                 attack: window.gameEngine.getEffectiveStat(attackerId, 'attack'),
@@ -2785,7 +2795,7 @@
                 attack: window.gameEngine.getEffectiveStat(targetId, 'attack'),
                 defense: result.targetRemainingDefense
             });
-            renderPlayerStat('pv', target.controllerId);
+            renderPlayerStats();
 
             let message = `${attacker.data.name} causou ${result.damageToTarget} de dano em ${target.data.name}.`;
             if (result.targetDestroyed) message += ` ${target.data.name} foi destruída.`;
