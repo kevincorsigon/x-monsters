@@ -8,7 +8,7 @@ Um jogo de cartas multiplayer completo para 2 jogadores com sistema de deck bala
 - **110 cartas únicas** com imagens reais
 - **3 tipos**: Criaturas, Suporte e Evoluções especiais
 - **Sistema de deck balanceado** automaticamente para cada partida
-- **Imagens reais das cartas** (pasta `/cards/`)
+- **Imagens reais das cartas** (pasta `/assets/cards/`)
 
 ### Sistema de Pontos
 - **PV (Pontos de Vida)**: Começam com 100, reduzem com ataques
@@ -72,18 +72,14 @@ Um jogo de cartas multiplayer completo para 2 jogadores com sistema de deck bala
 x-monsters/
 ├── game.html              # Jogo principal completo
 ├── index.html              # Contador simples (legacy)
-├── cards_database.json     # Base de dados das cartas
-├── deck_system.js          # Sistema de deck e balanceamento
-├── analyze_cards.py        # Script para processar cartas
-├── cards/                  # Pasta com imagens das cartas
+├── data/cards_database.json # Base de dados das cartas
+├── src/js/deck_system.js   # Sistema de deck e balanceamento
+├── scripts/                # Ferramentas Python
+├── assets/cards/           # Pasta com imagens das cartas
 │   ├── dragão_sombrio.png
 │   ├── lobo_selvagem.png
 │   └── ... (110 cartas)
-├── punch.mp3              # Som de ataque
-├── healing.mp3            # Som de cura
-├── energy.mp3             # Som de energia
-├── waste.mp3              # Som de perda
-└── victory.mp3            # Som de vitória
+└── assets/audio/           # Efeitos sonoros
 ```
 
 ## 🚀 Como Jogar
@@ -126,7 +122,7 @@ x-monsters/
 
 ### Scripts Incluídos
 - `analyze_cards.py`: Processa imagens e cria JSON
-- `deck_system.js`: Gerencia decks e balanceamento
+- `src/js/deck_system.js`: Gerencia decks e balanceamento
 - Sistema de som integrado
 - Sistema de combate avançado
 

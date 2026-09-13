@@ -2,7 +2,7 @@
 
 ## ✅ **IMPLEMENTAÇÃO COMPLETA**
 
-### 🎯 **SISTEMA CRIADO**: `card-abilities.js` (632 linhas)
+### 🎯 **SISTEMA CRIADO**: `src/js/card-abilities.js` (632 linhas)
 Um sistema completo para programar todas as habilidades das 110+ cartas do jogo.
 
 ---
@@ -130,7 +130,7 @@ showAbilityFeedback()   // Mostrar notificação visual
 
 ---
 
-## 🧪 **ARQUIVO DE TESTE**: `test_abilities.html`
+## 🧪 **ARQUIVO DE TESTE**: `tests/browser/test_abilities.html`
 
 ### Recursos do Teste:
 - **Interface Visual**: Cards e botões para testar

@@ -3,7 +3,7 @@ import re
 import json
 
 # Ler o arquivo de habilidades
-with open('card-abilities.js', 'r', encoding='utf-8') as f:
+with open('src/js/card-abilities.js', 'r', encoding='utf-8') as f:
     content = f.read()
 
 # Encontrar todas as cartas implementadas

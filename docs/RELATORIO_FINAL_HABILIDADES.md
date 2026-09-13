@@ -15,7 +15,7 @@
 - **Final**: **95 habilidades (86%)**
 
 ### 💻 **ESTATÍSTICAS DO CÓDIGO:**
-- **📁 card-abilities.js**: 1.594 linhas
+- **📁 src/js/card-abilities.js**: 1.594 linhas
 - **🔧 Funções implementadas**: 95 habilidades únicas
 - **⚡ Triggers integrados**: 6 tipos diferentes
 - **🎭 Categorias de efeitos**: 12+ tipos
