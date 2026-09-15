@@ -47,7 +47,7 @@ Card schema (`data/cards_database.json`):
   "defense": 5,
   "hability": "Equipa +5 de ataque e +5 defesa a um monstro.",
   "id": "card_001",
-  "image": "cards/espada_mágica.png"
+  "image": "assets/cards/espada_mágica.png"
 }
 ```
 
@@ -71,16 +71,14 @@ selectBalancedByMana(cards, count) {
   `{ name, type: 'criatura'|'suporte'|'evolução', cost, attack, defense,
   hability, id: 'card_0NN', image: 'assets/cards/<slug>.png' }` — `id` is a
   zero-padded `card_NNN` string; multi-copy cards suffix with `_1`/`_2`/`_3`
-  (see `card_010_1..3` for Diabrete Alado in `card-abilities.js`).
+  (see `card_010_1..3` for Diabrete Alado).
 - Deck composition is always 60% criaturas / 30% suporte / 10% evoluções by
   count, and creatures are further split 40% low-cost (≤3) / 40% mid (4-6) /
   20% high (≥7). Reuse `selectBalancedByMana`/`createBalancedDeck` rather
   than writing new distribution logic for a variant deck size.
-- Drawn cards get a synthetic `instanceId`
-  (`` `${id}_${Date.now()}_${random}` ``) via `drawCardFromDeck` so the same
-  base card can appear multiple times in hand/field without id collisions —
-  DOM element ids and ability lookups use this `instanceId`, not the raw
-  `id`.
+- Match setup calls `GameStateModel.resetMatchState` with the two decks;
+  `drawCardFromDeck` is `GameStateModel.drawCard` (moves the same instance
+  from `deck` → `hand`). Do not mint a second `instanceId` with `Date.now()`.
 - `window.deckBuilder` / `window.cardsDatabase` are the cross-file access
   points — read them, don't re-fetch or re-parse `cards_database.json`
   elsewhere.

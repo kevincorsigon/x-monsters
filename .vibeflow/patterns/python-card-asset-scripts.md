@@ -10,8 +10,8 @@ confidence: inferred
 ## What
 A set of independent, manually-run Python scripts (no shared package, no
 CLI framework) used offline to rename card images via OCR, generate
-print-ready card sheets, and cross-check `cards_database.json` against
-`card-abilities.js` coverage. None of this runs as part of the web game.
+print-ready card sheets, and cross-check `data/cards_database.json` against
+`src/js/card-rules.js` coverage. None of this runs as part of the web game.
 
 ## Where
 Canonical tools under `scripts/` (`rename_card_images.py`, `smart_rename.py`,
@@ -45,29 +45,30 @@ class CardImageRenamer:
         return thresh
 ```
 
-Consistency-check scripts read both data sources and diff them:
+Coverage scripts scan `card-rules.js` for each catalog id (tables *and*
+inline `definitionId === 'card_XXX'` handlers):
 ```python
-with open('card-abilities.js', 'r', encoding='utf-8') as f:
-    content = f.read()
-implemented_cards = set(re.findall(r"case 'card_(\d+)':", content))
-
-with open('cards_database.json', 'r', encoding='utf-8') as f:
+with open('src/js/card-rules.js', 'r', encoding='utf-8') as f:
+    rules_source = f.read()
+with open('data/cards_database.json', 'r', encoding='utf-8') as f:
     db = json.load(f)
-all_cards = {c['id'].replace('card_', '') for c in db['cards']}
 
-missing_cards = sorted(all_cards - implemented_cards, key=lambda x: int(x))
+all_ids = {card['id'] for card in db['cards']}
+implemented_ids = {
+    card_id for card_id in all_ids
+    if re.search(rf'\b{re.escape(card_id)}\b', rules_source)
+}
 ```
 
 ## Rules
-- Each script is self-contained and run directly (`python script.py`) — no
-  shared module, no `argparse`, no package structure between scripts.
-- OCR-based renaming scripts follow: load `cards_database.json` → OpenCV
+- Each script is self-contained and run from the repo root
+  (`py -3 scripts/check_cards.py`) — no shared module, no `argparse`.
+- OCR-based renaming scripts follow: load `data/cards_database.json` → OpenCV
   preprocess (grayscale → CLAHE → adaptive threshold) → `pytesseract` →
   fuzzy match with `difflib.SequenceMatcher` against known card names.
-- Cross-check scripts (`check_cards.py`, `final_check.py`) diff
-  `card-abilities.js`'s `case 'card_(\d+)':` regex matches against
-  `cards_database.json` ids to report ability-implementation coverage —
-  reuse this approach rather than writing a new coverage checker.
+- `check_cards.py` reports coverage by substring presence of `card_XXX` in
+  `src/js/card-rules.js`. Do not go back to parsing `case 'card_N':` in
+  `card-abilities.js`, and do not use `CardRules.isMigrated()`.
 - Hardcoded local paths (e.g. the Tesseract binary path) are acceptable in
   these scripts — they are personal/offline tools, not deployed code, and
   are not loaded by `game.html`.

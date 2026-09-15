@@ -1,6 +1,6 @@
 # Project: X Monsters
-> Analyzed: 2026-09-12
-> Stack: Vanilla HTML5/CSS3/JavaScript (ES6, no build step, no framework) game client; standalone Python (OpenCV + pytesseract) scripts for offline card-asset/data tooling. Data: static JSON (`data/cards_database.json`) + local card image assets.
+> Analyzed: 2026-09-15
+> Stack: Vanilla HTML5/CSS3/JavaScript (ES6, no build step, no framework) game client; Node `node:assert` unit tests for the engine; standalone Python (OpenCV + pytesseract) scripts for offline card-asset/data tooling. Data: static JSON (`data/cards_database.json`) + local card image assets.
 > Type: Single-page browser game (client-only, no backend) + auxiliary offline scripts
 > Suggested budget: ≤ 4 files per task
 
@@ -8,57 +8,50 @@
 The root contains only the two HTML entry points, primary README,
 requirements, and repository configuration. Runtime JavaScript lives in
 `src/js/`, card and audio assets in `assets/`, data in `data/`, Python tools
-in `scripts/`, browser diagnostics in `tests/browser/`, and secondary guides
-in `docs/`. `game.html` remains the full game entry point with ordered script
-includes and inline game logic; `index.html` is the independent PV/energy
-counter.
+in `scripts/`, browser diagnostics in `tests/browser/`, headless engine tests
+in `tests/unit/`, and secondary guides in `docs/`. `game.html` is the full
+game entry point (ordered script includes + inline UI); `index.html` is the
+independent PV/energy counter.
 
 ## Structural Units
-- **`game.html`** — main game: grid-based UI, `gameState`, phases
-  (energy/invocation/combat), combat resolution, drag & drop, card
-  rendering, initialization (`DOMContentLoaded` → `loadCardSystem` →
-  `startNewMatch`).
-- **`src/js/card-abilities.js`** — thin integration bridge (`CardAbilitiesSystem`,
-  `window.cardAbilities`): forwards `onCardSummoned`/`onCardEquipped` to the
-  feedback already computed by `CardRules`/`game-engine.js`. No per-card game
-  logic lives here anymore (removed in Fase 7 of the ability-engine migration).
-- **`src/js/game-engine.js` + `src/js/card-rules.js`** — deterministic
-  event/effect engine resolving all 110 cards' rules (summon, equipment,
-  activated abilities, combat, zone/ownership tracking). Source of truth for
-  game logic; see `.vibeflow/specs/motor-habilidades-eventos-e-efeitos.md`.
-- **`src/js/deck_system.js`** — `DeckBuilder` class, `loadCardSystem` (fetch +
-  fallback), deck balancing, card drawing.
-- **`data/cards_database.json`** — authoritative 110-card dataset.
-- **`index.html`** — legacy standalone PV/Energy counter (no card system),
-  simpler and independent of the files above.
-- **Browser diagnostics** — files under `tests/browser/`: `ability_guide.js`,
-  `ability_audit.js`, `test_features.js`, `test_tobinha.js`,
-  `test_all_protections.js`, `test_attack_calculation.js`,
-  `test_mago_arcano.js`. Console-driven manual scripts for development; no
-  longer loaded by `game.html` (removed in Fase 7).
-- **`src/js/manual_abilities.js`** — runtime interface for manually activated
-  card abilities.
-- **Python asset/data scripts** — canonical copies under `scripts/`:
-  `rename_card_images.py`,
-  `smart_rename.py`, `rename_by_order.py`, `create_cards_front_back.py`,
-  `create_cards_high_quality.py`, `create_card_back.py`,
-  `card_printing_advanced.py`, `check_cards.py`, `final_check.py`,
-  `analyze_json.py`. Independent, manually-run CLI-style tools.
-- **`assets/cards/`** — 110 card image assets (`.png`) referenced by
-  `data/cards_database.json`'s `image` field.
+- **`game.html`** — UI, drag & drop, phases, rendering; delegates rules to
+  `window.gameEngine` / `window.CardRules`.
+- **`src/js/game-state.js`** — `GameStateModel`: zones, instance ids,
+  canonical PV/energy, legacy aliases (`state.cards`).
+- **`src/js/game-engine.js`** — `GameEngine`: actions, events, effects,
+  modifiers, combat resolver, transactions.
+- **`src/js/card-rules.js`** — registry of all card abilities (tables +
+  `install()` handlers). Source of truth for rules.
+- **`src/js/card-abilities.js`** — thin UI bridge (`attachEngine`,
+  feedback toasts). No per-card logic.
+- **`src/js/deck_system.js`** — `DeckBuilder`, `loadCardSystem`,
+  `startNewMatch` / draw via `GameStateModel`.
+- **`src/js/manual_abilities.js`** — panel for `ACTIVATED_RULES`.
+- **`data/cards_database.json`** — 110-card catalog.
+- **`index.html`** — standalone PV/Energy counter (no engine).
+- **`tests/unit/run-tests.js`** — Node regression suite for engine/rules.
+- **`tests/browser/`** — manual console diagnostics (not loaded in production).
+- **`scripts/`** — OCR, print sheets, `check_cards.py` coverage scan.
+- **`assets/cards/`** — 110 card images referenced by JSON `image`.
 
 ## Pattern Registry
 
 <!-- vibeflow:patterns:start -->
 patterns:
+  - file: patterns/event-effect-engine.md
+    tags: [game-engine, events, effects, combat, umd]
+    modules: [src/js/game-engine.js, src/js/game-state.js]
+  - file: patterns/card-rules-registry.md
+    tags: [abilities, card-rules, registry, events, traits]
+    modules: [src/js/card-rules.js]
   - file: patterns/game-state-management.md
-    tags: [state-management, game-loop, phases, dom-state]
-    modules: [game.html]
+    tags: [state-management, game-loop, phases, zones]
+    modules: [src/js/game-state.js, game.html]
   - file: patterns/combat-system.md
-    tags: [combat, damage-calculation, game-rules, abilities-integration]
-    modules: [game.html]
+    tags: [combat, damage-calculation, game-rules, engine]
+    modules: [src/js/game-engine.js, src/js/card-rules.js, game.html]
   - file: patterns/card-ability-system.md
-    tags: [abilities, triggers, switch-dispatch, effects, card-game]
+    tags: [abilities, ui-bridge, feedback, integration]
     modules: [src/js/card-abilities.js]
   - file: patterns/deck-loading-and-card-data.md
     tags: [data-loading, fallback, deck-building, json, card-schema]
@@ -66,40 +59,57 @@ patterns:
   - file: patterns/card-dom-rendering.md
     tags: [dom-rendering, drag-and-drop, css-theming, ui-state]
     modules: [game.html]
+  - file: patterns/automated-unit-tests.md
+    tags: [testing, node, determinism, regression]
+    modules: [tests/unit/]
   - file: patterns/python-card-asset-scripts.md
     tags: [python, ocr, image-processing, offline-tooling, cli]
-    modules: [rename_card_images.py, smart_rename.py, rename_by_order.py, create_cards_front_back.py, create_cards_high_quality.py, create_card_back.py, card_printing_advanced.py, check_cards.py, final_check.py, analyze_json.py]
+    modules: [scripts/rename_card_images.py, scripts/smart_rename.py, scripts/rename_by_order.py, scripts/create_cards_front_back.py, scripts/create_cards_high_quality.py, scripts/create_card_back.py, scripts/card_printing_advanced.py, scripts/check_cards.py, scripts/final_check.py, scripts/analyze_json.py]
 <!-- vibeflow:patterns:end -->
 
 ## Pattern Docs Available
-- [patterns/game-state-management.md](patterns/game-state-management.md) — global `gameState` object, DOM-as-truth for PV/Energy, phase transitions.
-- [patterns/combat-system.md](patterns/combat-system.md) — mutual damage calculation, destruction, penetrating damage, ability hook points.
-- [patterns/card-ability-system.md](patterns/card-ability-system.md) — switch-dispatched per-card ability methods and effect bookkeeping (the most important pattern for adding new cards).
-- [patterns/deck-loading-and-card-data.md](patterns/deck-loading-and-card-data.md) — card JSON schema, fetch+fallback loading, deck balancing algorithm.
-- [patterns/card-dom-rendering.md](patterns/card-dom-rendering.md) — manual DOM card rendering, CSS-class-driven visual state, native drag & drop, `:root` theming.
-- [patterns/python-card-asset-scripts.md](patterns/python-card-asset-scripts.md) — standalone OCR/image-processing/data-validation Python scripts.
+- [patterns/event-effect-engine.md](patterns/event-effect-engine.md) — `GameEngine` actions/events/effects and UMD modules.
+- [patterns/card-rules-registry.md](patterns/card-rules-registry.md) — how to add or change a card ability in `card-rules.js`.
+- [patterns/game-state-management.md](patterns/game-state-management.md) — `GameStateModel`, zones, PV/energy, phase UI.
+- [patterns/combat-system.md](patterns/combat-system.md) — `resolveCombat` + `CardRules.validateAttackTarget`.
+- [patterns/card-ability-system.md](patterns/card-ability-system.md) — leftover UI bridge (Fase 7); do not extend with per-card logic.
+- [patterns/deck-loading-and-card-data.md](patterns/deck-loading-and-card-data.md) — JSON schema, fetch+fallback, deck balancing.
+- [patterns/card-dom-rendering.md](patterns/card-dom-rendering.md) — DOM cards, CSS-class state, native drag & drop.
+- [patterns/automated-unit-tests.md](patterns/automated-unit-tests.md) — `node tests/unit/run-tests.js` without a test framework.
+- [patterns/python-card-asset-scripts.md](patterns/python-card-asset-scripts.md) — OCR/print tools and coverage scan of `card-rules.js`.
 
 ## Key Files
-- `game.html` — main game entry point; UI, state, phases, combat, rendering (~3900 lines).
-- `src/js/card-abilities.js` — ability system for 110+ cards (~2400 lines).
-- `src/js/deck_system.js` — deck building, card loading + fallback (~540 lines).
-- `data/cards_database.json` — authoritative card data (110 cards).
-- `index.html` — legacy standalone PV/Energy counter.
-- `src/js/manual_abilities.js` — manual ability UI loaded by the game.
-- `tests/browser/` — console-driven browser tests and diagnostics.
-- `scripts/rename_card_images.py` / `scripts/smart_rename.py` — OCR-based card image renaming.
-- `scripts/check_cards.py` / `scripts/final_check.py` — data/ability coverage cross-checks.
-- `README.md` — project entry point; secondary guides live under `docs/`.
+- `game.html` — UI entry; summons/combat/turns call the engine (~3700 lines).
+- `src/js/card-rules.js` — all card rules (~2700 lines).
+- `src/js/game-engine.js` — deterministic resolver (~1550 lines).
+- `src/js/game-state.js` — canonical state model.
+- `src/js/card-abilities.js` — UI feedback bridge (~100 lines).
+- `src/js/deck_system.js` — fetch JSON + balanced decks.
+- `src/js/manual_abilities.js` — activated-ability panel.
+- `data/cards_database.json` — 110-card catalog.
+- `tests/unit/run-tests.js` — engine/rules regression tests.
+- `scripts/check_cards.py` — catalog vs `card-rules.js` mention scan.
+- `index.html` — legacy PV/Energy counter.
+- `README.md` — how to run the local HTTP server.
 
 ## Dependencies (critical only)
-- **Google Fonts (Cinzel)** — loaded via CDN `<link>` in both HTML files; the app has an external network dependency for its font at runtime.
-- **OpenCV (`cv2`) + `pytesseract` + Tesseract binary** — used only by the offline Python renaming scripts, not by the web app.
-- No JS runtime dependencies (no npm packages) — everything is hand-written vanilla JS.
+- **Google Fonts (Cinzel)** — CDN `<link>` in both HTML files.
+- **Node.js** — only for `tests/unit/run-tests.js` (`node:assert`).
+- **OpenCV (`cv2`) + `pytesseract` + Tesseract** — offline Python tools only.
+- No npm packages.
 
 ## Known Issues / Tech Debt
-- `fetch('data/cards_database.json')` fails under `file://` and silently falls
-  back to a 30-card sample; use the documented local HTTP server.
+- `fetch('data/cards_database.json')` fails under `file://` and silently
+  falls back to a 30-card sample; use the documented local HTTP server.
 - No automated tests for the Python scripts; verification is manual/console-log
   based.
 - card_038's trait-based search is implemented in the engine but currently
   inert pending a catalog trait tag (`aquatico`) — see `.vibeflow/decisions.md`.
+- card_090 (Bilugação Astral) has no rule yet; blocked on product question
+  #13 ("intransponível") in the ability-engine spec.
+- `CardRules.isMigrated()` undercounts handler-only cards; coverage is the
+  text scan in `scripts/check_cards.py`.
+- `index.html` still uses DOM-as-truth for PV/energy; it does not share
+  `GameStateModel`.
+- `showAbilityFeedback` and `manual_abilities.js` still build UI with
+  `style.cssText` instead of CSS classes.

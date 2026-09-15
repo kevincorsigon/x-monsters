@@ -43,21 +43,19 @@ function dropCard(e) {
     e.preventDefault();
     const cardId = e.dataTransfer.getData('text/plain');
     const cardElement = document.getElementById(cardId);
-    const isCreatureDrop = e.currentTarget.classList.contains('card');
-    if (isCreatureDrop) { handleEquipmentDrop(e, cardId); return; }
+    if (e.currentTarget.classList.contains('card')) {
+        handleEquipmentDrop(e, cardId);
+        return;
+    }
 
-    const targetPlayer = e.currentTarget.dataset.player;
-    const cardData = findCardData(cardId);
-    if (gameState.currentPhase !== 'invocation') { alert('...'); return; }
-
-    changeStat('energy', targetPlayer, -cardData.data.cost);
-    cardElement.remove();
-    e.currentTarget.appendChild(cardElement);
-    cardElement.classList.add('card-play-animation');
-    cardElement.classList.remove('can-be-summoned', 'dragging');
-
-    if (window.cardAbilities && cardData.data.type === 'criatura') {
-        window.cardAbilities.onCardSummoned(cardId, cardData.data, targetPlayer);
+    const summonCost = getEffectiveCardCost(cardId, cardData.data);
+    const summonResult = window.gameEngine.resolveAction({ /* SUMMON_CARD */ });
+    if (summonResult.status === 'resolved') {
+        cardElement.remove();
+        e.currentTarget.appendChild(cardElement);
+        cardElement.classList.add('card-play-animation');
+        cardElement.classList.remove('can-be-summoned', 'dragging');
+        window.cardAbilities?.onCardSummoned(cardId, cardData.data, targetPlayer);
     }
 }
 ```
@@ -75,8 +73,9 @@ function dropCard(e) {
   cardId)` on `dragstart`, read back with `getData` in `drop`. No drag
   library is used or should be introduced.
 - Card ids doubling as DOM element ids: `document.getElementById(cardId)`
-  is the standard lookup; keep any new card-related DOM node's `id`
-  attribute equal to its game-model card/instance id.
+  is the standard lookup; `cardId` is the engine `instanceId`.
+- Cost badges and summon gating use `getEffectiveCardCost` (engine
+  modifiers), not the raw catalog `cost`.
 
 ## Examples from this codebase
 File: [game.html](../../game.html#L3273)

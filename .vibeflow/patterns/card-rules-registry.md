@@ -1,0 +1,100 @@
+---
+tags: [abilities, card-rules, registry, events, traits]
+modules: [src/js/card-rules.js]
+applies_to: [services, handlers]
+confidence: inferred
+---
+# Pattern: Card Rules Registry
+
+<!-- vibeflow:auto:start -->
+## What
+All 110 catalog abilities are modeled in `src/js/card-rules.js` as frozen
+tables plus shared event handlers installed onto `GameEngine`. Adding a
+card means extending those tables or a `definitionId === 'card_XXX'`
+check inside `install()`, never a new method on `CardAbilitiesSystem`.
+
+## Where
+`src/js/card-rules.js` (`SUMMON_RULES`, `EQUIPMENT_RULES`, `COMBAT_RULES`,
+`ACTIVATED_RULES`, `TARGET_RULES`, `STATE_RULES`, `PROTECTION_RULES`,
+`install`). Consumed by `card-abilities.js` (`attachEngine` →
+`CardRules.install`), `game.html` (validation, cost, combat), and
+`manual_abilities.js` (`getActivatedRule` / `activateAbility`).
+
+## The Pattern
+Declarative summon effect — return engine effects, do not touch the DOM:
+
+```javascript
+const SUMMON_RULES = Object.freeze({
+    card_012: {
+        feedback: 'Natalino: outras criaturas aliadas recuperaram 10 DEF.',
+        resolve(event, context) {
+            return context.state.players[event.payload.playerId].zones.field
+                .filter(card =>
+                    card.instanceId !== event.payload.cardId &&
+                    card.data.type === 'criatura'
+                )
+                .map(card => ({
+                    kind: GameEngine.EFFECT_KINDS.APPLY_CARD_DAMAGE,
+                    targetId: card.instanceId,
+                    amount: -10
+                }));
+        }
+    }
+});
+```
+
+Equipment as modifiers / duration-bound effects:
+
+```javascript
+const EQUIPMENT_RULES = Object.freeze({
+    card_001: {
+        feedback: 'Espada Mágica: +5 ATK/+5 DEF enquanto equipada.',
+        targetSide: 'ALLY',
+        modifiers: { attack: 5, defense: 5 }
+    }
+});
+```
+
+Activated abilities used from the manual panel:
+
+```javascript
+const ACTIVATED_RULES = Object.freeze({
+    card_026: {
+        abilityId: 'sabotar_copo',
+        feedback: 'Sabota Copos: -5 ATK/-5 DEF.',
+        limit: { kind: GameEngine.LIMIT_KINDS.PER_TURN, count: 1 },
+        minTargets: 1,
+        maxTargets: 1
+    }
+});
+```
+
+`install(engine)` registers handlers (summon, combat, death, turn ticks).
+`manual_abilities.js` only lists cards that have `getActivatedRule` and
+calls `CardRules.activateAbility(engine, cardId, targetIds)`.
+
+## Rules
+- Key tables by `definitionId` (`card_012`), not instance id.
+- Handlers return arrays of `EFFECT_KINDS` objects. UI feedback is the
+  rule's `feedback` string, shown by `cardAbilities.showAbilityFeedback`.
+- Special-case cards that do not fit a table go in shared `install()`
+  handlers with `definitionId === 'card_XXX'` (this is valid coverage;
+  `check_cards.py` scans the file text, not `isMigrated()`).
+- Traits live in `TRAITS_BY_DEFINITION`. Do not invent a parallel trait
+  map in `game.html`.
+- `isMigrated()` only lists table keys + direct-attack ids; it undercounts
+  handler-only cards. Do not use it as the coverage gate.
+
+## Examples from this codebase
+File: `src/js/card-rules.js`
+`SUMMON_RULES.card_012`, `EQUIPMENT_RULES.card_001`, `ACTIVATED_RULES.card_026`,
+`install`, `validateAttackTarget`.
+
+File: `src/js/manual_abilities.js`
+`renderMigratedAbilityCard` / `activateMigratedAbility`.
+<!-- vibeflow:auto:end -->
+
+## Anti-patterns
+- Putting per-card logic back into `card-abilities.js`.
+- Using `CardRules.isMigrated()` in `scripts/check_cards.py` as the
+  implementation signal (fixed: the script now regex-scans `card-rules.js`).

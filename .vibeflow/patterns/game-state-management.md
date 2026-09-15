@@ -1,98 +1,67 @@
 ---
-tags: [state-management, game-loop, phases, dom-state]
-modules: [game.html]
-applies_to: [handlers, controllers]
+tags: [state-management, game-loop, phases, zones]
+modules: [src/js/game-state.js, game.html]
+applies_to: [models, handlers, controllers]
 confidence: inferred
 ---
 # Pattern: Game State & Turn/Phase Management
 
 <!-- vibeflow:auto:start -->
 ## What
-A single global mutable `gameState` object tracks whose turn it is, the current
-phase, and where cards live (hand/field/discard per player). Numeric PV and
-Energy values are *not* stored in `gameState` — they live in the DOM
-(`#pv-p1`, `#energy-p1` text content) and are read back with `parseInt`.
+Canonical match state is a single object created by
+`GameStateModel.createInitialGameState`. UI phase/turn fields
+(`currentPlayer`, `currentPhase`, `turn`) still live on that object;
+PV/energy live on `state.players[id]`, not in the DOM.
 
 ## Where
-`game.html`, inline `<script>` block (state declared ~line 2014, mutated
-throughout `changeStat`, `nextPhase`, `endTurn`, `setPhase`, `dropCard`,
-`performAttack`, etc.).
+`src/js/game-state.js` (factory, zones, instance ids, player stats).
+`game.html` holds the live `gameState` reference, calls
+`gameEngine.resolveAction` for turn/phase, and mirrors stats to the DOM
+through `changeStat` / `renderPlayerStat`.
 
 ## The Pattern
 ```javascript
-let gameState = {
-    currentPlayer: 'p1',
-    currentPhase: 'energy', // energy, summon, combat
-    turn: 1,
-    diceUsed: { p1: false, p2: false },
-    selectedCard: null,
-    attackingCard: null,
-    targetCard: null,
-    attackedThisTurn: [], // IDs das cartas que já atacaram este turno
-    maxEnergy: { p1: INITIAL_ENERGY, p2: INITIAL_ENERGY },
-    cards: {
-        p1: { hand: [], field: [], discard: [] },
-        p2: { hand: [], field: [], discard: [] }
-    }
-};
+let gameState = window.GameStateModel.createInitialGameState(window.gameConfig);
+window.gameState = gameState;
 
 function changeStat(stat, player, amount) {
-    const element = document.getElementById(`${stat}-${player}`);
-    let currentValue = parseInt(element.innerText);
-    let newValue = currentValue + amount;
-    if (newValue < 0) newValue = 0;
-    if (stat === 'energy' && newValue > MAX_ENERGY) newValue = MAX_ENERGY;
-    // ... sounds, visual feedback, victory check ...
-    element.innerText = newValue;
+    const newValue = window.GameStateModel.changePlayerStat(
+        gameState, stat, player, amount, { energyCap: MAX_ENERGY }
+    );
+    renderPlayerStat(stat, player);
+    // sounds + victory check from newValue
 }
 
-function setPhase(phase) {
-    if (gameState.currentPhase === 'combat') clearCombatHighlights();
-    gameState.currentPhase = phase;
-    updateUI();
-    playSound('energySound');
+function renderPlayerStat(stat, player) {
+    const element = document.getElementById(`${stat}-${player}`);
+    element.innerText = window.GameStateModel.getPlayerStat(gameState, stat, player);
 }
 ```
+
+Turn advance goes through the engine (events + `SET_TURN_STATE`), not a
+bare field increment plus `cardAbilities.processTurnEffects()` (that
+method is now a no-op; ticks are `TURN_STARTED` / `TURN_ENDED`).
+
+`attachLegacyAliases` exposes `state.cards[player].field` as the same
+array as `state.players[player].zones.field` so older UI loops keep working.
 
 ## Rules
-- All new game-wide state fields belong on `gameState` — do not create new
-  top-level `let`/`var` globals for game data.
-- Any phase or player change must be followed by `updateUI()` so the DOM
-  reflects `gameState` (buttons, highlights, hand visibility).
-- PV/Energy are read from the DOM (`parseInt(element.innerText)`), not from
-  `gameState` — `gameState` only holds `maxEnergy` (the turn-based ceiling)
-  and `diceUsed`. Don't add a duplicate PV/Energy field to `gameState`;
-  follow the existing DOM-as-truth convention for those two stats.
-- Cross-file integrations are guarded: `if (window.cardAbilities) { ... }`
-  before calling into `card-abilities.js`, and vice versa
-  (`window.gameState`, `window.findCardData`, `window.changeStat`,
-  `window.updateUI` are read back from `card-abilities.js`).
+- New match fields belong on this one `gameState` object (or on card
+  instances / `state.effects`). Do not add a second model.
+- Write PV/energy only via `GameStateModel.changePlayerStat` /
+  `setPlayerStat`, then `renderPlayerStat`. Do not treat
+  `parseInt(element.innerText)` as source of truth.
+- Instance ids come from `createInstanceId` / `resetMatchState`, not
+  `Date.now()`.
+- Cross-file access: `window.gameState`, `window.gameEngine`,
+  `window.GameStateModel`, guarded with optional chaining.
 
 ## Examples from this codebase
-File: [game.html](../../game.html#L2014)
-```javascript
-let gameState = {
-    currentPlayer: 'p1',
-    currentPhase: 'energy',
-    turn: 1,
-    ...
-};
-```
+File: `src/js/game-state.js`
+`createInitialGameState`, `attachLegacyAliases`, `resetMatchState`.
 
-File: [game.html](../../game.html#L2179)
-```javascript
-function endTurn() {
-    gameState.currentPlayer = gameState.currentPlayer === 'p1' ? 'p2' : 'p1';
-    gameState.currentPhase = 'energy';
-    gameState.turn++;
-    if (window.cardAbilities) {
-        window.cardAbilities.processTurnEffects();
-    }
-    gameState.attackedThisTurn = [];
-    updateAttackedCardsVisual();
-    ...
-}
-```
+File: `game.html`
+Boot of `gameState` / `gameEngine`, `changeStat`, `renderPlayerStat`.
 <!-- vibeflow:auto:end -->
 
 ## Anti-patterns
