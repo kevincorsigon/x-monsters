@@ -275,10 +275,10 @@
             modifiers: {}
         },
         card_097: {
-            feedback: 'Flecha de Prata: ataques ignoram habilidades defensivas do alvo.',
+            feedback: 'Flecha de Prata: +8 ATK e ataques ignoram habilidades defensivas do alvo.',
             targetSide: 'ALLY',
             requiredTraitsAny: ['humanoide', 'besta'],
-            modifiers: {}
+            modifiers: { attack: 8 }
         },
         card_101: {
             feedback: 'Olho de Águia: ataques ignoram Evasão e Intocável do alvo.',
@@ -1672,8 +1672,39 @@
     }
 
     function createEquipmentEffects(equipment, targetId, state) {
+        // Update target's base stats with equipment stats if present
+        // const target = state.cardInstances[targetId];
         const rule = getEquipmentRule(equipment.definitionId);
-        if (!rule) return null;
+     /*   const equipBase = equipment.baseStats || {};
+
+
+
+
+            if (Object.keys(rule.modifiers || {}).length === 0) {
+                // Add base stats from equipment to target if no modifiers
+                if (equipBase.attack) {
+                    target.baseStats = target.baseStats || {};
+                    target.baseStats.attack = (target.baseStats.attack ?? 0) + equipBase.attack;
+                }
+                if (equipBase.defense) {
+                    target.baseStats = target.baseStats || {};
+                    target.baseStats.defense = (target.baseStats.defense ?? 0) + equipBase.defense;
+                }
+            }
+
+        if (target && equipment) {
+            const equipBase = equipment.baseStats || {};
+            if (equipBase.attack) {
+                target.baseStats = target.baseStats || {};
+                target.baseStats.attack = (target.baseStats.attack ?? 0) + equipBase.attack;
+            }
+            if (equipBase.defense) {
+                target.baseStats = target.baseStats || {};
+                target.baseStats.defense = (target.baseStats.defense ?? 0) + equipBase.defense;
+            }
+        }
+        */
+        
 
         const modifierEffects = Object.entries(rule.modifiers).map(([stat, value]) => ({
             kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,

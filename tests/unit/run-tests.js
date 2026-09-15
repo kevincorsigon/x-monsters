@@ -2596,6 +2596,48 @@ test('Flecha de Prata equipa somente em host humanoide ou besta', () => {
     assert.equal(CardRules.validateEquipmentTarget(arrow, nonHumanoid).valid, false);
 });
 
+test('Flecha de Prata concede +8 de ataque ao ser equipada no Paladino Crepuscular', () => {
+    const state = GameStateModel.createInitialGameState();
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+
+    const paladin = GameStateModel.createCardInstance({
+        id: 'card_068', name: 'Paladino Crepuscular', type: 'criatura', cost: 7, attack: 33, defense: 39
+    }, 'p1', { instanceId: 'paladin_host' });
+    const arrow = GameStateModel.createCardInstance({
+        id: 'card_097', name: 'Flecha de Prata', type: 'suporte', cost: 3, attack: 8, defense: 0
+    }, 'p1', { instanceId: 'silver_arrow' });
+
+    GameStateModel.registerCard(state, paladin, 'field', 'p1');
+    GameStateModel.registerCard(state, arrow, 'hand', 'p1');
+
+    const result = engine.resolveAction({
+        type: 'EQUIP_CARD',
+        actorId: 'p1',
+        sourceId: arrow.instanceId,
+        sourceZone: 'hand',
+        requiresControl: false,
+        effects: [
+            {
+                kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                instanceId: arrow.instanceId,
+                destinationZone: 'equipment',
+                destinationPlayerId: 'p1'
+            },
+            {
+                kind: GameEngine.EFFECT_KINDS.ATTACH_CARD,
+                equipmentId: arrow.instanceId,
+                targetId: paladin.instanceId
+            },
+            ...CardRules.createEquipmentEffects(arrow, paladin.instanceId, state)
+        ]
+    });
+
+    assert.equal(result.status, 'resolved');
+    assert.equal(engine.getEffectiveStat(paladin.instanceId, 'attack'), 41);
+    assert.equal(engine.getEffectiveStat(paladin.instanceId, 'defense'), 39);
+});
+
 test('Flecha de Prata ignora todas as restrições de alvo migradas', () => {
     const { state, attacker, target } = createCombatFixture();
     const arrow = GameStateModel.createCardInstance({

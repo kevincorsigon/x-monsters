@@ -6,17 +6,26 @@
     <title>X Monsters - Jogo PVP</title>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
     <style>
+        html {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
         :root {
-            --bg-color: #1a1e28;
-            --card-bg-color: #2b303d;
-            --text-color: #e2e8f0;
-            --primary-color: #c9a567;
-            --secondary-color: #4b586e;
-            --pv-color: #5abf7a;
-            --energy-color: #f5c94a;
-            --pv-zero-color: #ff6b6b;
-            --field-color: #6b5b47;
-            --border-radius: 10px;
+            --bg-color: #0f1115;
+            --card-bg-color: #1a1e28;
+            --text-color: #f1f5f9;
+            --primary-color: #d4af37;
+            --secondary-color: #334155;
+            --pv-color: #4ade80;
+            --energy-color: #fbbf24;
+            --pv-zero-color: #ef4444;
+            --field-color: #1e293b;
+            --field-border: #475569;
+            --border-radius: 8px;
             --spacing: 15px;
         }
 
@@ -32,7 +41,7 @@
             color: var(--text-color);
             height: 100vh;
             width: 100vw;
-            overflow: visible;
+            overflow: hidden;
         }
 
         /* Novo layout em grid */
@@ -45,9 +54,10 @@
                 "player1-stats player1-field player1-field"
                 "player1-deck player1-hand player1-discard";
             grid-template-columns: minmax(160px, 1fr) minmax(400px, 3fr) minmax(160px, 1fr);
-            grid-template-rows: minmax(120px, 1fr) minmax(200px, 2fr) minmax(80px, 0.8fr) minmax(200px, 2fr) minmax(120px, 1fr);
-            height: 100vh;
-            width: 100vw;
+            grid-template-rows: minmax(80px, 0.5fr) minmax(180px, 1.5fr) minmax(60px, 0.4fr) minmax(180px, 1.5fr) minmax(80px, 0.5fr);
+            height: 100dvh;
+            width: 100dvw;
+            overflow: hidden;
             gap: clamp(4px, 1vw, 12px);
             padding: clamp(4px, 1vw, 12px);
             min-height: 600px;
@@ -68,7 +78,7 @@
 
         /* Estilos das áreas do grid */
         .player2-discard, .player1-discard {
-            background-color: var(--card-bg-color);
+            background-color: var(--field-color);
             border: 2px solid var(--secondary-color);
             border-radius: var(--border-radius);
             display: flex;
@@ -79,10 +89,12 @@
             font-size: 14px;
             text-align: center;
             padding: 10px;
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
+            background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.02) 10px, rgba(255,255,255,0.02) 20px);
         }
 
         .player2-deck, .player1-deck {
-            background-color: var(--card-bg-color);
+            background: linear-gradient(135deg, var(--card-bg-color) 0%, #11151e 100%);
             border: 2px solid var(--primary-color);
             border-radius: var(--border-radius);
             display: flex;
@@ -95,11 +107,14 @@
             padding: 10px;
             cursor: pointer;
             transition: all 0.3s ease;
+            box-shadow: 4px 4px 0px rgba(40,40,40,0.8), 8px 8px 0px rgba(30,30,30,0.6), 12px 12px 0px rgba(20,20,20,0.4);
+            position: relative;
         }
 
         .player2-deck:hover, .player1-deck:hover {
             border-color: var(--energy-color);
-            box-shadow: 0 0 15px rgba(201, 165, 103, 0.3);
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0px rgba(40,40,40,0.8), 10px 10px 0px rgba(30,30,30,0.6), 14px 14px 0px rgba(20,20,20,0.4), 0 0 15px rgba(212, 175, 55, 0.3);
         }
 
         .player2-stats, .player1-stats {
@@ -119,7 +134,7 @@
 
         .player2-field, .player1-field {
             background-color: var(--field-color);
-            border: 3px solid var(--secondary-color);
+            border: 3px solid var(--field-border);
             border-radius: var(--border-radius);
             display: flex;
             flex-direction: row;
@@ -131,6 +146,9 @@
             overflow-y: hidden;
             font-size: clamp(14px, 2.5vw, 18px);
             gap: clamp(8px, 1vw, 15px);
+            box-shadow: inset 0 10px 30px rgba(0, 0, 0, 0.6);
+            background-image: linear-gradient(0deg, rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 20px 20px;
         }
 
         .player2-hand, .player1-hand {
@@ -316,38 +334,36 @@
         }
 
         .phase-button {
-            width: clamp(60px, 5vw, 80px);
-            height: clamp(60px, 5vw, 80px);
-            border-radius: 50%;
-            border: 3px solid var(--secondary-color);
-            background-color: var(--field-color);
+            flex: 1;
+            padding: 10px 15px;
+            min-height: 40px;
+            border-radius: 4px;
+            border: 2px solid var(--secondary-color);
+            background-color: var(--bg-color);
             color: var(--text-color);
             font-weight: bold;
-            font-size: clamp(9px, 0.8vw, 12px);
+            font-size: clamp(10px, 1vw, 14px);
             cursor: pointer;
             transition: all 0.3s ease;
             display: flex;
             align-items: center;
             justify-content: center;
             text-align: center;
+            box-shadow: inset 0 2px 5px rgba(255,255,255,0.05), 0 2px 4px rgba(0,0,0,0.5);
         }
 
         .phase-button:hover {
-            transform: scale(1.1);
             border-color: var(--primary-color);
+            background-color: var(--secondary-color);
         }
 
         .phase-button.active {
-            background-color: var(--energy-color);
-            border-color: var(--primary-color);
-            color: var(--bg-color);
-            box-shadow: 0 0 20px rgba(245, 201, 74, 0.5);
-            animation: phase-glow 2s infinite;
-        }
-
-        @keyframes phase-glow {
-            0%, 100% { box-shadow: 0 0 20px rgba(245, 201, 74, 0.5); }
-            50% { box-shadow: 0 0 30px rgba(245, 201, 74, 0.8); }
+            background-color: var(--primary-color);
+            border-color: #fff;
+            color: #000;
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.6), inset 0 0 10px rgba(255,255,255,0.4);
+            transform: scale(1.05);
+            z-index: 2;
         }
 
         /* Painel de informações do jogo */
@@ -582,7 +598,8 @@
 
         .control-buttons {
             display: flex;
-            gap: 5px;
+            gap: 3px;
+            margin-top: 3px;
         }
 
         .mini-button {
@@ -631,28 +648,26 @@
             background-color: var(--primary-color);
             color: var(--bg-color);
             border: none;
-            border-radius: 6px;
-            padding: 6px 12px;
-            font-size: 0.8em;
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-size: 11px;
             cursor: pointer;
             transition: all 0.3s ease;
             font-family: 'Cinzel', serif;
             font-weight: bold;
             white-space: nowrap;
+            box-shadow: inset 0 -2px 0 rgba(0,0,0,0.3);
+            text-transform: uppercase;
         }
 
         .action-button:hover {
             background-color: #b07d35;
-            transform: translateY(-2px);
+            transform: translateY(-1px);
         }
 
-        .phase-button {
-            background-color: var(--energy-color);
-            color: var(--bg-color);
-        }
-
-        .phase-button:hover {
-            background-color: #e0b400;
+        .action-button.direct-attack-btn {
+            background-color: var(--pv-zero-color);
+            color: #fff;
         }
 
         /* Tabuleiro do jogo */
@@ -821,8 +836,8 @@
 
         /* Cartas */
         .card {
-            width: clamp(70px, 8vw, 140px);
-            height: clamp(100px, 12vw, 220px);
+            width: clamp(100px, 15vh, 200px);
+            height: clamp(140px, 20vh, 260px);
             border: 2px solid var(--primary-color);
             border-radius: clamp(6px, 0.5vw, 10px);
             cursor: grab;
@@ -1594,16 +1609,127 @@
 
         .modal-close {
             position: absolute;
-            top: -10px;
-            right: -10px;
-            width: 30px;
-            height: 30px;
+            top: 12px;
+            right: 12px;
+            width: 36px;
+            height: 36px;
             background-color: var(--pv-zero-color);
-            color: white;
-            border: none;
+            color: #ffffff;
+            border: 2px solid rgba(255, 255, 255, 0.4);
             border-radius: 50%;
             cursor: pointer;
             font-weight: bold;
+            font-size: 20px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            transition: transform 0.2s ease, background-color 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background-color: #ff3333;
+            transform: scale(1.15);
+        }
+
+        /* Modal Dialog Padronizado com Ações */
+        .game-dialog-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            backdrop-filter: blur(6px);
+        }
+
+        .game-dialog-modal.visible {
+            display: flex;
+            animation: modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .game-dialog-card {
+            background: linear-gradient(135deg, var(--card-bg-color) 0%, var(--secondary-color) 100%);
+            border: 3px solid var(--primary-color);
+            border-radius: 18px;
+            padding: 28px 32px;
+            position: relative;
+            width: 90vw;
+            max-width: 460px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.9), 0 0 25px rgba(201, 165, 103, 0.25);
+            text-align: center;
+            color: var(--text-color);
+        }
+
+        .game-dialog-icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+            line-height: 1;
+        }
+
+        .game-dialog-title {
+            font-family: 'Cinzel', serif;
+            font-size: 1.3rem;
+            color: var(--primary-color);
+            margin: 0 0 14px 0;
+            letter-spacing: 1px;
+        }
+
+        .game-dialog-message {
+            font-size: 1rem;
+            line-height: 1.5;
+            color: #e2e8f0;
+            margin-bottom: 24px;
+            white-space: pre-line;
+            word-break: break-word;
+        }
+
+        .game-dialog-actions {
+            display: flex;
+            justify-content: center;
+            gap: 14px;
+        }
+
+        .game-dialog-btn {
+            font-family: 'Cinzel', serif;
+            padding: 10px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 0.95rem;
+            letter-spacing: 0.5px;
+            transition: all 0.2s ease;
+        }
+
+        .game-dialog-btn-primary {
+            background: linear-gradient(135deg, var(--primary-color) 0%, #b89047 100%);
+            color: #0f1115;
+            border: 1px solid #ffd700;
+            box-shadow: 0 4px 12px rgba(201, 165, 103, 0.4);
+        }
+
+        .game-dialog-btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(201, 165, 103, 0.6);
+            background: linear-gradient(135deg, #ffd700 0%, var(--primary-color) 100%);
+        }
+
+        .game-dialog-btn-cancel {
+            background: rgba(255, 255, 255, 0.08);
+            color: #cbd5e1;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .game-dialog-btn-cancel:hover {
+            background: rgba(255, 255, 255, 0.16);
+            color: #ffffff;
+            transform: translateY(-2px);
         }
 
         /* Modal de Descarte */
@@ -1870,7 +1996,7 @@
             <div class="stat">
                 <span class="stat-label">PV:</span>
                 <span class="stat-value pv-value" id="pv-p2" onclick="editStatValue('pv', 'p2')" style="cursor: pointer;">200</span>
-                <div class="control-buttons" style="display: flex; gap: 3px; margin-top: 3px;">
+                <div class="control-buttons">
                     <button class="mini-button" onclick="changeStat('pv', 'p2', -1)">-</button>
                     <button class="mini-button" onclick="changeStat('pv', 'p2', 1)">+</button>
                 </div>
@@ -1878,7 +2004,7 @@
             <div class="stat">
                 <span class="stat-label">Energia:</span>
                 <span class="stat-value energy-value" id="energy-p2" onclick="editStatValue('energy', 'p2')" style="cursor: pointer;">6</span>
-                <div class="control-buttons" style="display: flex; gap: 3px; margin-top: 3px;">
+                <div class="control-buttons">
                     <button class="mini-button" onclick="changeStat('energy', 'p2', -1)">-</button>
                     <button class="mini-button" onclick="changeStat('energy', 'p2', 1)">+</button>
                     <button class="mini-button dice-button" id="dice-p2" onclick="rollDice('p2')" title="Dado da Sorte (2 energia)">🎲</button>
@@ -1907,10 +2033,10 @@
             </div>
             
             <div class="control-section">
-                <button class="action-button" onclick="endTurn()" style="font-size: 11px; padding: 5px 8px; margin-bottom: 5px;">Fim Turno</button>
-                <button class="action-button" onclick="resetGame()" style="font-size: 11px; padding: 5px 8px; margin-bottom: 5px;">Reset</button>
-                <button class="action-button" onclick="showDeckInfo()" style="font-size: 11px; padding: 5px 8px; margin-bottom: 5px;">Decks</button>
-                <button class="action-button" id="direct-attack-btn" onclick="directAttack()" style="display: none; background-color: var(--pv-zero-color); font-size: 11px; padding: 5px 8px;">Ataque Direto</button>
+                <button class="action-button" onclick="endTurn()">Fim Turno</button>
+                <button class="action-button" onclick="resetGame()">Reset</button>
+                <button class="action-button" onclick="showDeckInfo()">Decks</button>
+                <button class="action-button direct-attack-btn" id="direct-attack-btn" onclick="directAttack()" style="display: none;">Ataque Direto</button>
             </div>
         </div>
         
@@ -1921,7 +2047,7 @@
             <div class="stat">
                 <span class="stat-label">PV:</span>
                 <span class="stat-value pv-value" id="pv-p1" onclick="editStatValue('pv', 'p1')" style="cursor: pointer;">200</span>
-                <div class="control-buttons" style="display: flex; gap: 3px; margin-top: 3px;">
+                <div class="control-buttons">
                     <button class="mini-button" onclick="changeStat('pv', 'p1', -1)">-</button>
                     <button class="mini-button" onclick="changeStat('pv', 'p1', 1)">+</button>
                 </div>
@@ -1929,7 +2055,7 @@
             <div class="stat">
                 <span class="stat-label">Energia:</span>
                 <span class="stat-value energy-value" id="energy-p1" onclick="editStatValue('energy', 'p1')" style="cursor: pointer;">6</span>
-                <div class="control-buttons" style="display: flex; gap: 3px; margin-top: 3px;">
+                <div class="control-buttons">
                     <button class="mini-button" onclick="changeStat('energy', 'p1', -1)">-</button>
                     <button class="mini-button" onclick="changeStat('energy', 'p1', 1)">+</button>
                     <button class="mini-button dice-button" id="dice-p1" onclick="rollDice('p1')" title="Dado da Sorte (2 energia)">🎲</button>
@@ -1977,6 +2103,20 @@
             </div>
             <div class="discard-cards-grid" id="discardCardsGrid">
                 <!-- Cartas descartadas aparecerão aqui -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Customizado Padronizado para Alertas e Ações -->
+    <div class="game-dialog-modal" id="gameDialogModal">
+        <div class="game-dialog-card">
+            <button class="modal-close" onclick="closeGameDialog()">&times;</button>
+            <div class="game-dialog-icon" id="gameDialogIcon">⚠️</div>
+            <h3 class="game-dialog-title" id="gameDialogTitle">Aviso</h3>
+            <div class="game-dialog-message" id="gameDialogMessage"></div>
+            <div class="game-dialog-actions" id="gameDialogActions">
+                <button class="game-dialog-btn game-dialog-btn-primary" id="gameDialogConfirmBtn" onclick="confirmGameDialog()">OK</button>
+                <button class="game-dialog-btn game-dialog-btn-cancel" id="gameDialogCancelBtn" onclick="closeGameDialog()" style="display: none;">Cancelar</button>
             </div>
         </div>
     </div>
