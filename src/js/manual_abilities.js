@@ -198,6 +198,7 @@ function activateMigratedAbility(cardId) {
         }
     });
     window.renderFieldsFromState?.();
+    window.renderHandsFromState?.();
     ['p1', 'p2'].forEach(playerId => window.updateDiscardCount?.(playerId));
     window.cardAbilities?.showAbilityFeedback(affectedTargetIds[0] || cardId, rule.feedback);
     updateManualAbilitiesList();

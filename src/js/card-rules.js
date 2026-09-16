@@ -1974,12 +1974,19 @@
             (event, context) => {
                 const card = context.state.cardInstances[event.payload.cardId];
                 const rule = card ? getRule(card.definitionId) : null;
+                const removeFreeResummon = (card, turn) => ({
+                    kind: GameEngine.EFFECT_KINDS.REMOVE_MODIFIER,
+                    targetId: card.instanceId,
+                    modifierId: `${card.instanceId}:free_resummon:${turn}`
+                });
+
                 return [
                     ...createRecentlySummonedEffect(event, context),
                     ...createProtectionEffects(event, context),
                     ...(card ? createStateRuleEffects(card) : []),
                     ...createRobotSynergyEffects(context.state),
-                    ...(rule ? rule.resolve(event, context) : [])
+                    ...(rule ? rule.resolve(event, context) : []),
+                    ...(card ? [removeFreeResummon(card, context.state.turn)] : [])
                 ];
             }
         );

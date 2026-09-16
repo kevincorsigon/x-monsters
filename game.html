@@ -2003,12 +2003,10 @@
             </div>
             <div class="stat">
                 <span class="stat-label">Energia:</span>
-                <span class="stat-value energy-value" id="energy-p2" onclick="editStatValue('energy', 'p2')" style="cursor: pointer;">6</span>
-                <div class="control-buttons">
-                    <button class="mini-button" onclick="changeStat('energy', 'p2', -1)">-</button>
-                    <button class="mini-button" onclick="changeStat('energy', 'p2', 1)">+</button>
-                    <button class="mini-button dice-button" id="dice-p2" onclick="rollDice('p2')" title="Dado da Sorte (2 energia)">🎲</button>
-                </div>
+            <span class="stat-value energy-value" id="energy-p2" style="cursor: default;">6</span>
+            <div class="control-buttons">
+                <button class="mini-button dice-button" id="dice-p2" onclick="rollDice('p2')" title="Dado da Sorte (2 energia)" style="margin-top: 4px;">🎲</button>
+            </div>
             </div>
         </div>
         
@@ -2054,12 +2052,10 @@
             </div>
             <div class="stat">
                 <span class="stat-label">Energia:</span>
-                <span class="stat-value energy-value" id="energy-p1" onclick="editStatValue('energy', 'p1')" style="cursor: pointer;">6</span>
-                <div class="control-buttons">
-                    <button class="mini-button" onclick="changeStat('energy', 'p1', -1)">-</button>
-                    <button class="mini-button" onclick="changeStat('energy', 'p1', 1)">+</button>
-                    <button class="mini-button dice-button" id="dice-p1" onclick="rollDice('p1')" title="Dado da Sorte (2 energia)">🎲</button>
-                </div>
+            <span class="stat-value energy-value" id="energy-p1" style="cursor: default;">6</span>
+            <div class="control-buttons">
+                <button class="mini-button dice-button" id="dice-p1" onclick="rollDice('p1')" title="Dado da Sorte (2 energia)" style="margin-top: 4px;">🎲</button>
+            </div>
             </div>
         </div>
         
@@ -2146,14 +2142,16 @@
         const INITIAL_ENERGY = 6;
         const MAX_ENERGY = 20;
         window.gameConfig = { initialPv: INITIAL_PV, initialEnergy: INITIAL_ENERGY };
-
-        // Estado do jogo
-        let gameState = window.GameStateModel.createInitialGameState(window.gameConfig);
+        const gameState = window.GameStateModel.createInitialGameState(window.gameConfig);
         window.gameState = gameState;
         window.gameEngine = window.GameEngine.createEngine(gameState);
         if (window.cardAbilities?.attachEngine) {
             window.cardAbilities.attachEngine(window.gameEngine);
         }
+        // Flag que indica se a partida já terminou
+        window.gameOver = false;
+        window.cardAbilities.attachEngine(window.gameEngine);
+        
 
         // Sistema de cartas será carregado do JSON
         let cardsDatabase = null;
@@ -2180,7 +2178,42 @@
         window.renderPlayerStats = renderPlayerStats;
 
         // Funções de controle de stats (do contador original)
+        function endGame(vencedor) {
+            // Define que o jogo terminou
+            window.gameOver = true;
+            // Desabilita todos os botões para evitar novas interações
+            const allButtons = document.querySelectorAll('button');
+            allButtons.forEach(btn => btn.disabled = true);
+
+            // Cria sobreposição informando o vencedor
+            const overlay = document.createElement('div');
+            overlay.id = 'game-over-overlay';
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100%';
+            overlay.style.height = '100%';
+            overlay.style.backgroundColor = 'rgba(0,0,0,0.8)';
+            overlay.style.display = 'flex';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'center';
+            overlay.style.zIndex = '1000';
+            // Organizar o conteúdo em um container para que o botão fique abaixo do texto
+            overlay.innerHTML = `<div style="text-align:center;">
+                <h1 style="color:white; font-size:3rem;">${vencedor} venceu!</h1>
+                <div style="margin-top:1rem;">
+                    <button class="action-button" onclick="resetGame()">Nova partida</button>
+                </div>
+            </div>`;
+            document.body.appendChild(overlay);
+        }
+        // Exponha a função de fim de jogo para o GameEngine
+        window.endGame = endGame;
+
         function changeStat(stat, player, amount) {
+            // Se a partida já terminou, não faz nada
+            if (window.gameOver) return;
+
             const newValue = window.GameStateModel.changePlayerStat(
                 gameState,
                 stat,
@@ -2212,8 +2245,13 @@
             if (stat === 'pv' && newValue <= 0) {
                 element.classList.add('pv-zero');
                 playSound('victorySound');
+                // Determina quem vence
+                const vencedor = player === 'p1' ? 'Jogador 2' : 'Jogador 1';
+                // Pequeno atraso para garantir que o som seja reproduzido antes da UI
                 setTimeout(() => {
-                    alert(`${player === 'p1' ? 'Jogador 2' : 'Jogador 1'} venceu!`);
+                    // Exibe alerta e finaliza a partida
+                    alert(`${vencedor} venceu!`);
+                    endGame(vencedor);
                 }, 100);
             } else if (stat === 'pv') {
                 element.classList.remove('pv-zero');
@@ -2222,10 +2260,17 @@
 
         function editName(player) {
             const nameElement = document.querySelector(`.player${player === 'p1' ? '1' : '2'}-stats .player-name`);
-            
             const newName = prompt('Digite o novo nome do jogador:', nameElement.innerText);
             if (newName && newName.trim()) {
+                // Atualiza visualmente o nome no painel de stats
                 nameElement.innerText = newName;
+                // Persiste o nome no estado canônico
+                window.GameStateModel.setPlayerName(gameState, player, newName);
+                // Atualiza o título da mão para refletir o novo nome
+                const handTitle = document.getElementById(`hand-title-${player}`);
+                if (handTitle) {
+                    handTitle.innerText = `Mão - ${newName}`;
+                }
             }
         }
 
@@ -2256,13 +2301,13 @@
 
         function rollDice(player) {
             if (gameState.diceUsed[player]) {
-                alert('Você já usou o dado da sorte nesta partida!');
+                showMessage('Você já usou o dado da sorte nesta partida!', 'warning');
                 return;
             }
 
             const currentEnergy = window.GameStateModel.getPlayerStat(gameState, 'energy', player);
             if (currentEnergy < 2) {
-                alert('Você precisa de pelo menos 2 pontos de energia para usar o dado da sorte!');
+                showMessage('Você precisa de 2 de energia para usar o dado da sorte!', 'warning');
                 return;
             }
 
@@ -2274,7 +2319,15 @@
             setTimeout(() => {
                 const diceResult = Math.floor(Math.random() * 6) + 1;
                 changeStat('energy', player, diceResult);
-                alert(`🎲 Dado da Sorte! Você ganhou ${diceResult} pontos de energia!`);
+                
+                // Exibe animação/feedback ao invés de alert
+                showMessage(`🎲 Dado da Sorte! Ganhou ${diceResult} de energia!`, 'info');
+                
+                const diceValueEl = document.createElement('div');
+                diceValueEl.textContent = `+${diceResult}`;
+                diceValueEl.className = 'dice-result-floating';
+                diceButton.appendChild(diceValueEl);
+                setTimeout(() => diceValueEl.remove(), 1500);
 
                 gameState.diceUsed[player] = true;
                 diceButton.disabled = true;
@@ -2394,8 +2447,8 @@
             gameState.attackedThisTurn = [];
             updateAttackedCardsVisual();
             
-            // Obter nome do jogador atual
-            const currentPlayerName = gameState.currentPlayer === 'p1' ? 'Jogador 1' : 'Jogador 2';
+            // Obter nome do jogador atual a partir do estado canônico
+            const currentPlayerName = window.GameStateModel.getPlayerName(gameState, gameState.currentPlayer);
             
             // Aumentar o máximo de energia do jogador atual em 1 (até o limite)
             if (gameState.maxEnergy[gameState.currentPlayer] < MAX_ENERGY) {
@@ -2436,6 +2489,27 @@
             
             if (previousPhase === 'combat') {
                 clearCombatHighlights();
+            }
+            // Auto‑increment energy when entering a new energy phase
+            if (phase === 'energy') {
+                const player = gameState.currentPlayer;
+                if (gameState.maxEnergy[player] < MAX_ENERGY) {
+                    gameState.maxEnergy[player] += 1;
+                }
+                const newEnergy = Math.min(
+                    window.GameStateModel.getPlayerStat(gameState, 'energy', player) + 1,
+                    MAX_ENERGY
+                );
+                window.GameStateModel.setPlayerStat(
+                    gameState,
+                    'energy',
+                    player,
+                    newEnergy,
+                    { energyCap: MAX_ENERGY }
+                );
+                renderPlayerStat('energy', player);
+                const playerName = player === 'p1' ? 'Jogador 1' : 'Jogador 2';
+                showTurnNotification(`⚡ ${playerName}<br/>Energia: ${newEnergy}`, 1000);
             }
 
             const result = window.gameEngine.resolveAction({
@@ -2887,7 +2961,7 @@
 
         function directAttack() {
             if (!gameState.attackingCard) {
-                alert('Primeiro selecione uma carta sua para atacar!');
+                showMessage('Primeiro selecione uma carta sua para atacar!');
                 return;
             }
 
@@ -2985,6 +3059,10 @@
             document.getElementById('field-p2').innerHTML = '';
 
             if (window.cardAbilities?.reset) window.cardAbilities.reset();
+            // Remover overlay de fim de jogo caso ainda exista (uma única declaração)
+            const overlay = document.getElementById('game-over-overlay');
+            if (overlay) overlay.remove();
+            window.gameOver = false;
             startNewMatch();
 
             ['p1', 'p2'].forEach(player => {
@@ -3087,6 +3165,21 @@
 
         function renderFieldsFromState() {
             ['p1', 'p2'].forEach(player => {
+                const fieldContainer = document.getElementById(`field-${player}`);
+                if (!fieldContainer) return;
+                
+                // Remover cartas que não estão mais no estado
+                Array.from(fieldContainer.children).forEach(child => {
+                    if (child.classList.contains('card')) {
+                        const instanceId = child.id;
+                        const cardInState = gameState.cards[player].field.find(c => c.instanceId === instanceId);
+                        if (!cardInState) {
+                            child.remove();
+                        }
+                    }
+                });
+
+                // Atualizar cartas que estão no estado
                 gameState.cards[player].field.forEach(card => {
                     updateCardDisplay(card.instanceId, {
                         ...card.data,
@@ -3440,15 +3533,20 @@
             
             if (!cardData || cardData.player !== targetPlayer) return;
 
+            if (cardData.data.type === 'suporte') {
+                showMessage('Cartas de suporte devem ser equipadas em uma criatura, não no campo.', 'warning');
+                return;
+            }
+
             // Verificar se é a fase correta
             if (gameState.currentPhase !== 'invocation') {
-                alert('Você só pode invocar cartas na Fase de Invocação!');
+                showMessage('Você só pode invocar cartas na Fase de Invocação!');
                 return;
             }
 
             // Verificar se é o turno do jogador
             if (gameState.currentPlayer !== targetPlayer) {
-                alert('Não é o seu turno!');
+                showMessage('Não é o seu turno!');
                 return;
             }
 
@@ -3456,7 +3554,7 @@
             const currentEnergy = window.GameStateModel.getPlayerStat(gameState, 'energy', targetPlayer);
             const summonCost = getEffectiveCardCost(cardId, cardData.data);
             if (currentEnergy < summonCost) {
-                alert('Energia insuficiente para invocar esta carta!');
+                showMessage('Energia insuficiente para invocar esta carta!');
                 return;
             }
 
@@ -3882,7 +3980,7 @@
         // Função para mostrar informações dos decks
         function showDeckInfo() {
             if (!gameState.decks || !window.deckBuilder) {
-                alert('Sistema de deck não carregado!');
+                showMessage('Sistema de deck não carregado!');
                 return;
             }
             
@@ -3907,7 +4005,7 @@ Cartas restantes:
 • Player 1: ${gameState.decks.p1.length}
 • Player 2: ${gameState.decks.p2.length}`;
             
-            alert(info);
+                showMessage(info);
         }
 
         // Função de teste para adicionar cartas ao campo
@@ -3925,7 +4023,7 @@ Cartas restantes:
             
             // Verificar se é carta de suporte
             if (supportCardData.data.type !== 'suporte') {
-                alert('Apenas cartas de suporte podem ser equipadas!');
+                showMessage('Apenas cartas de suporte podem ser equipadas!');
                 return;
             }
 
@@ -3943,7 +4041,7 @@ Cartas restantes:
             
             // Verificar se é criatura
             if (creatureCardData.data.type !== 'criatura') {
-                alert('Cartas de suporte só podem ser equipadas em criaturas!');
+                showMessage('Cartas de suporte só podem ser equipadas em criaturas!');
                 return;
             }
 
@@ -3961,20 +4059,20 @@ Cartas restantes:
             
             // Verificar fase
             if (gameState.currentPhase !== 'invocation') {
-                alert('Você só pode equipar cartas na Fase de Invocação!');
+                showMessage('Você só pode equipar cartas na Fase de Invocação!');
                 return;
             }
             
             // Verificar turno
             if (gameState.currentPlayer !== supportCardData.player) {
-                alert('Não é o seu turno!');
+                showMessage('Não é o seu turno!');
                 return;
             }
             
             // Verificar energia
             const currentEnergy = window.GameStateModel.getPlayerStat(gameState, 'energy', supportCardData.player);
             if (currentEnergy < supportCardData.data.cost) {
-                alert('Energia insuficiente para equipar esta carta!');
+                showMessage('Energia insuficiente para equipar esta carta!');
                 return;
             }
             
@@ -4109,7 +4207,7 @@ Cartas restantes:
             }
             
             // Feedback
-            alert(`${supportCardData.data.name} foi equipada em ${creatureCardData.data.name}!`);
+                showMessage(`${supportCardData.data.name} foi equipada em ${creatureCardData.data.name}!`);
             
             // Limpar highlights
             clearEquipmentHighlights();

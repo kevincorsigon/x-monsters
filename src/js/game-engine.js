@@ -510,9 +510,28 @@
                         ? effect.value
                         : previousValue + effect.amount;
 
+                    // Aplicar o novo valor
                     GameStateModel.setPlayerStat(state, effect.stat, effect.playerId, nextValue, {
                         energyCap: effect.energyCap ?? state.players[effect.playerId].maxEnergy
                     });
+                    // Se a mudança for em pontos de vida e o valor ficar zero ou negativo,
+                    // disparar o evento de fim de jogo. Este trecho será executado apenas
+                    // no contexto do navegador, onde `window.endGame` está definido.
+                     if (effect.stat === 'pv' && nextValue <= 0) {
+                         try {
+                             const winner = effect.playerId === 'p1' ? 'Jogador 2' : 'Jogador 1';
+                             console.log('[GameEngine] Detected HP <= 0. Tentando terminar jogo. Vencedor:', winner);
+                             if (typeof window !== 'undefined' && typeof window.endGame === 'function') {
+                                 console.log('[GameEngine] window.endGame encontrado. Chamando...');
+                                 window.endGame(winner);
+                             } else {
+                                 console.warn('[GameEngine] window.endGame NÃO definido. O fim de jogo não ocorrerá.');
+                             }
+                         } catch (e) {
+                             // Ignorar erros de execução em ambientes não-navegador (ex.: testes unitários)
+                             console.error('[GameEngine] Erro ao chamar endGame:', e);
+                         }
+                    }
                     transaction.record(() => {
                         GameStateModel.setPlayerStat(
                             state,

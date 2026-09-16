@@ -27,8 +27,9 @@
         };
     }
 
-    function createPlayerState(initialPv, initialEnergy) {
+    function createPlayerState(initialPv, initialEnergy, playerId) {
         return {
+            name: playerId === 'p1' ? 'Jogador 1' : 'Jogador 2',
             pv: initialPv,
             energy: initialEnergy,
             maxEnergy: initialEnergy,
@@ -82,8 +83,8 @@
             attackedThisTurn: [],
             recentlySummoned: [],
             players: {
-                p1: createPlayerState(initialPv, initialEnergy),
-                p2: createPlayerState(initialPv, initialEnergy)
+                p1: createPlayerState(initialPv, initialEnergy, 'p1'),
+                p2: createPlayerState(initialPv, initialEnergy, 'p2')
             },
             cardInstances: {},
             effects: [],
@@ -269,6 +270,16 @@
         return setPlayerStat(state, stat, playerId, currentValue + amount, options);
     }
 
+    function getPlayerName(state, playerId) {
+        return state.players[playerId]?.name || (playerId === 'p1' ? 'Jogador 1' : 'Jogador 2');
+    }
+
+    function setPlayerName(state, playerId, name) {
+        if (state.players[playerId]) {
+            state.players[playerId].name = name;
+        }
+    }
+
     return {
         PLAYER_IDS,
         ZONE_NAMES,
@@ -282,6 +293,8 @@
         drawCard,
         getPlayerStat,
         setPlayerStat,
-        changePlayerStat
+        changePlayerStat,
+        getPlayerName,
+        setPlayerName
     };
 });
