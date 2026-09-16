@@ -2576,9 +2576,16 @@
             // Destacar cartas que podem ser invocadas
             playerHand.forEach(card => {
                 const cardElement = document.getElementById(card.id);
-                if (cardElement && getEffectiveCardCost(card.id, card.data) <= currentEnergy) {
+                if (!cardElement) return;
+
+                const hasEnergy = getEffectiveCardCost(card.id, card.data) <= currentEnergy;
+                const evolutionCheck = window.CardRules?.validateEvolutionSummon
+                    ? window.CardRules.validateEvolutionSummon(gameState, card.data.id, currentPlayer)
+                    : { valid: true };
+
+                if (hasEnergy && evolutionCheck.valid) {
                     cardElement.classList.add('can-be-summoned');
-                } else if (cardElement) {
+                } else {
                     cardElement.classList.remove('can-be-summoned');
                 }
             });
@@ -3453,6 +3460,27 @@
                 return;
             }
 
+            // Cartas de evolução exigem a carta base correspondente em campo
+            // (ex: Turtol Maximus exige Turtol). A invocação descarta a base.
+            let evolutionBaseInstanceId = null;
+            let evolutionBaseAttachmentIds = [];
+            if (cardData.data.type === 'evolução') {
+                const evolutionCheck = window.CardRules.validateEvolutionSummon(
+                    gameState, cardData.data.id, targetPlayer
+                );
+                if (!evolutionCheck.valid) {
+                    showMessage(evolutionCheck.reason, 'warning');
+                    return;
+                }
+                evolutionBaseInstanceId = evolutionCheck.baseInstanceId;
+                evolutionBaseAttachmentIds = (
+                    gameState.cardInstances[evolutionBaseInstanceId]?.attachments || []
+                ).map(attachmentId => ({
+                    instanceId: attachmentId,
+                    ownerId: gameState.cardInstances[attachmentId]?.ownerId || targetPlayer
+                }));
+            }
+
             const summonResult = window.gameEngine.resolveAction({
                 type: 'SUMMON_CARD',
                 actorId: targetPlayer,
@@ -3466,12 +3494,26 @@
                     playerId: targetPlayer,
                     amount: summonCost
                 }],
-                effects: [{
-                    kind: window.GameEngine.EFFECT_KINDS.MOVE_CARD,
-                    instanceId: cardId,
-                    destinationZone: 'field',
-                    destinationPlayerId: targetPlayer
-                }],
+                effects: [
+                    ...evolutionBaseAttachmentIds.map(attachment => ({
+                        kind: window.GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: attachment.instanceId,
+                        destinationZone: 'discard',
+                        destinationPlayerId: attachment.ownerId
+                    })),
+                    ...(evolutionBaseInstanceId ? [{
+                        kind: window.GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: evolutionBaseInstanceId,
+                        destinationZone: 'discard',
+                        destinationPlayerId: targetPlayer
+                    }] : []),
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: cardId,
+                        destinationZone: 'field',
+                        destinationPlayerId: targetPlayer
+                    }
+                ],
                 events: [
                     {
                         type: window.GameEngine.EVENT_TYPES.CARD_MOVED,
@@ -3886,6 +3928,18 @@ Cartas restantes:
                 alert('Apenas cartas de suporte podem ser equipadas!');
                 return;
             }
+
+            // Cartas com habilidade ativada a partir da mão (ex: Adubaram) são
+            // efeitos de uso único, não equipamentos — precisam ser ativadas
+            // direto da mão (painel de habilidades manuais), nunca equipadas.
+            const handOnlyRule = window.CardRules?.getActivatedRule(supportCardData.data.id);
+            if (handOnlyRule?.sourceZone === 'hand') {
+                showMessage(
+                    `${supportCardData.data.name} não pode ser equipada — ative-a direto da mão no painel de habilidades.`,
+                    'warning'
+                );
+                return;
+            }
             
             // Verificar se é criatura
             if (creatureCardData.data.type !== 'criatura') {
@@ -4144,6 +4198,13 @@ Cartas restantes:
             // Adicionar clique na carta de equipamento para mostrar modal
             equipmentCard.onclick = (e) => {
                 e.stopPropagation();
+                // Na fase de combate, o clique deve selecionar/atacar a criatura
+                // que carrega o equipamento, não abrir os detalhes do equipamento
+                // (senão fica impossível mirar em criaturas equipadas).
+                if (gameState.currentPhase === 'combat') {
+                    selectCard(creatureElement.id);
+                    return;
+                }
                 showCardModal(supportCardData);
                 console.log('🔍 Clicked on equipment card:', supportCardData.name);
             };

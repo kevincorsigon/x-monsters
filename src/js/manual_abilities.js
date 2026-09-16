@@ -89,6 +89,7 @@ function updateManualAbilitiesList() {
     const currentPlayer = gameState.currentPlayer;
     const playerCards = gameState.cards[currentPlayer].field;
     const playerEquipment = gameState.cards[currentPlayer].equipment;
+    const playerHand = gameState.cards[currentPlayer].hand;
 
     let hasManualAbilities = false;
     let htmlContent = '';
@@ -126,10 +127,21 @@ function updateManualAbilitiesList() {
         `;
     }
 
+    // Cartas com sourceZone: 'hand' são efeitos de uso único ativados direto
+    // da mão (ex: Adubaram) — não pertencem aos loops de campo/equipamento.
+    playerHand.forEach(card => {
+        const cardData = window.cardsDatabase?.cards?.find(c => c.id === card.data.id);
+        const migratedRule = window.CardRules?.getActivatedRule(card.data.id);
+        if (migratedRule && cardData && migratedRule.sourceZone === 'hand') {
+            hasManualAbilities = true;
+            htmlContent += renderMigratedAbilityCard(card, cardData, migratedRule);
+        }
+    });
+
     playerEquipment.forEach(card => {
         const cardData = window.cardsDatabase?.cards?.find(c => c.id === card.data.id);
         const migratedRule = window.CardRules?.getActivatedRule(card.data.id);
-        if (migratedRule && cardData) {
+        if (migratedRule && cardData && migratedRule.sourceZone !== 'hand') {
             hasManualAbilities = true;
             htmlContent += renderMigratedAbilityCard(card, cardData, migratedRule);
         }
@@ -139,7 +151,7 @@ function updateManualAbilitiesList() {
         const cardData = window.cardsDatabase?.cards?.find(c => c.id === card.data.id);
         const migratedRule = window.CardRules?.getActivatedRule(card.data.id);
 
-        if (migratedRule) {
+        if (migratedRule && migratedRule.sourceZone !== 'hand') {
             hasManualAbilities = true;
             htmlContent += renderMigratedAbilityCard(card, cardData, migratedRule);
         }

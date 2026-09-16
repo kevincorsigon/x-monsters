@@ -35,11 +35,15 @@ class DeckBuilder {
         }
         
         // Preencher o resto com criaturas se necessário
-        while (deck.length < deckSize && criaturas.length > 0) {
-            const cartaExtra = criaturas[Math.floor(Math.random() * criaturas.length)];
-            if (!deck.find(c => c.id === cartaExtra.id)) {
-                deck.push(cartaExtra);
-            }
+        // (usamos uma cópia consumível do pool para garantir que o loop sempre termina:
+        // cada iteração remove uma carta do pool de candidatos, então
+        // criaturasDisponiveis.length sempre diminui ou o deck sempre cresce)
+        const criaturasDisponiveis = this.shuffleArray(
+            criaturas.filter(carta => !deck.find(c => c.id === carta.id))
+        );
+        while (deck.length < deckSize && criaturasDisponiveis.length > 0) {
+            const cartaExtra = criaturasDisponiveis.pop();
+            deck.push(cartaExtra);
         }
         
         return this.shuffleArray(deck).slice(0, deckSize);

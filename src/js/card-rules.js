@@ -1342,6 +1342,14 @@
         'card_035'
     ]);
 
+    // Cartas do tipo "evolução" só podem ser invocadas sobre a carta base
+    // correspondente já em campo (ex: Turtol Maximus exige Turtol; Marik 2
+    // exige Marik). Invocar a evolução consome (descarta) a base.
+    const EVOLUTION_BASE_IDS = Object.freeze({
+        card_075: 'card_048', // Turtol Maximus <- Turtol
+        card_085: 'card_077'  // Marik 2 <- Marik
+    });
+
     const TRAITS_BY_DEFINITION = Object.freeze({
         card_018: Object.freeze(['robotico']),
         card_023: Object.freeze(['robotico']),
@@ -1453,6 +1461,30 @@
 
     function isMigrated(definitionId) {
         return migratedDefinitionIds.includes(definitionId);
+    }
+
+    function getEvolutionBaseDefinitionId(definitionId) {
+        return EVOLUTION_BASE_IDS[definitionId] || null;
+    }
+
+    function validateEvolutionSummon(state, definitionId, playerId) {
+        const baseDefinitionId = getEvolutionBaseDefinitionId(definitionId);
+        if (!baseDefinitionId) return { valid: true, baseInstanceId: null };
+
+        const baseCard = state.players[playerId].zones.field
+            .find(card => card.definitionId === baseDefinitionId);
+
+        if (!baseCard) {
+            const catalog = typeof window !== 'undefined' ? window.cardsDatabase : null;
+            const baseName = catalog?.cards?.find(c => c.id === baseDefinitionId)?.name
+                || baseDefinitionId;
+            return {
+                valid: false,
+                reason: `Esta evolução só pode ser invocada sobre ${baseName} já em campo.`
+            };
+        }
+
+        return { valid: true, baseInstanceId: baseCard.instanceId };
     }
 
     function validateEquipmentTarget(equipment, target) {
@@ -2795,6 +2827,7 @@
         PROTECTION_RULES,
         DIRECT_ATTACK_DEFINITION_IDS,
         TRAITS_BY_DEFINITION,
+        EVOLUTION_BASE_IDS,
         MIGRATED_DEFINITION_IDS: Object.freeze(migratedDefinitionIds),
         getRule,
         getEquipmentRule,
@@ -2805,6 +2838,8 @@
         getProtectionRule,
         getFeedback,
         isMigrated,
+        getEvolutionBaseDefinitionId,
+        validateEvolutionSummon,
         validateEquipmentTarget,
         validateAttackTarget,
         canDirectAttack,
