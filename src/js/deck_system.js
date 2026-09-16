@@ -7,7 +7,7 @@ class DeckBuilder {
     }
 
     // Criar deck balanceado para um jogador
-    createBalancedDeck(deckSize = 30) {
+    createBalancedDeck(deckSize = 40) {
         const deck = [];
         
         // Distribuição balanceada:
@@ -80,7 +80,7 @@ class DeckBuilder {
     }
     
     // Criar dois decks balanceados para uma partida
-    createMatchDecks(deckSize = 30) {
+    createMatchDecks(deckSize = 40) {
         // Dividir cartas em dois pools para evitar repetição
         const allCardsShuffled = this.shuffleArray([...this.allCards]);
         const midPoint = Math.floor(allCardsShuffled.length / 2);
@@ -482,7 +482,7 @@ function startNewMatch() {
         return;
     }
     
-    const matchDecks = window.deckBuilder.createMatchDecks(30);
+    const matchDecks = window.deckBuilder.createMatchDecks(40);
     
     window.GameStateModel.resetMatchState(gameState, {
         p1: matchDecks.player1,

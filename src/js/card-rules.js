@@ -948,7 +948,12 @@
                             stat: 'cost',
                             operation: GameEngine.MODIFIER_OPERATIONS.SET,
                             value: 0,
-                            duration: { kind: GameEngine.DURATION_KINDS.PERMANENT_ON_INSTANCE }
+                            duration: {
+                                kind: GameEngine.DURATION_KINDS.UNTIL_NEXT_MATCHING_EVENT,
+                                predicate: (event) =>
+                                    event.type === GameEngine.EVENT_TYPES.CREATURE_SUMMONED &&
+                                    event.payload.cardId === sourceId
+                            }
                         }
                     },
                     ...detachAttachedEquipment(context.state, source)
@@ -1581,7 +1586,7 @@
         const opponentId = attacker.controllerId === 'p1' ? 'p2' : 'p1';
         const hasDefenders = state.players[opponentId].zones.field
             .some(card => ['criatura', 'evolução'].includes(card.data.type));
-        if (!hasDefenders) return true;
+        if (!hasDefenders) return state.turn > 1;
         if (attacker.definitionId === 'card_063') {
             const usage = attacker.usage?.combatAttacks;
             const directAttacks = usage?.turnNumber === state.turn

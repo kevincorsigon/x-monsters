@@ -1,0 +1,2213 @@
+        // Constantes do jogo
+        const INITIAL_PV = 200;
+        const INITIAL_ENERGY = 6;
+        const MAX_ENERGY = 20;
+        window.gameConfig = { initialPv: INITIAL_PV, initialEnergy: INITIAL_ENERGY };
+        const gameState = window.GameStateModel.createInitialGameState(window.gameConfig);
+        window.gameState = gameState;
+        window.gameEngine = window.GameEngine.createEngine(gameState);
+        if (window.cardAbilities?.attachEngine) {
+            window.cardAbilities.attachEngine(window.gameEngine);
+        }
+        // Flag que indica se a partida já terminou
+        window.gameOver = false;
+        window.cardAbilities.attachEngine(window.gameEngine);
+        
+
+        // Sistema de cartas será carregado do JSON
+        let cardsDatabase = null;
+        let deckBuilder = null;
+
+        function renderPlayerStat(stat, player) {
+            const element = document.getElementById(`${stat}-${player}`);
+            if (!element) return;
+
+            const value = window.GameStateModel.getPlayerStat(gameState, stat, player);
+            element.innerText = value;
+
+            if (stat === 'pv') {
+                element.classList.toggle('pv-zero', value <= 0);
+            }
+        }
+
+        function renderPlayerStats() {
+            ['p1', 'p2'].forEach(player => {
+                renderPlayerStat('pv', player);
+                renderPlayerStat('energy', player);
+            });
+        }
+        window.renderPlayerStats = renderPlayerStats;
+
+        // Funções de controle de stats (do contador original)
+        function endGame(vencedor) {
+            // Define que o jogo terminou
+            window.gameOver = true;
+            // Desabilita todos os botões para evitar novas interações
+            const allButtons = document.querySelectorAll('button');
+            allButtons.forEach(btn => btn.disabled = true);
+
+            // Cria sobreposição informando o vencedor
+            const overlay = document.createElement('div');
+            overlay.id = 'game-over-overlay';
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100%';
+            overlay.style.height = '100%';
+            overlay.style.backgroundColor = 'rgba(0,0,0,0.8)';
+            overlay.style.display = 'flex';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'center';
+            overlay.style.zIndex = '1000';
+            // Organizar o conteúdo em um container para que o botão fique abaixo do texto
+            overlay.innerHTML = `<div style="text-align:center;">
+                <h1 style="color:white; font-size:3rem;">${vencedor} venceu!</h1>
+                <div style="margin-top:1rem;">
+                    <button class="action-button" onclick="resetGame()">Nova partida</button>
+                </div>
+            </div>`;
+            document.body.appendChild(overlay);
+        }
+        // Exponha a função de fim de jogo para o GameEngine
+        window.endGame = endGame;
+
+        function changeStat(stat, player, amount) {
+            // Se a partida já terminou, não faz nada
+            if (window.gameOver) return;
+
+            const newValue = window.GameStateModel.changePlayerStat(
+                gameState,
+                stat,
+                player,
+                amount,
+                { energyCap: MAX_ENERGY }
+            );
+
+            // Sons
+            if (stat === 'pv' && amount < 0) playSound('punchSound');
+            if (stat === 'pv' && amount > 0) playSound('healingSound');
+            if (stat === 'energy' && amount > 0) playSound('energySound');
+            if (stat === 'energy' && amount < 0) playSound('wasteSound');
+
+            renderPlayerStat(stat, player);
+            const element = document.getElementById(`${stat}-${player}`);
+
+            // Efeito visual para energia ganha automaticamente no turno
+            if (stat === 'energy' && amount > 0) {
+                element.style.transform = 'scale(1.3)';
+                element.style.boxShadow = '0 0 20px var(--energy-color)';
+                setTimeout(() => {
+                    element.style.transform = '';
+                    element.style.boxShadow = '';
+                }, 600);
+            }
+
+            // Verificar vitória
+            if (stat === 'pv' && newValue <= 0) {
+                element.classList.add('pv-zero');
+                playSound('victorySound');
+                const vencedor = player === 'p1' ? 'Jogador 2' : 'Jogador 1';
+                showTurnNotification(`🏆 ${vencedor} venceu!`, 2500);
+                setTimeout(() => {
+                    endGame(vencedor);
+                }, 2500);
+            } else if (stat === 'pv') {
+                element.classList.remove('pv-zero');
+            }
+        }
+
+        function editName(player) {
+            const nameElement = document.querySelector(`.player${player === 'p1' ? '1' : '2'}-stats .player-name`);
+            const newName = prompt('Digite o novo nome do jogador:', nameElement.innerText);
+            if (newName && newName.trim()) {
+                // Atualiza visualmente o nome no painel de stats
+                nameElement.innerText = newName;
+                // Persiste o nome no estado canônico
+                window.GameStateModel.setPlayerName(gameState, player, newName);
+                // Atualiza o título da mão para refletir o novo nome
+                const handTitle = document.getElementById(`hand-title-${player}`);
+                if (handTitle) {
+                    handTitle.innerText = `Mão - ${newName}`;
+                }
+            }
+        }
+
+        function editStatValue(stat, player) {
+            const element = document.getElementById(`${stat}-${player}`);
+            const newValue = prompt(`Digite o novo valor para ${stat}:`, element.innerText);
+            if (newValue !== null && newValue !== '' && !isNaN(newValue)) {
+                let parsedValue = parseInt(newValue);
+                parsedValue = window.GameStateModel.setPlayerStat(
+                    gameState,
+                    stat,
+                    player,
+                    parsedValue,
+                    { energyCap: MAX_ENERGY }
+                );
+                renderPlayerStat(stat, player);
+                
+                if (stat === 'pv') {
+                    if (parsedValue <= 0) {
+                        element.classList.add('pv-zero');
+                        playSound('victorySound');
+                    } else {
+                        element.classList.remove('pv-zero');
+                    }
+                }
+            }
+        }
+
+        function rollDice(player) {
+            if (gameState.diceUsed[player]) {
+                showMessage('Você já usou o dado da sorte nesta partida!', 'warning');
+                return;
+            }
+
+            const currentEnergy = window.GameStateModel.getPlayerStat(gameState, 'energy', player);
+            if (currentEnergy < 2) {
+                showMessage('Você precisa de 2 de energia para usar o dado da sorte!', 'warning');
+                return;
+            }
+
+            changeStat('energy', player, -2);
+
+            const diceButton = document.getElementById(`dice-${player}`);
+            diceButton.classList.add('dice-animation');
+
+            setTimeout(() => {
+                const diceResult = Math.floor(Math.random() * 6) + 1;
+                changeStat('energy', player, diceResult);
+                
+                // Exibe animação/feedback ao invés de alert
+                showMessage(`🎲 Dado da Sorte! Ganhou ${diceResult} de energia!`, 'info');
+                
+                const diceValueEl = document.createElement('div');
+                diceValueEl.textContent = `+${diceResult}`;
+                diceValueEl.className = 'dice-result-floating';
+                diceButton.appendChild(diceValueEl);
+                setTimeout(() => diceValueEl.remove(), 1500);
+
+                gameState.diceUsed[player] = true;
+                diceButton.disabled = true;
+                diceButton.title = 'Dado da sorte já usado nesta partida';
+                diceButton.classList.remove('dice-animation');
+            }, 800);
+        }
+
+        function playSound(soundId) {
+            const sound = document.getElementById(soundId);
+            if (sound) {
+                sound.currentTime = 0;
+                sound.play().catch(e => console.log('Erro ao tocar som:', e));
+            }
+        }
+
+        // Funções do jogo
+        function nextPhase() {
+            const phases = ['energy', 'invocation', 'combat'];
+            const currentIndex = phases.indexOf(gameState.currentPhase);
+            
+            // Limpar estado de combate ao sair da fase
+            if (gameState.currentPhase === 'combat') {
+                clearCombatHighlights();
+            }
+            
+            if (currentIndex < phases.length - 1) {
+                setPhase(phases[currentIndex + 1]);
+            } else {
+                endTurn();
+                return;
+            }
+
+            if (gameState.currentPhase === 'energy') {
+                changeStat('energy', gameState.currentPlayer, 1);
+            }
+
+            updateUI();
+        }
+
+        function updateAttackedCardsVisual() {
+            document.querySelectorAll('.card').forEach(card => {
+                card.classList.remove('already-attacked');
+            });
+
+            Object.values(gameState.cardInstances).forEach(card => {
+                if (card.zone !== 'field') return;
+                if (window.gameEngine.getAttackCount(card.instanceId) >=
+                    window.gameEngine.getAttackLimit(card.instanceId)) {
+                    card.element?.classList.add('already-attacked');
+                }
+            });
+        }
+
+        function endTurn() {
+            const endingPlayer = gameState.currentPlayer;
+            const endingPhase = gameState.currentPhase;
+            const endingTurn = gameState.turn;
+            const nextPlayer = endingPlayer === 'p1' ? 'p2' : 'p1';
+            const result = window.gameEngine.resolveAction({
+                type: 'END_TURN',
+                actorId: endingPlayer,
+                requiresTurn: true,
+                effects: [
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.EMIT_EVENT,
+                        type: window.GameEngine.EVENT_TYPES.PHASE_ENDING,
+                        payload: { playerId: endingPlayer, phase: endingPhase, turnNumber: endingTurn },
+                        immediate: true
+                    },
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.EMIT_EVENT,
+                        type: window.GameEngine.EVENT_TYPES.TURN_ENDING,
+                        payload: { playerId: endingPlayer, turnNumber: endingTurn },
+                        immediate: true
+                    },
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.SET_TURN_STATE,
+                        changes: {
+                            currentPlayer: nextPlayer,
+                            currentPhase: 'energy',
+                            turn: endingTurn + 1
+                        }
+                    },
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.EMIT_EVENT,
+                        type: window.GameEngine.EVENT_TYPES.TURN_ENDED,
+                        payload: { playerId: endingPlayer, turnNumber: endingTurn },
+                        immediate: true
+                    },
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.EMIT_EVENT,
+                        type: window.GameEngine.EVENT_TYPES.TURN_STARTED,
+                        payload: { playerId: nextPlayer, turnNumber: endingTurn + 1 },
+                        immediate: true
+                    },
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.EMIT_EVENT,
+                        type: window.GameEngine.EVENT_TYPES.PHASE_STARTED,
+                        payload: { playerId: nextPlayer, phase: 'energy', turnNumber: endingTurn + 1 },
+                        immediate: true
+                    }
+                ]
+            });
+
+            if (result.status !== 'resolved') {
+                showMessage(result.reason, 'warning');
+                return;
+            }
+            
+            // Processar efeitos temporários das habilidades
+            if (window.cardAbilities) {
+                window.cardAbilities.processTurnEffects();
+            }
+            
+            // Limpar lista de cartas que atacaram
+            gameState.attackedThisTurn = [];
+            updateAttackedCardsVisual();
+            
+            // Obter nome do jogador atual a partir do estado canônico
+            const currentPlayerName = window.GameStateModel.getPlayerName(gameState, gameState.currentPlayer);
+            
+            // Aumentar o máximo de energia do jogador atual em 1 (até o limite)
+            if (gameState.maxEnergy[gameState.currentPlayer] < MAX_ENERGY) {
+                gameState.maxEnergy[gameState.currentPlayer]++;
+            }
+
+            // Restaurar energia para o novo máximo (igual ao index.html)
+            const newEnergy = gameState.maxEnergy[gameState.currentPlayer];
+            window.GameStateModel.setPlayerStat(
+                gameState,
+                'energy',
+                gameState.currentPlayer,
+                newEnergy,
+                { energyCap: MAX_ENERGY }
+            );
+            renderPlayerStat('energy', gameState.currentPlayer);
+
+            // Mostrar notificação de energia
+            showTurnNotification(`⚡ ${currentPlayerName}<br/>Energia: ${newEnergy}`, 1000);
+            
+            updateUI();
+            
+            // Automaticamente mudar para fase de invocação após delay
+            setTimeout(() => {
+                addCardToHand(gameState.currentPlayer);
+                setPhase('invocation');
+
+                // Mostrar segunda notificação da fase
+                showTurnNotification(`🃏 ${currentPlayerName}<br/>Fase de Invocação`, 1500);
+
+                console.log(`🔄 Turno de ${gameState.currentPlayer}: +1 Energia → Fase de Invocação`);
+            }, 1200);
+        }
+
+        // Nova função para definir fase diretamente
+        function setPhase(phase) {
+            console.log('Mudando para fase:', phase);
+            const previousPhase = gameState.currentPhase;
+            if (previousPhase === phase) return;
+            
+            if (previousPhase === 'combat') {
+                clearCombatHighlights();
+            }
+            // Energia é incrementada só em endTurn/initFirstTurn (automático).
+            // Entrar em 'energy' manualmente (botão de fase) não deve conceder bônus.
+
+            const result = window.gameEngine.resolveAction({
+                type: 'CHANGE_PHASE',
+                actorId: gameState.currentPlayer,
+                effects: [
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.EMIT_EVENT,
+                        type: window.GameEngine.EVENT_TYPES.PHASE_ENDING,
+                        payload: {
+                            playerId: gameState.currentPlayer,
+                            phase: previousPhase,
+                            turnNumber: gameState.turn
+                        },
+                        immediate: true
+                    },
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.SET_TURN_STATE,
+                        changes: { currentPhase: phase }
+                    },
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.EMIT_EVENT,
+                        type: window.GameEngine.EVENT_TYPES.PHASE_STARTED,
+                        payload: {
+                            playerId: gameState.currentPlayer,
+                            phase,
+                            turnNumber: gameState.turn
+                        },
+                        immediate: true
+                    }
+                ]
+            });
+            if (result.status !== 'resolved') {
+                showMessage(result.reason, 'warning');
+                return;
+            }
+            updateUI();
+            
+            // Tocar som de confirmação
+            playSound('energySound');
+        }
+
+        function updateUI() {
+            document.getElementById('current-player').textContent = 
+                gameState.currentPlayer === 'p1' ? 'Jogador 1' : 'Jogador 2';
+            
+            const phaseNames = { energy: 'Energia', invocation: 'Invocação', combat: 'Combate' };
+            document.getElementById('current-phase').textContent = phaseNames[gameState.currentPhase];
+
+            // Atualizar botões de fase (semáforo)
+            document.querySelectorAll('.phase-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Mapear fases para IDs dos botões
+            const phaseButtonIds = {
+                'energy': 'energy-phase',
+                'invocation': 'invocation-phase', 
+                'combat': 'combat-phase'
+            };
+            
+            const activeButtonId = phaseButtonIds[gameState.currentPhase];
+            const activeButton = document.getElementById(activeButtonId);
+            if (activeButton) {
+                activeButton.classList.add('active');
+            }
+
+            // Atualizar campo ativo
+            document.getElementById('field-p1').classList.remove('field-active');
+            document.getElementById('field-p2').classList.remove('field-active');
+            document.getElementById(`field-${gameState.currentPlayer}`).classList.add('field-active');
+
+            // Controlar visibilidade das mãos baseado no turno
+            updateHandVisibility();
+
+            // Mostrar/ocultar informações de combate e botão de ataque direto
+            const combatInfo = document.getElementById('combat-info');
+            const directAttackBtn = document.getElementById('direct-attack-btn');
+            
+            if (gameState.currentPhase === 'combat') {
+                combatInfo.style.display = 'block';
+                directAttackBtn.style.display = 'block';
+                updateCombatInstructions();
+            } else {
+                combatInfo.style.display = 'none';
+                directAttackBtn.style.display = 'none';
+            }
+
+            // Atualizar instruções baseadas na fase
+            updatePhaseInstructions();
+
+            // Destacar cartas invocáveis na fase de invocação
+            if (gameState.currentPhase === 'invocation') {
+                highlightSummonableCards();
+            } else {
+                clearSummonHighlights();
+            }
+        }
+
+        function updatePhaseInstructions() {
+            const instruction = document.getElementById('combat-instruction');
+            if (!instruction) return;
+
+            switch (gameState.currentPhase) {
+                case 'energy':
+                    instruction.textContent = 'Fase de Energia - Ganhe energia e use habilidades';
+                    break;
+                case 'invocation':
+                    instruction.textContent = 'Fase de Invocação - Baixe cartas da mão para o campo';
+                    break;
+                case 'combat':
+                    instruction.textContent = 'Fase de Combate - Selecione cartas para atacar';
+                    break;
+            }
+        }
+
+        function updateCombatInstructions() {
+            const instruction = document.getElementById('combat-instruction');
+            if (gameState.attackingCard) {
+                instruction.textContent = 'Selecione um alvo para atacar ou clique em Ataque Direto';
+            } else {
+                instruction.textContent = 'Selecione uma carta sua para atacar';
+            }
+        }
+
+        function updateInvocationInfo(message) {
+            const instruction = document.getElementById('combat-instruction');
+            if (instruction) {
+                instruction.textContent = message;
+            }
+        }
+
+        function highlightSummonableCards() {
+            const currentPlayer = gameState.currentPlayer;
+            const currentEnergy = window.GameStateModel.getPlayerStat(gameState, 'energy', currentPlayer);
+            const playerHand = gameState.cards[currentPlayer].hand;
+            
+            // Destacar cartas que podem ser invocadas
+            playerHand.forEach(card => {
+                const cardElement = document.getElementById(card.id);
+                if (!cardElement) return;
+
+                const hasEnergy = getEffectiveCardCost(card.id, card.data) <= currentEnergy;
+                const evolutionCheck = window.CardRules?.validateEvolutionSummon
+                    ? window.CardRules.validateEvolutionSummon(gameState, card.data.id, currentPlayer)
+                    : { valid: true };
+
+                if (hasEnergy && evolutionCheck.valid) {
+                    cardElement.classList.add('can-be-summoned');
+                } else {
+                    cardElement.classList.remove('can-be-summoned');
+                }
+            });
+        }
+
+        function clearSummonHighlights() {
+            document.querySelectorAll('.can-be-summoned').forEach(card => {
+                card.classList.remove('can-be-summoned');
+            });
+        }
+
+        function updateHandVisibility() {
+            const player1Hand = document.querySelector('.player1-hand');
+            const player2Hand = document.querySelector('.player2-hand');
+            
+            // Remover classes anteriores
+            player1Hand.classList.remove('player-hand-hidden', 'player-hand-peeking');
+            player2Hand.classList.remove('player-hand-hidden', 'player-hand-peeking');
+            
+            // Esconder a mão do jogador que não está no turno
+            if (gameState.currentPlayer === 'p1') {
+                player2Hand.classList.add('player-hand-hidden');
+                console.log('🎮 Turno do Player 1 - Escondendo mão do Player 2');
+            } else {
+                player1Hand.classList.add('player-hand-hidden');
+                console.log('🎮 Turno do Player 2 - Escondendo mão do Player 1');
+            }
+        }
+
+        function peekHand(player) {
+            // Só permite espiar se não for o turno do jogador
+            if (gameState.currentPlayer !== player) {
+                const handElement = document.querySelector(`.player${player === 'p1' ? '1' : '2'}-hand`);
+                handElement.classList.add('player-hand-peeking');
+                console.log(`👁️ Espiando mão do ${player}`);
+            }
+        }
+
+        function stopPeeking(player) {
+            const handElement = document.querySelector(`.player${player === 'p1' ? '1' : '2'}-hand`);
+            handElement.classList.remove('player-hand-peeking');
+            console.log(`🙈 Parando de espiar mão do ${player}`);
+        }
+        
+        function setupCombatPhase() {
+            clearCombatHighlights();
+            
+            const myCards = gameState.cards[gameState.currentPlayer].field
+                .filter(card => ['criatura', 'evolução'].includes(card.data.type));
+            
+            if (myCards.length === 0) {
+                updateCombatInfo('Você não tem cartas no campo para atacar!');
+                return;
+            }
+            
+            let availableAttackers = 0;
+            myCards.forEach(card => {
+                const element = document.getElementById(card.id);
+                const attackCheck = window.gameEngine.canAttack(card.id);
+                if (element && attackCheck.canAttack) {
+                    element.classList.add('can-attack');
+                    availableAttackers++;
+                }
+            });
+
+            updateCombatInfo(availableAttackers > 0
+                ? 'Selecione uma de suas cartas (destacadas em laranja) para atacar'
+                : 'Todas as suas criaturas já usaram seus ataques neste turno');
+        }
+
+        function highlightTargets() {
+            const opponent = gameState.currentPlayer === 'p1' ? 'p2' : 'p1';
+            const opponentCards = gameState.cards[opponent].field;
+            const attackerId = gameState.attackingCard;
+            
+            console.log('Destacando alvos para', opponent, 'cartas:', opponentCards.length);
+            
+            let validTargets = 0;
+            
+            // Verificar e destacar apenas cartas que podem ser atacadas
+            opponentCards.forEach(card => {
+                const element = document.getElementById(card.id);
+                if (element) {
+                    // Verificar se o atacante pode atacar este alvo
+                    const attackCheck = canAttackTarget(attackerId, card.id);
+                    
+                    if (attackCheck.canAttack) {
+                        element.classList.add('can-be-targeted');
+                        validTargets++;
+                        console.log('✅ Destacando carta válida:', card.id);
+                    } else {
+                        element.classList.add('cannot-be-targeted');
+                        console.log('❌ Carta protegida:', card.id, '-', attackCheck.reason);
+                    }
+                } else {
+                    console.log('Elemento não encontrado:', card.id);
+                }
+            });
+
+            // Controlar botão de ataque direto
+            const directAttackBtn = document.getElementById('direct-attack-btn');
+            const protectedCards = opponentCards.length - validTargets;
+            const canAttackDirectly = window.CardRules.canDirectAttack(gameState, attackerId);
+            
+            if (opponentCards.length === 0) {
+                directAttackBtn.style.display = 'inline-block';
+                updateCombatInfo('Campo inimigo vazio! Use "Ataque Direto"');
+            } else if (validTargets === 0 && canAttackDirectly) {
+                directAttackBtn.style.display = 'inline-block';
+                updateCombatInfo(`Todas as cartas inimigas estão protegidas! Use "Ataque Direto"`);
+            } else {
+                directAttackBtn.style.display = canAttackDirectly ? 'inline-block' : 'none';
+                let message = `Clique em uma carta inimiga (vermelha) para atacar`;
+                if (protectedCards > 0) {
+                    message += ` - ${protectedCards} carta(s) protegida(s) 🛡️`;
+                }
+                if (canAttackDirectly) message += ` ou use "Ataque Direto"`;
+                updateCombatInfo(message);
+            }
+        }
+
+        function updateCombatInfo(message) {
+            document.getElementById('combat-instruction').textContent = message;
+        }
+
+        function isCardInField(cardId) {
+            console.log('🏟️ Verificando se carta está em campo:', cardId);
+            
+            // Verificar no gameState primeiro
+            for (let player of ['p1', 'p2']) {
+                const found = gameState.cards[player].field.find(c => c.id === cardId);
+                console.log(`🏟️ Player ${player} field:`, gameState.cards[player].field.length, 'cartas');
+                if (found) {
+                    console.log('🏟️ Carta encontrada em gameState campo:', player);
+                    return true;
+                }
+            }
+            
+            // Verificar no DOM também (para cartas equipadas ou outras situações)
+            const cardElement = document.getElementById(cardId);
+            if (cardElement) {
+                const fieldP1 = document.getElementById('field-p1');
+                const fieldP2 = document.getElementById('field-p2');
+                
+                const isInP1Field = fieldP1.contains(cardElement);
+                const isInP2Field = fieldP2.contains(cardElement);
+                
+                if (isInP1Field || isInP2Field) {
+                    console.log('🏟️ Carta encontrada no DOM campo:', isInP1Field ? 'p1' : 'p2');
+                    console.log('🏟️ Elemento da carta:', cardElement);
+                    console.log('🏟️ Classes da carta:', cardElement.className);
+                    return true;
+                }
+            }
+            
+            console.log('🏟️ Carta NÃO encontrada em campo');
+            return false;
+        }
+
+
+
+        function clearCombatHighlights() {
+            console.log('🧹 Limpando highlights de combate');
+            document.querySelectorAll('.card').forEach(card => {
+                card.classList.remove('attacking', 'can-attack', 'can-be-targeted', 'cannot-be-targeted', 'direct-attack');
+            });
+            
+            // Ocultar botão de ataque direto
+            const directAttackBtn = document.getElementById('direct-attack-btn');
+            directAttackBtn.style.display = 'none';
+            
+            gameState.attackingCard = null;
+            gameState.targetCard = null;
+        }
+
+        function canAttackTarget(attackerId, targetId, options = {}) {
+            const attacker = findCardData(attackerId);
+            const target = findCardData(targetId);
+            
+            if (!attacker || !target) {
+                return { canAttack: false, reason: 'Cartas não encontradas' };
+            }
+
+            if (!options.skipEngine) {
+                const baseCheck = window.gameEngine.validateCombat({ attackerId, targetId });
+                if (!baseCheck.valid) {
+                    return { canAttack: false, reason: baseCheck.reason };
+                }
+            }
+
+            const migratedCheck = window.CardRules.validateAttackTarget(
+                gameState,
+                attackerId,
+                targetId
+            );
+            if (!migratedCheck.valid) {
+                return { canAttack: false, reason: migratedCheck.reason };
+            }
+
+            return { canAttack: true, reason: 'Ataque permitido' };
+        }
+
+        function performAttack(attackerId, targetId) {
+            const attacker = findCardData(attackerId);
+            const target = findCardData(targetId);
+            if (!attacker || !target) return;
+
+            const attackCheck = canAttackTarget(attackerId, targetId);
+            if (!attackCheck.canAttack) {
+                showMessage(attackCheck.reason, 'warning');
+                clearCombatHighlights();
+                setupCombatPhase();
+                return;
+            }
+
+            if (window.cardAbilities?.onCombatDeclared) {
+                window.cardAbilities.onCombatDeclared(attackerId, targetId);
+            }
+
+            const result = window.gameEngine.resolveCombat({
+                attackerId,
+                targetId,
+                targetValidator: () => {
+                    const legacyCheck = canAttackTarget(attackerId, targetId, { skipEngine: true });
+                    return legacyCheck.canAttack || legacyCheck.reason;
+                }
+            });
+
+            if (result.status !== 'resolved') {
+                showMessage(result.reason, 'warning');
+                clearCombatHighlights();
+                setupCombatPhase();
+                return;
+            }
+
+            if (result.cancelled) {
+                updateCardDisplay(attackerId, {
+                    ...attacker.data,
+                    attack: window.gameEngine.getEffectiveStat(attackerId, 'attack'),
+                    defense: window.gameEngine.getRemainingDefense(attackerId)
+                });
+                updateCardDisplay(targetId, {
+                    ...target.data,
+                    attack: window.gameEngine.getEffectiveStat(targetId, 'attack'),
+                    defense: window.gameEngine.getRemainingDefense(targetId)
+                });
+                showMessage(`O ataque de ${attacker.data.name} foi anulado.`, 'info');
+                if (window.cardAbilities?.onCombatResolved) {
+                    window.cardAbilities.onCombatResolved(result);
+                }
+                updateAttackedCardsVisual();
+                clearCombatHighlights();
+                setupCombatPhase();
+                return;
+            }
+
+            const returnedToHand = [attacker, target]
+                .filter(card => card.zone === 'hand');
+            if (returnedToHand.length > 0) {
+                returnedToHand.forEach(card => {
+                    document.getElementById(card.instanceId)?.remove();
+                });
+                renderHandsFromState();
+                renderFieldsFromState();
+            }
+
+            updateCardDisplay(attackerId, {
+                ...attacker.data,
+                attack: window.gameEngine.getEffectiveStat(attackerId, 'attack'),
+                defense: result.attackerRemainingDefense
+            });
+            updateCardDisplay(targetId, {
+                ...target.data,
+                attack: window.gameEngine.getEffectiveStat(targetId, 'attack'),
+                defense: result.targetRemainingDefense
+            });
+            renderPlayerStats();
+            if (result.penetratingDamage > 0) playSound('punchSound');
+
+            let message = `${attacker.data.name} causou ${result.damageToTarget} de dano em ${target.data.name}.`;
+            if (result.targetDestroyed) message += ` ${target.data.name} foi destruída.`;
+            if (result.attackerDestroyed) message += ` ${attacker.data.name} foi destruída no contra-ataque.`;
+            if (result.penetratingDamage > 0) {
+                message += ` ${result.penetratingDamage} de dano penetrante.`;
+            }
+            showMessage(message, result.defeated.length > 0 ? 'success' : 'info');
+
+            if (window.cardAbilities?.onCombatResolved) {
+                window.cardAbilities.onCombatResolved(result);
+            }
+
+            result.defeated.forEach(cardId => {
+                setTimeout(() => destroyCard(cardId), 500);
+            });
+            
+            updateAttackedCardsVisual();
+            clearCombatHighlights();
+            setupCombatPhase();
+        }
+
+        function directAttack() {
+            if (!gameState.attackingCard) {
+                showMessage('Primeiro selecione uma carta sua para atacar!');
+                return;
+            }
+
+            const attacker = findCardData(gameState.attackingCard);
+            if (!attacker) return;
+
+            const opponent = gameState.currentPlayer === 'p1' ? 'p2' : 'p1';
+            const allowDirectAttack = window.CardRules.canDirectAttack(
+                gameState,
+                gameState.attackingCard
+            );
+            const result = window.gameEngine.resolveCombat({
+                attackerId: gameState.attackingCard,
+                defenderPlayerId: opponent,
+                isDirect: true,
+                allowDirectAttack
+            });
+            if (result.status !== 'resolved') {
+                showMessage(result.reason, 'warning');
+                return;
+            }
+
+            renderPlayerStat('pv', opponent);
+            playSound('punchSound');
+            showMessage(
+                `${attacker.data.name} atacou diretamente por ${result.directDamage} de dano.`,
+                'success'
+            );
+            if (window.cardAbilities?.onCombatResolved) {
+                window.cardAbilities.onCombatResolved(result);
+            }
+            updateAttackedCardsVisual();
+            clearCombatHighlights();
+            setupCombatPhase();
+        }
+
+        function updateCardDisplay(cardId, cardData) {
+            const cardElement = document.getElementById(cardId);
+            if (cardElement) {
+                const statsElement = cardElement.querySelector('.card-stats');
+                statsElement.innerHTML = `
+                    <span class="attack">${cardData.attack}</span>
+                    <span>/</span>
+                    <span class="defense">${cardData.defense}</span>
+                `;
+            }
+        }
+
+        function destroyCard(cardId) {
+            console.log('💥 DESTROY CARD CHAMADA para:', cardId);
+            
+            const cardData = gameState.cardInstances[cardId] || findCardData(cardId);
+            if (!cardData) {
+                console.log('💥 ERRO: Dados da carta não encontrados para:', cardId);
+                return;
+            }
+
+            if (cardData.zone === 'field') {
+                cardData.attachments.forEach(attachmentId => {
+                    const attachment = gameState.cardInstances[attachmentId];
+                    if (attachment) {
+                        window.GameStateModel.moveCard(gameState, attachmentId, 'discard', attachment.ownerId);
+                        attachment.attachedTo = null;
+                    }
+                });
+                cardData.attachments = [];
+                window.GameStateModel.moveCard(gameState, cardId, 'discard', cardData.ownerId);
+            }
+            updateDiscardCount(cardData.ownerId);
+            renderFieldsFromState();
+
+            // Remover do DOM com animação
+            const cardElement = document.getElementById(cardId);
+            if (cardElement) {
+                console.log('💥 Elemento DOM encontrado, iniciando animação');
+                
+                // Efeito visual de destruição
+                cardElement.style.animation = 'cardDestroy 0.5s ease-out forwards';
+                
+                // Mostrar feedback visual de descarte
+                showMessage(`${cardData.data.name} foi para o descarte!`, 'info');
+                
+                setTimeout(() => {
+                    console.log('💥 Removendo elemento do DOM');
+                    cardElement.remove();
+                }, 500);
+            } else {
+                console.log('💥 ERRO: Elemento DOM não encontrado para carta:', cardId);
+            }
+        }
+
+        function initFirstTurn() {
+            if (gameState.maxEnergy['p1'] < MAX_ENERGY) {
+                gameState.maxEnergy['p1'] += 1;
+            }
+            window.GameStateModel.setPlayerStat(gameState, 'energy', 'p1',
+                Math.min(window.GameStateModel.getPlayerStat(gameState, 'energy', 'p1') + 1, MAX_ENERGY),
+                { energyCap: MAX_ENERGY }
+            );
+            renderPlayerStat('energy', 'p1');
+            addCardToHand('p1');
+        }
+
+        function resetGame() {
+            document.getElementById('hand-p1').innerHTML = '';
+            document.getElementById('hand-p2').innerHTML = '';
+            document.getElementById('field-p1').innerHTML = '';
+            document.getElementById('field-p2').innerHTML = '';
+
+            if (window.cardAbilities?.reset) window.cardAbilities.reset();
+            const overlay = document.getElementById('game-over-overlay');
+            if (overlay) overlay.remove();
+            window.gameOver = false;
+            startNewMatch();
+            initFirstTurn();
+
+            ['p1', 'p2'].forEach(player => {
+                const diceButton = document.getElementById(`dice-${player}`);
+                diceButton.disabled = false;
+                diceButton.title = 'Dado da Sorte (2 energia)';
+                
+                // Reset names
+                const nameElement = document.querySelector(`.player${player === 'p1' ? '1' : '2'}-stats .player-name`);
+                nameElement.innerText = player === 'p1' ? 'Jogador 1' : 'Jogador 2';
+                updateHandCounter(player);
+                updateDiscardCount(player);
+            });
+
+            updateUI();
+            
+            // Inicializar visibilidade das mãos
+            setTimeout(() => {
+                updateHandVisibility();
+            }, 100);
+        }
+
+        // Funções de cartas
+        function createCard(cardData, player) {
+            const cardInstance = cardData.instanceId && cardData.data
+                ? cardData
+                : window.GameStateModel.createCardInstance(cardData, player, { zone: 'hand' });
+            const cardId = cardInstance.instanceId;
+            const card = document.createElement('div');
+            
+            // Mapear tipos em português para inglês para as classes CSS
+            const typeMapping = {
+                'suporte': 'support',
+                'criatura': 'monster',
+                'monster': 'monster',
+                'support': 'support'
+            };
+            const cssType = typeMapping[cardInstance.data.type] || cardInstance.data.type;
+            
+            card.className = `card ${cssType}`;
+            card.draggable = true;
+            card.setAttribute('draggable', 'true');
+            card.id = cardId;
+            card.onclick = () => selectCard(cardId);
+            card.ondragstart = (e) => {
+                console.log('🔥 DRAGSTART CALLED!', cardId);
+                dragStart(e);
+            };
+            card.ondragend = (e) => dragEnd(e);
+            card.onmousedown = (e) => console.log('🖱️ Mouse down on card:', cardId);
+            
+            // Adicionar duplo clique para criaturas equipadas
+            card.ondblclick = () => handleCardDoubleClick(cardId, cardDataCopy);
+            
+            // Adicionar tooltip para criaturas equipadas
+            card.onmouseenter = () => updateTooltipForEquippedCard(cardId);
+            card.onmouseleave = () => clearTooltip(cardId);
+            
+            console.log('🃏 Card created:', cardId, 'draggable:', card.draggable);
+
+            // Criar cópia dos dados da carta para evitar modificação do original
+            const cardDataCopy = cardInstance.data;
+
+            // Usar apenas imagem real, sem fallback de ícone
+            const cardImage = cardDataCopy.image ? 
+                `<img src="${cardDataCopy.image}" alt="${cardDataCopy.name}" class="card-image-real" style="pointer-events: none;">` :
+                `<div class="card-image" style="pointer-events: none;"></div>`;
+
+            card.innerHTML = `
+                <div class="card-cost" style="pointer-events: none;">${getEffectiveCardCost(cardId, cardDataCopy)}</div>
+                ${cardImage}
+                <div class="card-name" style="pointer-events: none;">${cardDataCopy.name}</div>
+                <div class="card-stats" style="pointer-events: none;">
+                    <span class="attack">${cardDataCopy.attack}</span>
+                    <span>/</span>
+                    <span class="defense">${cardDataCopy.defense}</span>
+                </div>
+            `;
+
+            cardInstance.element = card;
+            cardInstance.player = cardInstance.controllerId;
+            gameState.cardInstances[cardInstance.instanceId] = cardInstance;
+            return cardInstance;
+        }
+
+        function renderHandsFromState() {
+            ['p1', 'p2'].forEach(player => {
+                const handElement = document.getElementById(`hand-${player}`);
+                handElement.innerHTML = '';
+
+                gameState.cards[player].hand.forEach(cardInstance => {
+                    const renderedCard = createCard(cardInstance, player);
+                    handElement.appendChild(renderedCard.element);
+                });
+
+                updateHandCounter(player);
+            });
+        }
+        window.renderHandsFromState = renderHandsFromState;
+
+        function renderFieldsFromState() {
+            ['p1', 'p2'].forEach(player => {
+                const fieldContainer = document.getElementById(`field-${player}`);
+                if (!fieldContainer) return;
+                
+                // Remover cartas que não estão mais no estado
+                Array.from(fieldContainer.children).forEach(child => {
+                    if (child.classList.contains('card')) {
+                        const instanceId = child.id;
+                        const cardInState = gameState.cards[player].field.find(c => c.instanceId === instanceId);
+                        if (!cardInState) {
+                            child.remove();
+                        }
+                    }
+                });
+
+                // Atualizar cartas que estão no estado
+                gameState.cards[player].field.forEach(card => {
+                    updateCardDisplay(card.instanceId, {
+                        ...card.data,
+                        attack: window.gameEngine.getEffectiveStat(card.instanceId, 'attack'),
+                        defense: window.gameEngine.getRemainingDefense(card.instanceId)
+                    });
+                });
+            });
+        }
+
+        function getCardIcon(type) {
+            const icons = {
+                'criatura': '🦄',
+                'suporte': '⚡',
+                'evolução': '⭐',
+                'monster': '🦄',
+                'support': '⚡',
+                'evolution': '⭐'
+            };
+            return icons[type] || '❓';
+        }
+
+        // Função para atualizar contador de cartas na mão
+        function updateHandCounter(player) {
+            const handElement = document.getElementById(`hand-${player}`);
+            const titleElement = document.getElementById(`hand-title-${player}`);
+            const cardCount = handElement ? handElement.children.length : 0;
+            
+            if (titleElement) {
+                titleElement.setAttribute('data-count', cardCount);
+            }
+        }
+
+        function addCardToHand(player) {
+            const handElement = document.getElementById(`hand-${player}`);
+            const currentCards = gameState.cards[player].hand.length;
+            
+            if (currentCards >= 7) {
+                console.log(`❌ Não é possível sacar: limite de 7 cartas na mão atingido (atual: ${currentCards})`);
+                showMessage('Limite de 7 cartas na mão atingido!', 'warning');
+                return;
+            }
+
+            // Usar sistema de deck se disponível
+            if (typeof drawCardFromDeck === 'function') {
+                const drawnCard = drawCardFromDeck(player);
+                if (drawnCard) {
+                    const newCard = createCard(drawnCard, player);
+                    
+                    // Adicionar animação de entrada
+                    newCard.element.classList.add('new-card');
+                    
+                    document.getElementById(`hand-${player}`).appendChild(newCard.element);
+                    updateHandCounter(player); // Atualizar contador
+                    
+                    // Remover classe de animação após completar
+                    setTimeout(() => {
+                        newCard.element.classList.remove('new-card');
+                    }, 800);
+                    
+                    console.log('📜 Card rendered from gameState:', newCard.id, 'Player:', player);
+                    console.log('📜 Total cards in hand:', gameState.cards[player].hand.length);
+                }
+                return;
+            }
+            
+            // Fallback para sistema antigo se deck system não estiver carregado
+            const fallbackCards = [
+                { id: 'fallback1', name: 'Criatura Básica', type: 'criatura', cost: 3, attack: 3, defense: 3, icon: '🦄' }
+            ];
+            const randomCard = fallbackCards[0];
+            const newCard = createCard(randomCard, player);
+
+            window.GameStateModel.registerCard(gameState, newCard, 'hand', player);
+            document.getElementById(`hand-${player}`).appendChild(newCard.element);
+        }
+
+        function toggleGearMenu() {
+            document.getElementById('gearDropdown').classList.toggle('open');
+        }
+
+        function showMessage(text, type = 'info') {
+            // Criar elemento de mensagem
+            const messageElement = document.createElement('div');
+            messageElement.textContent = text;
+            messageElement.style.position = 'fixed';
+            messageElement.style.top = '50%';
+            messageElement.style.left = '50%';
+            messageElement.style.transform = 'translate(-50%, -50%)';
+            messageElement.style.padding = '15px 25px';
+            messageElement.style.borderRadius = '10px';
+            messageElement.style.color = 'white';
+            messageElement.style.fontWeight = 'bold';
+            messageElement.style.fontSize = '16px';
+            messageElement.style.zIndex = '1000';
+            messageElement.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+            
+            // Definir cor baseada no tipo
+            if (type === 'warning') {
+                messageElement.style.backgroundColor = '#ff6b6b';
+            } else if (type === 'success') {
+                messageElement.style.backgroundColor = '#5abf7a';
+            } else {
+                messageElement.style.backgroundColor = '#4b586e';
+            }
+            
+            // Adicionar ao body
+            document.body.appendChild(messageElement);
+            
+            // Remover após 2 segundos
+            setTimeout(() => {
+                document.body.removeChild(messageElement);
+            }, 2000);
+        }
+
+        function selectCard(cardId) {
+            console.log('Carta clicada:', cardId, 'Fase atual:', gameState.currentPhase);
+            const cardData = findCardData(cardId);
+            if (!cardData) {
+                console.log('Dados da carta não encontrados');
+                return;
+            }
+
+            console.log('Dados da carta:', cardData);
+
+            // Se estamos na fase de combate
+            if (gameState.currentPhase === 'combat') {
+                console.log('Entrando no modo de combate');
+                handleCombatCardClick(cardId, cardData);
+                return;
+            }
+
+            // Remove seleção anterior
+            document.querySelectorAll('.card.selected').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            // Seleciona nova carta
+            const cardElement = document.getElementById(cardId);
+            if (cardElement) {
+                cardElement.classList.add('selected');
+                gameState.selectedCard = cardId;
+            }
+        }
+
+        function handleCombatCardClick(cardId, cardData) {
+            console.log('🗡️ ===== CLIQUE EM COMBATE =====');
+            console.log('🗡️ Carta clicada:', cardId);
+            console.log('🗡️ Dados da carta:', cardData);
+            console.log('🗡️ Player da carta:', cardData.player, 'Current Player:', gameState.currentPlayer);
+            console.log('🗡️ Atacante atual:', gameState.attackingCard);
+            console.log('🗡️ É carta em campo?', isCardInField(cardId));
+            console.log('🗡️ É carta inimiga?', cardData.player !== gameState.currentPlayer);
+            console.log('🗡️ Tem atacante selecionado?', !!gameState.attackingCard);
+            console.log('🗡️ Estado do gameState:', {
+                currentPlayer: gameState.currentPlayer,
+                currentPhase: gameState.currentPhase,
+                attackingCard: gameState.attackingCard,
+                attackedThisTurn: gameState.attackedThisTurn
+            });
+            
+            const cardElement = document.getElementById(cardId);
+            
+            // Se clicou em uma carta inimiga e já tem atacante selecionado
+            if (gameState.attackingCard && cardData.player !== gameState.currentPlayer && isCardInField(cardId)) {
+                console.log('✅ CONDIÇÕES ATENDIDAS - Atacando carta inimiga!');
+                console.log('🔄 Atacante:', gameState.attackingCard, '→ Alvo:', cardId);
+                
+                // Verificar se o atacante ainda existe e pode atacar
+                const attackerData = findCardData(gameState.attackingCard);
+                if (!attackerData) {
+                    console.log('❌ Atacante não encontrado');
+                    clearCombatHighlights();
+                    gameState.attackingCard = null;
+                    updateCombatInfo('Selecione uma carta para atacar');
+                    return;
+                }
+                
+                const attackerCheck = window.gameEngine.canAttack(gameState.attackingCard);
+                if (!attackerCheck.canAttack) {
+                    console.log('❌ Atacante não pode atacar:', attackerCheck.reason);
+                    showMessage(attackerCheck.reason, 'warning');
+                    clearCombatHighlights();
+                    gameState.attackingCard = null;
+                    return;
+                }
+
+                // Verificar se o alvo pode ser atacado
+                const attackCheck = canAttackTarget(gameState.attackingCard, cardId);
+                if (!attackCheck.canAttack) {
+                    console.log('❌ Ataque impedido:', attackCheck.reason);
+                    showMessage(attackCheck.reason, 'warning');
+                    return;
+                }
+                
+                performAttack(gameState.attackingCard, cardId);
+                return;
+            } else {
+                console.log('❌ Condições não atendidas para ataque:');
+                console.log('   - Tem atacante?', !!gameState.attackingCard);
+                console.log('   - É inimiga?', cardData.player !== gameState.currentPlayer);
+                console.log('   - Está em campo?', isCardInField(cardId));
+                if (gameState.attackingCard) {
+                    console.log('   - Dados do atacante:', findCardData(gameState.attackingCard));
+                }
+            }
+            
+            // Se não há carta atacante selecionada OU clicou em outra carta sua
+            if (!gameState.attackingCard || (cardData.player === gameState.currentPlayer && isCardInField(cardId))) {
+                // Só pode selecionar cartas do jogador atual que estão em campo
+                if (cardData.player === gameState.currentPlayer && isCardInField(cardId)) {
+                    const attackCheck = window.gameEngine.canAttack(cardId);
+                    if (!attackCheck.canAttack) {
+                        console.log('❌ Carta não pode atacar:', cardId, attackCheck.reason);
+                        showMessage(attackCheck.reason, 'warning');
+                        updateCombatInfo(`${attackCheck.reason} Selecione outra carta.`);
+                        return;
+                    }
+                    
+                    console.log('Selecionando nova carta atacante');
+                    // Limpar highlights visuais sem resetar o atacante
+                    document.querySelectorAll('.card').forEach(card => {
+                        card.classList.remove('attacking', 'can-attack', 'can-be-targeted', 'cannot-be-targeted', 'direct-attack');
+                    });
+                    
+                    gameState.attackingCard = cardId;
+                    cardElement.classList.add('attacking');
+                    highlightTargets();
+                    
+                    const attackerName = cardData.data.name;
+                    updateCombatInfo(`${attackerName} selecionada! Clique em uma carta inimiga para atacar ou use "Ataque Direto"`);
+                    return;
+                } else {
+                    updateCombatInfo('Selecione uma de suas cartas no campo para atacar');
+                    return;
+                }
+            }
+            
+            // Caso padrão
+            updateCombatInfo('Selecione uma de suas cartas primeiro, depois o alvo');
+        }
+
+        function dragStart(e) {
+            // Garantir que temos o elemento carta correto
+            let cardElement = e.target;
+            while (cardElement && !cardElement.classList.contains('card')) {
+                cardElement = cardElement.parentElement;
+            }
+            
+            if (!cardElement || !cardElement.id) {
+                console.log('❌ Elemento carta não encontrado ou sem ID');
+                return;
+            }
+            
+            const cardId = cardElement.id;
+            console.log('🎯 Drag started for card:', cardId);
+            console.log('🎯 Element draggable:', cardElement.draggable);
+            console.log('🎯 Current phase:', gameState.currentPhase);
+            
+            e.dataTransfer.setData('text/plain', cardId);
+            e.dataTransfer.effectAllowed = 'move';
+            cardElement.classList.add('dragging');
+            
+            // Sempre destacar que o drag começou, independente da fase
+            const cardData = findCardData(cardId);
+            console.log('🎯 Card data found:', cardData ? 'Yes' : 'No');
+            
+            if (cardData) {
+                console.log('🎯 Card player:', cardData.player);
+                console.log('🎯 Current player:', gameState.currentPlayer);
+                const effectiveCost = getEffectiveCardCost(cardId, cardData.data);
+                console.log('🎯 Card cost:', effectiveCost);
+                
+                if (gameState.currentPhase === 'invocation' && cardData.player === gameState.currentPlayer) {
+                    const currentEnergy = window.GameStateModel.getPlayerStat(gameState, 'energy', gameState.currentPlayer);
+                    console.log('🎯 Current energy:', currentEnergy);
+                    
+                    // Verificar se é carta de suporte
+                    if (cardData.data.type === 'suporte') {
+                        // Destacar criaturas que podem ser equipadas
+                        if (currentEnergy >= effectiveCost) {
+                            highlightEquippableCreatures(cardData);
+                            updateInvocationInfo(`Arraste para uma criatura para equipar ou para o campo para invocar (Custo: ${effectiveCost})`);
+                            console.log('🎯 Support card - highlighting equippable creatures');
+                        }
+                    }
+                    
+                    // Destacar campos válidos para drop (sempre disponível para invocação normal)
+                    const playerField = document.getElementById(`field-${gameState.currentPlayer}`);
+                    if (currentEnergy >= effectiveCost) {
+                        playerField.classList.add('field-drop-zone');
+                        if (cardData.data.type !== 'suporte') {
+                            updateInvocationInfo(`Arraste para o campo para invocar (Custo: ${effectiveCost})`);
+                        }
+                        console.log('🎯 Field marked as valid drop zone');
+                    } else {
+                        playerField.classList.add('field-invalid-drop');
+                        updateInvocationInfo(`Energia insuficiente! Precisa de ${effectiveCost}, você tem ${currentEnergy}`);
+                        console.log('🎯 Field marked as invalid - insufficient energy');
+                    }
+                } else {
+                    console.log('🎯 Not in invocation phase or not current player');
+                }
+            }
+        }
+
+        function dragEnd(e) {
+            // Garantir que temos o elemento carta correto
+            let cardElement = e.target;
+            while (cardElement && !cardElement.classList.contains('card')) {
+                cardElement = cardElement.parentElement;
+            }
+            
+            if (cardElement) {
+                cardElement.classList.remove('dragging');
+            }
+            
+            // Limpar highlights
+            document.querySelectorAll('.field-drop-zone, .field-invalid-drop').forEach(field => {
+                field.classList.remove('field-drop-zone', 'field-invalid-drop');
+            });
+            
+            // Limpar highlights de equipamento
+            clearEquipmentHighlights();
+            
+            // Restaurar informações de fase
+            updatePhaseInstructions();
+        }
+
+        function allowDrop(e) {
+            e.preventDefault();
+        }
+
+        function dragOver(e) {
+            e.preventDefault();
+        }
+
+        function dropCard(e) {
+            e.preventDefault();
+            const cardId = e.dataTransfer.getData('text/plain');
+            const cardElement = document.getElementById(cardId);
+            
+            if (!cardElement) return;
+
+            // Verificar se é drop em campo ou em criatura
+            const isCreatureDrop = e.currentTarget.classList.contains('card');
+            
+            if (isCreatureDrop) {
+                handleEquipmentDrop(e, cardId);
+                return;
+            }
+
+            const targetPlayer = e.currentTarget.dataset.player;
+            const cardData = findCardData(cardId);
+            
+            if (!cardData || cardData.player !== targetPlayer) return;
+
+            if (cardData.data.type === 'suporte') {
+                showMessage('Cartas de suporte devem ser equipadas em uma criatura, não no campo.', 'warning');
+                return;
+            }
+
+            // Verificar se é a fase correta
+            if (gameState.currentPhase !== 'invocation') {
+                showMessage('Você só pode invocar cartas na Fase de Invocação!');
+                return;
+            }
+
+            // Verificar se é o turno do jogador
+            if (gameState.currentPlayer !== targetPlayer) {
+                showMessage('Não é o seu turno!');
+                return;
+            }
+
+            // Verificar energia
+            const currentEnergy = window.GameStateModel.getPlayerStat(gameState, 'energy', targetPlayer);
+            const summonCost = getEffectiveCardCost(cardId, cardData.data);
+            if (currentEnergy < summonCost) {
+                showMessage('Energia insuficiente para invocar esta carta!');
+                return;
+            }
+
+            // Cartas de evolução exigem a carta base correspondente em campo
+            // (ex: Turtol Maximus exige Turtol). A invocação descarta a base.
+            let evolutionBaseInstanceId = null;
+            let evolutionBaseAttachmentIds = [];
+            if (cardData.data.type === 'evolução') {
+                const evolutionCheck = window.CardRules.validateEvolutionSummon(
+                    gameState, cardData.data.id, targetPlayer
+                );
+                if (!evolutionCheck.valid) {
+                    showMessage(evolutionCheck.reason, 'warning');
+                    return;
+                }
+                evolutionBaseInstanceId = evolutionCheck.baseInstanceId;
+                evolutionBaseAttachmentIds = (
+                    gameState.cardInstances[evolutionBaseInstanceId]?.attachments || []
+                ).map(attachmentId => ({
+                    instanceId: attachmentId,
+                    ownerId: gameState.cardInstances[attachmentId]?.ownerId || targetPlayer
+                }));
+            }
+
+            const summonResult = window.gameEngine.resolveAction({
+                type: 'SUMMON_CARD',
+                actorId: targetPlayer,
+                sourceId: cardId,
+                sourceZone: 'hand',
+                requiredPhase: 'invocation',
+                requiresTurn: true,
+                costs: [{
+                    kind: 'PLAYER_STAT',
+                    stat: 'energy',
+                    playerId: targetPlayer,
+                    amount: summonCost
+                }],
+                effects: [
+                    ...evolutionBaseAttachmentIds.map(attachment => ({
+                        kind: window.GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: attachment.instanceId,
+                        destinationZone: 'discard',
+                        destinationPlayerId: attachment.ownerId
+                    })),
+                    ...(evolutionBaseInstanceId ? [{
+                        kind: window.GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: evolutionBaseInstanceId,
+                        destinationZone: 'discard',
+                        destinationPlayerId: targetPlayer
+                    }] : []),
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: cardId,
+                        destinationZone: 'field',
+                        destinationPlayerId: targetPlayer
+                    }
+                ],
+                events: [
+                    {
+                        type: window.GameEngine.EVENT_TYPES.CARD_MOVED,
+                        payload: { cardId, playerId: targetPlayer, from: 'hand', to: 'field' }
+                    },
+                    {
+                        type: window.GameEngine.EVENT_TYPES.CARD_PLAYED,
+                        payload: { cardId, playerId: targetPlayer, definitionId: cardData.definitionId }
+                    },
+                    ...(['criatura', 'evolução'].includes(cardData.data.type) ? [{
+                        type: window.GameEngine.EVENT_TYPES.CREATURE_SUMMONED,
+                        payload: { cardId, playerId: targetPlayer, definitionId: cardData.definitionId }
+                    }] : [])
+                ]
+            });
+
+            if (summonResult.status === 'resolved') {
+                renderPlayerStat('energy', targetPlayer);
+                playSound('energySound');
+                
+                // Remover da mão e adicionar ao campo
+                cardElement.remove();
+                e.currentTarget.appendChild(cardElement);
+                
+                // Atualizar contador de cartas na mão
+                updateHandCounter(targetPlayer);
+                
+                // Animação de invocação
+                cardElement.classList.add('card-play-animation');
+                cardElement.classList.remove('can-be-summoned', 'dragging');
+                
+                setTimeout(() => {
+                    cardElement.classList.remove('card-play-animation');
+                    // Atualizar highlights após invocação
+                    if (gameState.currentPhase === 'invocation') {
+                        highlightSummonableCards();
+                    }
+                }, 500);
+                
+                // Ativar habilidades da carta invocada
+                if (
+                    window.cardAbilities &&
+                    window.cardAbilities.onCardSummoned &&
+                    ['criatura', 'evolução'].includes(cardData.data.type)
+                ) {
+                    window.cardAbilities.onCardSummoned(cardId, cardData.data, targetPlayer);
+                }
+
+                renderHandsFromState();
+                renderFieldsFromState();
+                renderPlayerStats();
+                
+                // Feedback visual
+                updateInvocationInfo(`${cardData.data.name} foi invocada com sucesso!`);
+                setTimeout(() => {
+                    if (gameState.currentPhase === 'invocation') {
+                        updatePhaseInstructions();
+                    }
+                }, 2000);
+            } else {
+                showMessage(summonResult.reason, 'warning');
+            }
+        }
+
+        function findCardData(cardId) {
+            const registeredCard = gameState.cardInstances[cardId];
+            if (registeredCard) return registeredCard;
+
+            console.log('🔍 Looking for card:', cardId);
+            console.log('🔍 GameState cards:', gameState.cards);
+            
+            for (let player of ['p1', 'p2']) {
+                console.log(`🔍 Checking ${player} hand:`, gameState.cards[player].hand.length, 'cards');
+                let card = gameState.cards[player].hand.find(c => c.id === cardId);
+                if (card) {
+                    console.log('🔍 Found in hand:', card);
+                    return card;
+                }
+                
+                console.log(`🔍 Checking ${player} field:`, gameState.cards[player].field.length, 'cards');
+                card = gameState.cards[player].field.find(c => c.id === cardId);
+                if (card) {
+                    console.log('🔍 Found in field:', card);
+                    return card;
+                }
+            }
+            console.log('🔍 Card not found anywhere!');
+            return null;
+        }
+
+        // Custo efetivo (base + modificadores do motor, ex: Trox invocado grátis, Roller custando mais a cada retorno).
+        // Faz fallback para o custo bruto do catálogo quando o motor ainda não conhece a instância.
+        function getEffectiveCardCost(cardId, cardData) {
+            if (window.gameEngine && gameState.cardInstances[cardId]) {
+                try {
+                    return window.gameEngine.getEffectiveStat(cardId, 'cost');
+                } catch (e) {
+                    // Instância desconhecida do motor: cai para o custo bruto abaixo.
+                }
+            }
+            return cardData.cost;
+        }
+
+        function showCardModal(cardData) {
+            const modal = document.getElementById('cardModal');
+            const modalCard = modal.querySelector('.modal-card');
+            
+            // Limpar conteúdo anterior
+            const existingContent = modalCard.querySelector('.modal-card-content');
+            if (existingContent) {
+                existingContent.remove();
+            }
+            
+            // Criar conteúdo do modal
+            const cardContent = document.createElement('div');
+            cardContent.className = 'modal-card-content';
+            
+            const typeMapping = {
+                'suporte': 'support',
+                'criatura': 'monster',
+                'monster': 'monster',
+                'support': 'support'
+            };
+            const cssType = typeMapping[cardData.type] || cardData.type;
+            
+            const cardImage = cardData.image ? 
+                `<img src="${cardData.image}" alt="${cardData.name}" class="card-image-real" style="width: 100%; height: auto; border-radius: 8px;">` :
+                `<div class="card-image" style="width: 100%; height: 200px; background: var(--secondary-color); border-radius: 8px;"></div>`;
+
+            cardContent.innerHTML = `
+                <div class="card ${cssType}" style="width: 300px; height: 420px; margin: 0 auto; position: relative;">
+                    <div class="card-cost">${cardData.cost}</div>
+                    ${cardImage}
+                    <div class="card-name">${cardData.name}</div>
+                    <div class="card-stats">
+                        <span class="attack">${cardData.attack}</span>
+                        <span>/</span>
+                        <span class="defense">${cardData.defense}</span>
+                    </div>
+                </div>
+                <div style="margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 8px;">
+                    <h3 style="color: var(--primary-color); margin-bottom: 10px; text-align: center;">Habilidade:</h3>
+                    <p style="font-size: 16px; line-height: 1.4; text-align: center; color: var(--text-color);">${cardData.hability}</p>
+                </div>
+            `;
+            
+            // Adicionar conteúdo ao modal
+            modalCard.appendChild(cardContent);
+            
+            // Mostrar modal
+            modal.classList.add('visible');
+        }
+
+        function closeCardModal() {
+            document.getElementById('cardModal').classList.remove('visible');
+        }
+
+        // ===== SISTEMA DE DESCARTE =====
+        
+        function viewDiscard(player) {
+            const discardPile = gameState.cards[player].discard;
+            const modal = document.getElementById('discardModal');
+            const title = document.getElementById('discardModalTitle');
+            const grid = document.getElementById('discardCardsGrid');
+            
+            // Configurar título
+            const playerName = player === 'p1' ? 'Jogador 1' : 'Jogador 2';
+            title.textContent = `Pilha de Descarte - ${playerName} (${discardPile.length} cartas)`;
+            
+            // Limpar grid
+            grid.innerHTML = '';
+            
+            if (discardPile.length === 0) {
+                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--secondary-color); padding: 40px;">Nenhuma carta descartada</div>';
+            } else {
+                // Mostrar cartas descartadas (mais recentes primeiro)
+                const sortedDiscard = [...discardPile].reverse();
+                
+                sortedDiscard.forEach((cardData, index) => {
+                    const renderedCard = createCard(cardData, player);
+                    const cardElement = renderedCard.element;
+                    cardElement.classList.add('discard-card-item');
+                    
+                    // Adicionar indicador de ordem
+                    const orderBadge = document.createElement('div');
+                    orderBadge.textContent = discardPile.length - index;
+                    orderBadge.style.cssText = `
+                        position: absolute;
+                        top: -5px;
+                        right: -5px;
+                        background: var(--pv-zero-color);
+                        color: white;
+                        border-radius: 50%;
+                        width: 20px;
+                        height: 20px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 10px;
+                        font-weight: bold;
+                    `;
+                    cardElement.appendChild(orderBadge);
+                    
+                    // Clique para ver carta em detalhe
+                    cardElement.addEventListener('click', () => {
+                        closeDiscardModal();
+                        showCardModal(renderedCard.data);
+                    });
+                    
+                    grid.appendChild(cardElement);
+                });
+            }
+            
+            // Mostrar modal
+            modal.classList.add('visible');
+        }
+
+        function closeDiscardModal() {
+            document.getElementById('discardModal').classList.remove('visible');
+        }
+
+        function addToDiscard(player, cardData) {
+            console.log(`📥 Tentando adicionar carta ao descarte de ${player}:`, cardData ? cardData.name : 'CARTA UNDEFINED');
+            
+            // Validar parâmetros
+            if (!player) {
+                console.log('💥 ERRO: Player é undefined em addToDiscard');
+                return;
+            }
+            
+            if (!cardData) {
+                console.log('💥 ERRO: cardData é undefined em addToDiscard');
+                return;
+            }
+            
+            if (!gameState.cards[player]) {
+                console.log(`💥 ERRO: gameState.cards[${player}] não existe`);
+                return;
+            }
+            
+            if (!gameState.cards[player].discard) {
+                console.log(`💥 ERRO: zona de descarte de ${player} não existe`);
+                return;
+            }
+            
+            let cardInstance = cardData;
+            if (!cardData.instanceId) {
+                cardInstance = window.GameStateModel.createCardInstance(cardData, player, {
+                    zone: 'discard'
+                });
+            }
+
+            const locations = window.GameStateModel.findCardLocations(
+                gameState,
+                cardInstance.instanceId
+            );
+            if (locations.length === 0) {
+                window.GameStateModel.registerCard(gameState, cardInstance, 'discard', player);
+            } else {
+                window.GameStateModel.moveCard(gameState, cardInstance.instanceId, 'discard', player);
+            }
+            updateDiscardCount(player);
+            console.log(`📥 ✅ Carta adicionada com sucesso ao descarte de ${player}`);
+        }
+
+        function updateDiscardCount(player) {
+            if (!player || !gameState.cards[player] || !gameState.cards[player].discard) {
+                console.log('💥 ERRO em updateDiscardCount: parâmetros inválidos', {player, gameState: gameState.cards});
+                return;
+            }
+            
+            const count = gameState.cards[player].discard.length;
+            const countElement = document.getElementById(`discard-count-${player}`);
+            if (countElement) {
+                countElement.textContent = `${count} cartas`;
+                
+                // Efeito visual de atualização
+                if (count > 0) {
+                    countElement.style.color = 'var(--pv-zero-color)';
+                    setTimeout(() => {
+                        countElement.style.color = 'var(--primary-color)';
+                    }, 1000);
+                }
+            }
+        }
+
+        function handleCardDoubleClick(cardId, cardData) {
+            // Não executar duplo clique durante a fase de combate
+            if (gameState.currentPhase === 'combat') {
+                console.log('🚫 Duplo clique desabilitado durante a fase de combate');
+                return;
+            }
+            
+            const cardElement = document.getElementById(cardId);
+            
+            // Feedback visual de duplo clique
+            if (cardElement) {
+                cardElement.style.transform = 'scale(1.05)';
+                setTimeout(() => {
+                    cardElement.style.transform = '';
+                }, 200);
+            }
+            
+            // Verificar se a carta está equipada (tem cartas de suporte)
+            if (cardElement && cardElement.classList.contains('equipped')) {
+                const equipmentCards = cardElement.querySelectorAll('.equipment-card');
+                
+                if (equipmentCards.length > 0) {
+                    // Se há múltiplos equipamentos, mostrar o primeiro (mais recente)
+                    const latestEquipment = equipmentCards[equipmentCards.length - 1];
+                    const supportCardData = JSON.parse(latestEquipment.getAttribute('data-support-card'));
+                    
+                    // Efeito visual na carta de equipamento
+                    latestEquipment.style.transform = 'scale(1.1) rotate(0deg)';
+                    setTimeout(() => {
+                        latestEquipment.style.transform = '';
+                    }, 300);
+                    
+                    // Mostrar modal com a carta de suporte
+                    showCardModal(supportCardData);
+                    
+                    console.log('🔍 Showing equipment modal for:', supportCardData.name);
+                } else {
+                    console.log('⚠️ Creature is marked as equipped but no equipment cards found');
+                }
+            } else if (cardElement) {
+                // Se não está equipada, mostrar a própria carta
+                showCardModal(cardData);
+                console.log('🔍 Showing creature modal for:', cardData.name);
+            }
+        }
+
+        function updateTooltipForEquippedCard(cardId) {
+            const cardElement = document.getElementById(cardId);
+            if (cardElement && cardElement.classList.contains('equipped')) {
+                const equipmentCards = cardElement.querySelectorAll('.equipment-card');
+                if (equipmentCards.length > 0) {
+                    cardElement.title = `Duplo-clique para ver equipamentos (${equipmentCards.length})`;
+                }
+            }
+        }
+
+        function clearTooltip(cardId) {
+            const cardElement = document.getElementById(cardId);
+            if (cardElement) {
+                cardElement.title = '';
+            }
+        }
+
+        // Sistema de notificação para mudanças de turno
+        function showTurnNotification(message, duration = 2000) {
+            const notification = document.getElementById('turnNotification');
+            const text = document.getElementById('notificationText');
+            
+            text.innerHTML = message;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.add('hide');
+                setTimeout(() => {
+                    notification.classList.remove('show', 'hide');
+                }, 400);
+            }, duration);
+        }
+
+        // Função para mostrar informações dos decks
+        function showDeckInfo() {
+            if (!gameState.decks || !window.deckBuilder) {
+                showMessage('Sistema de deck não carregado!');
+                return;
+            }
+            
+            const stats1 = window.deckBuilder.getDeckStats(gameState.decks.p1);
+            const stats2 = window.deckBuilder.getDeckStats(gameState.decks.p2);
+            
+            const info = `DECK PLAYER 1:
+• Total: ${stats1.total} cartas
+• Criaturas: ${stats1.criaturas}
+• Suportes: ${stats1.suportes}  
+• Evoluções: ${stats1.evolucoes}
+• Custo médio: ${stats1.custoMedio}
+
+DECK PLAYER 2:
+• Total: ${stats2.total} cartas
+• Criaturas: ${stats2.criaturas}
+• Suportes: ${stats2.suportes}
+• Evoluções: ${stats2.evolucoes}
+• Custo médio: ${stats2.custoMedio}
+
+Cartas restantes:
+• Player 1: ${gameState.decks.p1.length}
+• Player 2: ${gameState.decks.p2.length}`;
+            
+                showMessage(info);
+        }
+
+        // Função de teste para adicionar cartas ao campo
+
+
+        // Sistema de equipamento de cartas de suporte
+        function handleEquipmentDrop(e, supportCardId) {
+            const targetCreature = e.currentTarget;
+            const targetCreatureId = targetCreature.id;
+            
+            const supportCardData = findCardData(supportCardId);
+            const creatureCardData = findCardData(targetCreatureId);
+            
+            if (!supportCardData || !creatureCardData) return;
+            
+            // Verificar se é carta de suporte
+            if (supportCardData.data.type !== 'suporte') {
+                showMessage('Apenas cartas de suporte podem ser equipadas!');
+                return;
+            }
+
+            // Cartas com habilidade ativada a partir da mão (ex: Adubaram) são
+            // efeitos de uso único, não equipamentos — precisam ser ativadas
+            // direto da mão (painel de habilidades manuais), nunca equipadas.
+            const handOnlyRule = window.CardRules?.getActivatedRule(supportCardData.data.id);
+            if (handOnlyRule?.sourceZone === 'hand') {
+                showMessage(
+                    `${supportCardData.data.name} não pode ser equipada — ative-a direto da mão no painel de habilidades.`,
+                    'warning'
+                );
+                return;
+            }
+            
+            // Verificar se é criatura
+            if (creatureCardData.data.type !== 'criatura') {
+                showMessage('Cartas de suporte só podem ser equipadas em criaturas!');
+                return;
+            }
+
+            const migratedTargetCheck = window.CardRules.validateEquipmentTarget(
+                supportCardData,
+                creatureCardData
+            );
+            if (!migratedTargetCheck.valid) {
+                showMessage(migratedTargetCheck.reason, 'warning');
+                return;
+            }
+            
+            // Cartas de suporte podem ser aplicadas em qualquer criatura
+            // (Tanto aliadas quanto inimigas)
+            
+            // Verificar fase
+            if (gameState.currentPhase !== 'invocation') {
+                showMessage('Você só pode equipar cartas na Fase de Invocação!');
+                return;
+            }
+            
+            // Verificar turno
+            if (gameState.currentPlayer !== supportCardData.player) {
+                showMessage('Não é o seu turno!');
+                return;
+            }
+            
+            // Verificar energia
+            const currentEnergy = window.GameStateModel.getPlayerStat(gameState, 'energy', supportCardData.player);
+            if (currentEnergy < supportCardData.data.cost) {
+                showMessage('Energia insuficiente para equipar esta carta!');
+                return;
+            }
+            
+            equipSupportCard(supportCardId, targetCreatureId);
+        }
+
+        function equipSupportCard(supportCardId, creatureCardId) {
+            const supportCardData = findCardData(supportCardId);
+            const creatureCardData = findCardData(creatureCardId);
+            
+            if (!supportCardData || !creatureCardData) return;
+            
+            const migratedEquipmentEffects = window.CardRules
+                ?.createEquipmentEffects(supportCardData, creatureCardId, gameState);
+            const equipmentStatEffects = migratedEquipmentEffects || [
+                ...(supportCardData.data.attack ? [{
+                    kind: window.GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                    targetId: creatureCardId,
+                    modifier: {
+                        id: `${supportCardId}:attack`,
+                        sourceId: supportCardId,
+                        stat: 'attack',
+                        operation: window.GameEngine.MODIFIER_OPERATIONS.ADD,
+                        value: supportCardData.data.attack,
+                        duration: {
+                            kind: window.GameEngine.DURATION_KINDS.UNTIL_SOURCE_LEAVES,
+                            sourceId: supportCardId
+                        }
+                    }
+                }] : []),
+                ...(supportCardData.data.defense ? [{
+                    kind: window.GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                    targetId: creatureCardId,
+                    modifier: {
+                        id: `${supportCardId}:defense`,
+                        sourceId: supportCardId,
+                        stat: 'defense',
+                        operation: window.GameEngine.MODIFIER_OPERATIONS.ADD,
+                        value: supportCardData.data.defense,
+                        duration: {
+                            kind: window.GameEngine.DURATION_KINDS.UNTIL_SOURCE_LEAVES,
+                            sourceId: supportCardId
+                        }
+                    }
+                }] : [])
+            ];
+
+            const equipResult = window.gameEngine.resolveAction({
+                type: 'EQUIP_CARD',
+                actorId: supportCardData.player,
+                sourceId: supportCardId,
+                sourceZone: 'hand',
+                requiredPhase: 'invocation',
+                requiresTurn: true,
+                costs: [{
+                    kind: 'PLAYER_STAT',
+                    stat: 'energy',
+                    playerId: supportCardData.player,
+                    amount: supportCardData.data.cost
+                }],
+                validators: [() => {
+                    const target = findCardData(creatureCardId);
+                    return target?.data.type === 'criatura' || 'Alvo de equipamento inválido';
+                }],
+                effects: [
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.MOVE_CARD,
+                        instanceId: supportCardId,
+                        destinationZone: 'equipment',
+                        destinationPlayerId: supportCardData.player
+                    },
+                    {
+                        kind: window.GameEngine.EFFECT_KINDS.ATTACH_CARD,
+                        equipmentId: supportCardId,
+                        targetId: creatureCardId
+                    },
+                    ...equipmentStatEffects
+                ],
+                events: [
+                    {
+                        type: window.GameEngine.EVENT_TYPES.CARD_MOVED,
+                        payload: {
+                            cardId: supportCardId,
+                            playerId: supportCardData.player,
+                            from: 'hand',
+                            to: 'equipment'
+                        }
+                    },
+                    {
+                        type: window.GameEngine.EVENT_TYPES.EQUIPMENT_ATTACHED,
+                        payload: {
+                            equipmentId: supportCardId,
+                            targetId: creatureCardId,
+                            playerId: supportCardData.player
+                        }
+                    }
+                ]
+            });
+
+            if (equipResult.status !== 'resolved') {
+                showMessage(equipResult.reason, 'warning');
+                return;
+            }
+
+            renderPlayerStat('energy', supportCardData.player);
+            playSound('energySound');
+            
+            // Adicionar equipamento à criatura
+            if (!creatureCardData.data.equipment) {
+                creatureCardData.data.equipment = [];
+            }
+            creatureCardData.data.equipment.push(supportCardData.data);
+            
+            const creatureElement = document.getElementById(creatureCardId);
+            
+            creatureElement.classList.add('equipped');
+            
+            // Criar carta de equipamento visual empilhada
+            createEquipmentVisual(creatureElement, supportCardData.data);
+            
+            // Ativar habilidades do equipamento
+            if (window.cardAbilities) {
+                window.cardAbilities.onCardEquipped(supportCardId, supportCardData.data, creatureCardId);
+            }
+
+            renderFieldsFromState();
+            
+            // Remover elemento visual da carta de suporte
+            const supportElement = document.getElementById(supportCardId);
+            if (supportElement) {
+                supportElement.remove();
+            }
+            
+            // Feedback
+                showMessage(`${supportCardData.data.name} foi equipada em ${creatureCardData.data.name}!`);
+            
+            // Limpar highlights
+            clearEquipmentHighlights();
+            
+            // Atualizar highlights de invocação
+            if (gameState.currentPhase === 'invocation') {
+                highlightSummonableCards();
+            }
+        }
+
+        function highlightEquippableCreatures(supportCardData) {
+            // Destacar criaturas que podem receber equipamento
+            const playerCreatures = gameState.cards[supportCardData.player].field;
+            
+            playerCreatures.forEach(creature => {
+                if (creature.data.type === 'criatura') {
+                    const creatureElement = document.getElementById(creature.id);
+                    if (creatureElement) {
+                        creatureElement.classList.add('can-be-equipped');
+                        // Permitir drop na criatura
+                        creatureElement.ondrop = (e) => dropCard(e);
+                        creatureElement.ondragover = (e) => allowDrop(e);
+                    }
+                }
+            });
+        }
+
+        function clearEquipmentHighlights() {
+            document.querySelectorAll('.can-be-equipped').forEach(card => {
+                card.classList.remove('can-be-equipped');
+                card.ondrop = null;
+                card.ondragover = null;
+            });
+        }
+
+        function createEquipmentVisual(creatureElement, supportCardData) {
+            // Remover equipamentos visuais existentes se necessário para recriar com novo layout
+            const existingEquipments = creatureElement.querySelectorAll('.equipment-card');
+            const equipmentCount = existingEquipments.length;
+            
+            // Criar nova carta de equipamento
+            const equipmentCard = document.createElement('div');
+            equipmentCard.className = 'card equipment-card support';
+            
+            // Efeito de empilhamento mais sutil e elegante
+            const baseOffsetX = -3;
+            const baseOffsetY = -3;
+            const offsetIncrement = 1; // Menor incremento para efeito mais sutil
+            const rotationVariation = [-2, 1, -1, 1.5, -0.5]; // Rotações mais suaves
+            const opacityLevels = [0.7, 0.6, 0.5, 0.4, 0.3]; // Opacidade decrescente
+            
+            const offsetX = baseOffsetX - (equipmentCount * offsetIncrement);
+            const offsetY = baseOffsetY - (equipmentCount * offsetIncrement);
+            const rotation = rotationVariation[equipmentCount % rotationVariation.length];
+            const opacity = opacityLevels[equipmentCount] || 0.3;
+            
+            equipmentCard.style.top = `${offsetY}px`;
+            equipmentCard.style.left = `${offsetX}px`;
+            equipmentCard.style.transform = `rotate(${rotation}deg)`;
+            equipmentCard.style.zIndex = `${-1 - equipmentCount}`;
+            equipmentCard.style.opacity = opacity;
+            
+            // Armazenar dados da carta de suporte para acesso no duplo clique
+            equipmentCard.setAttribute('data-support-card', JSON.stringify(supportCardData));
+            
+            // Usar apenas imagem real, sem fallback de ícone
+            const cardImage = supportCardData.image ? 
+                `<img src="${supportCardData.image}" alt="${supportCardData.name}" class="card-image-real" style="pointer-events: none;">` :
+                `<div class="card-image" style="pointer-events: none;"></div>`;
+
+            const cardImageClickable = supportCardData.image ? 
+                `<img src="${supportCardData.image}" alt="${supportCardData.name}" class="card-image-real">` :
+                `<div class="card-image"></div>`;
+
+            equipmentCard.innerHTML = `
+                <div class="card-cost">${supportCardData.cost}</div>
+                ${cardImageClickable}
+                <div class="card-name">${supportCardData.name}</div>
+                <div class="card-stats">
+                    <span class="attack">${supportCardData.attack}</span>
+                    <span>/</span>
+                    <span class="defense">${supportCardData.defense}</span>
+                </div>
+            `;
+            
+            // Adicionar clique na carta de equipamento para mostrar modal
+            equipmentCard.onclick = (e) => {
+                e.stopPropagation();
+                // Na fase de combate, o clique deve selecionar/atacar a criatura
+                // que carrega o equipamento, não abrir os detalhes do equipamento
+                // (senão fica impossível mirar em criaturas equipadas).
+                if (gameState.currentPhase === 'combat') {
+                    selectCard(creatureElement.id);
+                    return;
+                }
+                showCardModal(supportCardData);
+                console.log('🔍 Clicked on equipment card:', supportCardData.name);
+            };
+            
+            // Adicionar a carta de equipamento atrás da criatura
+            creatureElement.appendChild(equipmentCard);
+        }
+
+// Overridden highlightEquippableCreatures to support opponent creatures
+function highlightEquippableCreatures(supportCardData) {
+    // Destacar criaturas que podem receber equipamento
+    // Agora inclui criaturas de ambos os jogadores
+    const allCreatures = [...gameState.cards.p1.field, ...gameState.cards.p2.field];
+
+    allCreatures.forEach(creature => {
+        if (creature.data.type === 'criatura') {
+            const creatureElement = document.getElementById(creature.id);
+            if (creatureElement) {
+                creatureElement.classList.add('can-be-equipped');
+                // Permitir drop na criatura
+                creatureElement.ondrop = e => dropCard(e);
+                creatureElement.ondragover = e => allowDrop(e);
+            }
+        }
+    });
+}
+
+
+
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', async function() {
+            updateUI();
+            
+            // Carregar sistema de cartas
+            const cardsLoaded = await loadCardSystem();
+            
+            if (cardsLoaded) {
+                const matchDecks = startNewMatch();
+                console.log('Jogo iniciado com cartas reais!');
+            } else {
+                console.log('Usando cartas básicas (fallback)');
+                for (let i = 0; i < 5; i++) {
+                    addCardToHand('p1');
+                    addCardToHand('p2');
+                }
+            }
+            initFirstTurn();
+        });

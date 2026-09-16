@@ -1200,6 +1200,7 @@ function grantDirectAttackEquipment(definitionId) {
 
 test('ataque direto básico exige campo vazio e criaturas aéreas ignoram defensores', () => {
     const { state, attacker, target } = createCombatFixture();
+    state.turn = 2; // regra de turno 1 é testada separadamente; aqui o foco é campo vazio
     assert.equal(CardRules.canDirectAttack(state, attacker.instanceId), false);
     GameStateModel.moveCard(state, target.instanceId, 'discard', 'p2');
     assert.equal(CardRules.canDirectAttack(state, attacker.instanceId), true);
@@ -1426,7 +1427,7 @@ test('proteções condicionais 058, 059 e 060 acompanham o campo atual', () => {
 });
 
 test('invocação, equipamento e destruição reprojetam todos os campos uma vez', () => {
-    const gameHtml = fs.readFileSync(path.join(__dirname, '../../game.html'), 'utf8');
+    const gameHtml = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
     const functionBody = (name, nextName) => {
         const start = gameHtml.indexOf(`function ${name}`);
         const end = gameHtml.indexOf(`function ${nextName}`, start);
@@ -3513,6 +3514,34 @@ test('Gulosinho não ganha bônus se atacou no turno', () => {
     });
     fixture.engine.emit(GameEngine.EVENT_TYPES.TURN_ENDED, { playerId: 'p1', turnNumber: fixture.state.turn });
     assert.equal(fixture.engine.getEffectiveStat(fixture.attacker.instanceId, 'attack'), 15);
+});
+
+test('GameStateModel persiste nome do jogador via setPlayerName', () => {
+    const state = GameStateModel.createInitialGameState();
+    assert.equal(GameStateModel.getPlayerName(state, 'p1'), 'Jogador 1');
+    GameStateModel.setPlayerName(state, 'p1', 'Kevin');
+    assert.equal(GameStateModel.getPlayerName(state, 'p1'), 'Kevin');
+    assert.equal(GameStateModel.getPlayerName(state, 'p2'), 'Jogador 2');
+});
+
+test('Trox: modificador de custo zero é consumido após reinvocação', () => {
+    const state = GameStateModel.createInitialGameState();
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+    const trox = addFieldCreature(state, 'p1', 'card_039', 'trox_1');
+    state.currentPhase = 'combat';
+
+    const result = CardRules.activateAbility(engine, trox.instanceId);
+    assert.equal(result.status, 'resolved');
+    assert.equal(trox.zone, 'hand');
+    assert.equal(engine.getEffectiveStat(trox.instanceId, 'cost'), 0, 'custo deve ser 0 antes da reinvocação');
+
+    engine.emit(GameEngine.EVENT_TYPES.CREATURE_SUMMONED, {
+        cardId: trox.instanceId,
+        playerId: 'p1',
+        definitionId: trox.definitionId
+    });
+    assert.notEqual(engine.getEffectiveStat(trox.instanceId, 'cost'), 0, 'modificador deve ser consumido após CREATURE_SUMMONED');
 });
 
 let failures = 0;
