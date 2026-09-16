@@ -4152,6 +4152,26 @@ Cartas restantes:
             creatureElement.appendChild(equipmentCard);
         }
 
+// Overridden highlightEquippableCreatures to support opponent creatures
+function highlightEquippableCreatures(supportCardData) {
+    // Destacar criaturas que podem receber equipamento
+    // Agora inclui criaturas de ambos os jogadores
+    const allCreatures = [...gameState.cards.p1.field, ...gameState.cards.p2.field];
+
+    allCreatures.forEach(creature => {
+        if (creature.data.type === 'criatura') {
+            const creatureElement = document.getElementById(creature.id);
+            if (creatureElement) {
+                creatureElement.classList.add('can-be-equipped');
+                // Permitir drop na criatura
+                creatureElement.ondrop = e => dropCard(e);
+                creatureElement.ondragover = e => allowDrop(e);
+            }
+        }
+    });
+}
+
+
 
 
         // Inicialização
