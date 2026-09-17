@@ -3544,6 +3544,224 @@ test('Trox: modificador de custo zero é consumido após reinvocação', () => {
     assert.notEqual(engine.getEffectiveStat(trox.instanceId, 'cost'), 0, 'modificador deve ser consumido após CREATURE_SUMMONED');
 });
 
+test('equipagem de suporte sem regra retorna null em vez de lançar', () => {
+    ['card_006', 'card_007', 'card_008', 'card_090'].forEach(definitionId => {
+        const state = GameStateModel.createInitialGameState();
+        const equipment = GameStateModel.createCardInstance({
+            id: definitionId,
+            name: definitionId,
+            type: 'suporte',
+            cost: 2,
+            attack: 0,
+            defense: 0
+        }, 'p1', { instanceId: `ruleless_${definitionId}` });
+        GameStateModel.registerCard(state, equipment, 'hand', 'p1');
+
+        assert.equal(
+            CardRules.createEquipmentEffects(equipment, 'qualquer-alvo', state),
+            null,
+            `${definitionId} não deve lançar sem EQUIPMENT_RULES`
+        );
+    });
+});
+
+test('fluxo de drag-and-drop do suporte usa o motivo exato da recusa', () => {
+    // Harness mínimo de DOM para carregar o código de UI (src/js/game.js) no
+    // Node: elementos falsos com classList/ondrop e captura dos toasts.
+    const gameSource = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
+    const toasts = [];
+    const elementsById = new Map();
+    const createEl = (id = '') => {
+        const classes = new Set();
+        const element = {
+            id,
+            children: [],
+            parentElement: null,
+            style: {},
+            dataset: {},
+            textContent: '',
+            innerHTML: '',
+            ondrop: null,
+            ondragover: null,
+            onclick: null,
+            ondragstart: null,
+            ondragend: null,
+            onmousedown: null,
+            ondblclick: null,
+            onmouseenter: null,
+            onmouseleave: null,
+            classList: {
+                add(...names) { names.forEach(name => classes.add(name)); },
+                remove(...names) { names.forEach(name => classes.delete(name)); },
+                contains(name) { return classes.has(name); },
+                toggle() {},
+                _classes: classes
+            },
+            setAttribute() {},
+            getAttribute() { return null; },
+            appendChild(child) {
+                element.children.push(child);
+                child.parentElement = element;
+            },
+            remove() {
+                element.removed = true;
+            },
+            querySelector() { return createEl('filho'); },
+            querySelectorAll() { return []; },
+            addEventListener() {},
+            play() { return Promise.resolve(); }
+        };
+        Object.defineProperty(element, 'className', {
+            get() { return [...classes].join(' '); },
+            set(value) {
+                classes.clear();
+                String(value).split(/\s+/).filter(Boolean).forEach(name => classes.add(name));
+            }
+        });
+        return element;
+    };
+    const fakeDocument = {
+        addEventListener() {},
+        getElementById(id) { return elementsById.get(id) || null; },
+        querySelector() { return null; },
+        querySelectorAll() { return []; },
+        createElement() { return createEl(''); },
+        body: {
+            appendChild(node) { toasts.push(node.textContent); },
+            removeChild() {}
+        },
+        documentElement: createEl('')
+    };
+    const fakeWindow = {
+        GameStateModel,
+        GameEngine,
+        CardRules,
+        cardAbilities: { attachEngine() {}, onCardSummoned() {}, onCardEquipped() {} }
+    };
+    const ui = new Function('window', 'document', `${gameSource}\n;return { gameState, dragStart, dropCard, createCard };`)(fakeWindow, fakeDocument);
+    const uiState = ui.gameState;
+
+    const field = createEl('field-p1');
+    field.className = 'player1-field';
+    field.dataset.player = 'p1';
+    elementsById.set('field-p1', field);
+
+    const dragon = GameStateModel.createCardInstance({
+        id: 'card_055', name: 'Mago Arcano', type: 'criatura', cost: 6, attack: 25, defense: 30
+    }, 'p1', { instanceId: 'dnd_host' });
+    GameStateModel.registerCard(uiState, dragon, 'field', 'p1');
+    const dragonElement = createEl('dnd_host');
+    dragonElement.className = 'card monster';
+    elementsById.set('dnd_host', dragonElement);
+    field.appendChild(dragonElement);
+    dragon.element = dragonElement;
+
+    const staff = GameStateModel.createCardInstance({
+        id: 'card_092', name: 'Cajado', type: 'suporte', cost: 2, attack: 5, defense: 5
+    }, 'p1', { instanceId: 'dnd_staff' });
+    GameStateModel.registerCard(uiState, staff, 'hand', 'p1');
+    ui.createCard(staff, 'p1');
+    elementsById.set('dnd_staff', staff.element);
+
+    uiState.currentPhase = 'invocation';
+    uiState.currentPlayer = 'p1';
+    const dragEvent = (target, currentTarget) => ({
+        target,
+        currentTarget,
+        preventDefault() {},
+        stopPropagation() { currentTarget.stopped = true; },
+        dataTransfer: { setData() {}, getData() { return 'dnd_staff'; } }
+    });
+    // Cenário 1: energia insuficiente — o drop na criatura recebe handler e o
+    // drop no campo exibe o motivo real (energia), não a mensagem genérica.
+    GameStateModel.setPlayerStat(uiState, 'energy', 'p1', 1);
+    ui.dragStart(dragEvent(staff.element, staff.element));
+    assert.equal(typeof dragonElement.ondrop, 'function', 'criatura deve ter handler de drop mesmo sem energia');
+    assert.equal(field.classList.contains('field-drop-zone'), false, 'campo não é alvo de suporte');
+    assert.equal(field.classList.contains('field-invalid-drop'), false, 'campo não deve ser marcado para suporte');
+    toasts.length = 0;
+    ui.dropCard(dragEvent(dragonElement, field));
+    assert.equal(toasts.length, 1);
+    assert.match(toasts[0], /Energia insuficiente para equipar/);
+    assert.equal(toasts[0].includes('devem ser equipadas em uma criatura'), false);
+    assert.equal(staff.zone, 'hand');
+
+    // Cenário 2: energia suficiente — equipa uma única vez, sem toast duplicado.
+    toasts.length = 0;
+    GameStateModel.setPlayerStat(uiState, 'energy', 'p1', 6);
+    ui.dragStart(dragEvent(staff.element, staff.element));
+    assert.equal(typeof dragonElement.ondrop, 'function');
+    assert.equal(dragonElement.classList.contains('can-be-equipped'), true);
+    dragonElement.ondrop(dragEvent(dragonElement, dragonElement));
+    assert.equal(uiState.cardInstances.dnd_staff.zone, 'equipment');
+    assert.equal(toasts.length, 1);
+    assert.match(toasts[0], /foi equipada em/);
+    toasts.length = 0;
+
+    // Cenário 3: mesmo com a carta já equipada, um drop subsequente no campo
+    // não deve acusar a carta de suporte no campo nem gastar energia de novo.
+    const energyAfterEquip = GameStateModel.getPlayerStat(uiState, 'energy', 'p1');
+    ui.dropCard(dragEvent(dragonElement, field));
+    assert.equal(toasts.length, 1, 'o drop no campo exibe a mensagem de suporte no campo');
+    assert.match(toasts[0], /devem ser equipadas em uma criatura/);
+    assert.equal(GameStateModel.getPlayerStat(uiState, 'energy', 'p1'), energyAfterEquip);
+});
+
+test('game.js mantém uma única definição de highlightEquippableCreatures', () => {
+    const interfaceSource = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
+    const definitions = interfaceSource.match(/function highlightEquippableCreatures\(/g) || [];
+    assert.equal(definitions.length, 1);
+    assert.match(interfaceSource, /function highlightEquippableCreatures\(supportCardData, canEquip/);
+    assert.equal(interfaceSource.includes('Overridden highlightEquippableCreatures'), false);
+});
+
+test('drop em criatura interrompe a propagação até o campo', () => {
+    const interfaceSource = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
+    const creatureDrop = interfaceSource.slice(
+        interfaceSource.indexOf('const isCreatureDrop'),
+        interfaceSource.indexOf('const targetPlayer')
+    );
+    assert.match(creatureDrop, /e\.stopPropagation\(\);/);
+    assert.match(creatureDrop, /handleEquipmentDrop\(e, cardId\);/);
+});
+
+test('fim de jogo trava os botões e o reset devolve a interatividade', () => {
+    const interfaceSource = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
+    const functionBody = (name, nextName) => {
+        const start = interfaceSource.indexOf(`function ${name}`);
+        const end = interfaceSource.indexOf(`function ${nextName}`, start);
+        assert.notEqual(start, -1, `Função ${name} não encontrada`);
+        assert.notEqual(end, -1, `Limite ${nextName} não encontrado`);
+        return interfaceSource.slice(start, end);
+    };
+
+    // Um único ponto de verdade para habilitar/desabilitar os controles
+    const definitions = interfaceSource.match(/function setMatchButtonsEnabled\(/g) || [];
+    assert.equal(definitions.length, 1);
+
+    // O fim de jogo (inclusive o disparado pelo motor) trava tudo e toca a vinheta
+    const endGameBody = functionBody('endGame', 'changeStat');
+    assert.match(endGameBody, /setMatchButtonsEnabled\(false\);/);
+    assert.match(endGameBody, /playVictorySound\(\);/);
+    assert.equal(endGameBody.includes("querySelectorAll('button')"), false);
+
+    // O reset reabre os controles e invalida timers/vinheta da partida anterior
+    const resetBody = functionBody('resetGame', 'createCard');
+    assert.match(resetBody, /setMatchButtonsEnabled\(true\);/);
+    assert.match(resetBody, /window\.victorySoundPlayed = false;/);
+    assert.match(resetBody, /window\.matchGeneration \+= 1;/);
+
+    // A vinheta é idempotente por partida
+    const victorySoundBody = functionBody('playVictorySound', 'nextPhase');
+    assert.match(victorySoundBody, /if \(window\.victorySoundPlayed\) return;/);
+});
+
+test('timers de fim de turno e de vitória respeitam a geração da partida', () => {
+    const interfaceSource = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
+    const generationGuards = interfaceSource.match(/generation !== window\.matchGeneration/g) || [];
+    assert.equal(generationGuards.length, 2);
+});
+
 let failures = 0;
 
 tests.forEach(({ name, callback }) => {

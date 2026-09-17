@@ -1274,6 +1274,15 @@
             animation: pulse-equip 2s infinite;
         }
 
+        /* Criaturas que podem receber o drop do suporte, mas cuja equipagem está
+           bloqueada no momento (ex.: sem energia ou alvo inválido para a carta).
+           O drop continua liberado para que o motivo exato apareça no toast. */
+        .card.cannot-be-equipped {
+            border-color: var(--pv-zero-color) !important;
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.6) !important;
+            animation: pulse-equip-invalid 2s infinite;
+        }
+
         @keyframes pulse-equip {
             0%, 100% { 
                 box-shadow: 0 0 15px rgba(0, 255, 0, 0.8);
@@ -1282,6 +1291,17 @@
             50% { 
                 box-shadow: 0 0 25px rgba(0, 255, 0, 1);
                 border-color: #00cc00;
+            }
+        }
+
+        @keyframes pulse-equip-invalid {
+            0%, 100% {
+                box-shadow: 0 0 15px rgba(239, 68, 68, 0.6);
+                border-color: var(--pv-zero-color);
+            }
+            50% {
+                box-shadow: 0 0 25px rgba(239, 68, 68, 0.9);
+                border-color: #ff8888;
             }
         }
 
@@ -1420,6 +1440,8 @@
             transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
             backdrop-filter: blur(4px);
             border: 3px solid rgba(255, 255, 255, 0.3);
+            /* Informativa: nunca deve interceptar cliques nos botões de fase */
+            pointer-events: none;
         }
 
         .turn-notification.show {

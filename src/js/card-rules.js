@@ -1712,6 +1712,12 @@
         // Update target's base stats with equipment stats if present
         // const target = state.cardInstances[targetId];
         const rule = getEquipmentRule(equipment.definitionId);
+        // Suportes sem regra de equipamento (ex.: cartas só ativadas da mão ou
+        // ainda não implementadas) não geram efeitos migrados. Retornar null
+        // permite que equipSupportCard use o fallback de stats do catálogo.
+        if (!rule) {
+            return null;
+        }
      /*   const equipBase = equipment.baseStats || {};
 
 
