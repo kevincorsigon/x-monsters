@@ -1,9 +1,11 @@
 // Sistema de Deck Builder para X Monsters
 class DeckBuilder {
-    constructor(cardsDatabase) {
+    constructor(cardsDatabase, options = {}) {
         this.allCards = cardsDatabase.cards;
         this.totalCards = cardsDatabase.total_cards;
         this.types = cardsDatabase.types;
+        // rng injetavel: default Math.random mantém o comportamento atual
+        this.rng = options.rng || Math.random;
     }
 
     // Criar deck balanceado para um jogador
@@ -70,10 +72,10 @@ class DeckBuilder {
     }
     
     // Embaralhar array
-    shuffleArray(array) {
+    shuffleArray(array, rng = this.rng) {
         const shuffled = [...array];
         for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
+            const j = Math.floor(rng() * (i + 1));
             [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
         return shuffled;
@@ -89,8 +91,8 @@ class DeckBuilder {
         const pool2 = allCardsShuffled.slice(midPoint);
         
         // Criar DeckBuilder temporários para cada pool
-        const deckBuilder1 = new DeckBuilder({ cards: pool1 });
-        const deckBuilder2 = new DeckBuilder({ cards: pool2 });
+        const deckBuilder1 = new DeckBuilder({ cards: pool1 }, { rng: this.rng });
+        const deckBuilder2 = new DeckBuilder({ cards: pool2 }, { rng: this.rng });
         
         return {
             player1: deckBuilder1.createBalancedDeck(deckSize),

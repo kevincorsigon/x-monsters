@@ -74,3 +74,6 @@ cards_kevin-*.png
 cards_kevin-*.jpg
 backup_*/
 .aider*
+
+# PvP server match ledger (runtime mirror, not a source of truth)
+matches/

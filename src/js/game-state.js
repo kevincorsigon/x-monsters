@@ -1,5 +1,6 @@
 (function(root, factory) {
-    const gameStateModel = factory();
+const pvpState = require('./pvp-state.js');
+const gameStateModel = factory();
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = gameStateModel;
@@ -7,6 +8,7 @@
 
     root.GameStateModel = gameStateModel;
 })(typeof window !== 'undefined' ? window : globalThis, function() {
+    const pvpState = require('./pvp-state.js');
     const PLAYER_IDS = ['p1', 'p2'];
     const ZONE_NAMES = ['deck', 'hand', 'field', 'equipment', 'discard'];
 
@@ -139,6 +141,7 @@
         Object.assign(state, nextState);
 
         const idFactory = options.idFactory || createInstanceId;
+        const localPlayerId = options.localPlayerId || 'p1';
 
         PLAYER_IDS.forEach(playerId => {
             const definitions = deckDefinitions[playerId] || [];
@@ -156,6 +159,24 @@
                 state.cardInstances[instance.instanceId] = instance;
                 state.players[playerId].zones.deck.push(instance);
             });
+        });
+
+        // ----------
+        // Create hidden placeholders for the opponent zones
+        // --------------------------------
+        const opponentId = localPlayerId === 'p1' ? 'p2' : 'p1';
+        const opponentZones = ['hand', 'deck'];
+        opponentZones.forEach(zone => {
+            const placeholderZone = [];
+            const length = state.players[opponentId].zones[zone].length;
+            for (let i = 0; i < length; i++) {
+                placeholderZone.push(pvpState.createHiddenInstance(opponentId, i));
+            }
+            state.players[opponentId].zones[zone] = placeholderZone;
+                if (zone === 'deck') {
+                    state.decks[opponentId] = placeholderZone;
+                    // We keep cardInstances for opponent cards to allow reveals
+                }
         });
 
         return state;

@@ -4,6 +4,10 @@ const path = require('node:path');
 const GameStateModel = require('../../src/js/game-state.js');
 const GameEngine = require('../../src/js/game-engine.js');
 const CardRules = require('../../src/js/card-rules.js');
+// Adiciona os módulos necessários para os novos testes da Parte 2
+const PvpProtocol = require('../../src/js/pvp-protocol.js');
+const { DeckBuilder, mulberry32 } = require('../../scripts/deck_factory.js');
+const cardsDatabase = require('../../data/cards_database.json');
 
 const tests = [];
 
@@ -3760,6 +3764,87 @@ test('timers de fim de turno e de vitória respeitam a geração da partida', ()
     const interfaceSource = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
     const generationGuards = interfaceSource.match(/generation !== window\.matchGeneration/g) || [];
     assert.equal(generationGuards.length, 2);
+});
+
+/**
+ * TESTES DA PARTE 2 – RIGOR
+ */
+
+// 1. RNG injetável – shuffleArray determinístico
+test('shuffleArray com RNG injetável produz mesma ordem para mesma seed', () => {
+    const rngA = mulberry32(42);
+    const rngB = mulberry32(42);
+    const builderA = new DeckBuilder(cardsDatabase, { rng: rngA });
+    const builderB = new DeckBuilder(cardsDatabase, { rng: rngB });
+    const arrA = [...builderA.allCards];
+    const arrB = [...builderB.allCards];
+    const shuffledA = builderA.shuffleArray(arrA, rngA);
+    const shuffledB = builderB.shuffleArray(arrB, rngB);
+    assert.deepStrictEqual(shuffledA.map(c => c.id), shuffledB.map(c => c.id));
+});
+
+// 2. createMatchDecks determinístico
+test('createMatchDecks com seed fixa gera decks idênticos', () => {
+    const rng1 = mulberry32(99);
+    const rng2 = mulberry32(99);
+    const builder1 = new DeckBuilder(cardsDatabase, { rng: rng1 });
+    const builder2 = new DeckBuilder(cardsDatabase, { rng: rng2 });
+    const decks1 = builder1.createMatchDecks(40);
+    const decks2 = builder2.createMatchDecks(40);
+    assert.deepStrictEqual(decks1.player1.map(c => c.id), decks2.player1.map(c => c.id));
+    assert.deepStrictEqual(decks1.player2.map(c => c.id), decks2.player2.map(c => c.id));
+});
+
+// 3. normalizeCommand validação de comando
+test('normalizeCommand valida comando DRAW válido', () => {
+    const raw = { cmd: 'DRAW', actor: 'p1', args: {} };
+    const norm = PvpProtocol.normalizeCommand(raw);
+    assert.strictEqual(norm.cmd, 'DRAW');
+    assert.strictEqual(norm.actor, 'p1');
+    assert.deepStrictEqual(norm.args, {});
+    assert.deepStrictEqual(norm.reveals, []);
+});
+
+test('normalizeCommand rejeita comando desconhecido', () => {
+    const raw = { cmd: 'FOO', actor: 'p1', args: {} };
+    assert.throws(() => PvpProtocol.normalizeCommand(raw), /Comando desconhecido/);
+});
+
+test('normalizeCommand rejeita ator inválido', () => {
+    const raw = { cmd: 'DRAW', actor: 'p3', args: {} };
+    assert.throws(() => PvpProtocol.normalizeCommand(raw), /Ator invalido/);
+});
+
+test('normalizeCommand rejeita SUMMON sem handSlot', () => {
+    const raw = { cmd: 'SUMMON', actor: 'p1', args: {} };
+    assert.throws(() => PvpProtocol.normalizeCommand(raw), /Args ausente para SUMMON/);
+});
+
+test('normalizeCommand rejeita SET_PHASE fase inválida', () => {
+    const raw = { cmd: 'SET_PHASE', actor: 'p1', args: { phase: 'xyz' } };
+    assert.throws(() => PvpProtocol.normalizeCommand(raw), /SET_PHASE: fase invalida/);
+});
+
+test('normalizeCommand rejeita reveals malformado', () => {
+    const raw = { cmd: 'DRAW', actor: 'p1', reveals: [{ bad: true }] };
+    assert.throws(() => PvpProtocol.normalizeCommand(raw), /reveal invalido/);
+});
+
+// 4. stateHash determinístico e sensível a mudanças
+test('stateHash é determinístico para o mesmo estado', () => {
+    const stateA = GameStateModel.createInitialGameState();
+    const stateB = JSON.parse(JSON.stringify(stateA)); // deep copy
+    const hashA = PvpProtocol.stateHash(stateA);
+    const hashB = PvpProtocol.stateHash(stateB);
+    assert.strictEqual(hashA, hashB);
+});
+
+test('stateHash muda quando turno muda', () => {
+    const state = GameStateModel.createInitialGameState();
+    const hash1 = PvpProtocol.stateHash(state);
+    state.turn = state.turn + 1;
+    const hash2 = PvpProtocol.stateHash(state);
+    assert.notStrictEqual(hash1, hash2);
 });
 
 let failures = 0;
