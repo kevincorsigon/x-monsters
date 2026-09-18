@@ -1,4 +1,4 @@
-        // Constantes do jogo
+// Constantes do jogo
         const INITIAL_PV = 200;
         const INITIAL_ENERGY = 6;
         const MAX_ENERGY = 20;
@@ -15,8 +15,6 @@
         window.victorySoundPlayed = false;
         // Geração da partida: invalida callbacks (setTimeout) da partida anterior
         window.matchGeneration = 0;
-        window.cardAbilities.attachEngine(window.gameEngine);
-        
 
         // Sistema de cartas será carregado do JSON
         let cardsDatabase = null;
@@ -140,6 +138,10 @@
         }
 
         function editName(player) {
+            if (window.PvpSession && player !== document.body.dataset.seat) {
+                showMessage('Apenas o jogador local pode alterar nomes.', 'warning');
+                return;
+            }
             const nameElement = document.querySelector(`.player${player === 'p1' ? '1' : '2'}-stats .player-name`);
             const newName = prompt('Digite o novo nome do jogador:', nameElement.innerText);
             if (newName && newName.trim()) {
@@ -156,6 +158,10 @@
         }
 
         function editStatValue(stat, player) {
+            if (window.PvpSession && player !== document.body.dataset.seat) {
+                showMessage('Apenas o jogador local pode alterar estatísticas.', 'warning');
+                return;
+            }
             const element = document.getElementById(`${stat}-${player}`);
             const newValue = prompt(`Digite o novo valor para ${stat}:`, element.innerText);
             if (newValue !== null && newValue !== '' && !isNaN(newValue)) {
@@ -183,6 +189,7 @@
         }
 
         function rollDice(player) {
+            if (window.PvpSession?.intercept({cmd:'ROLL_DICE', args:{player}})) return;
             if (gameState.diceUsed[player]) {
                 showMessage('Você já usou o dado da sorte nesta partida!', 'warning');
                 return;
@@ -373,23 +380,15 @@
 
                 // Mostrar segunda notificação da fase
                 showTurnNotification(`🃏 ${currentPlayerName}<br/>Fase de Invocação`, 1500);
-
-                console.log(`🔄 Turno de ${gameState.currentPlayer}: +1 Energia → Fase de Invocação`);
-            }, 1200);
+            }, 1000);
         }
 
-        // Nova função para definir fase diretamente
         function setPhase(phase) {
+            if (window.PvpSession?.intercept({cmd:'SET_PHASE', args:{phase}})) return;
             console.log('Mudando para fase:', phase);
             const previousPhase = gameState.currentPhase;
             if (previousPhase === phase) return;
-            
-            if (previousPhase === 'combat') {
-                clearCombatHighlights();
-            }
-            // Energia é incrementada só em endTurn/initFirstTurn (automático).
-            // Entrar em 'energy' manualmente (botão de fase) não deve conceder bônus.
-
+            if (previousPhase === 'combat') clearCombatHighlights();
             const result = window.gameEngine.resolveAction({
                 type: 'CHANGE_PHASE',
                 actorId: gameState.currentPlayer,
@@ -697,8 +696,6 @@
             return false;
         }
 
-
-
         function clearCombatHighlights() {
             console.log('🧹 Limpando highlights de combate');
             document.querySelectorAll('.card').forEach(card => {
@@ -707,7 +704,9 @@
             
             // Ocultar botão de ataque direto
             const directAttackBtn = document.getElementById('direct-attack-btn');
-            directAttackBtn.style.display = 'none';
+            if (directAttackBtn) {
+                directAttackBtn.style.display = 'none';
+            }
             
             gameState.attackingCard = null;
             gameState.targetCard = null;
@@ -741,7 +740,15 @@
         }
 
         function performAttack(attackerId, targetId) {
+            if (window.PvpSession?.intercept({cmd:'PERFORM_ATTACK', args:{attackerId, targetId}})) return;
             const attacker = findCardData(attackerId);
+            if (window.PvpSession) {
+                const localSeat = document.body.dataset.seat || gameState.currentPlayer;
+                if (!attacker || attacker.ownerId !== localSeat) {
+                    showMessage('Ataque inválido: só pode atacar com suas próprias cartas.', 'warning');
+                    return;
+                }
+            }
             const target = findCardData(targetId);
             if (!attacker || !target) return;
 
@@ -839,12 +846,20 @@
         }
 
         function directAttack() {
+            if (window.PvpSession?.intercept({cmd:'DIRECT_ATTACK', args:{attackingCard:gameState.attackingCard}})) return;
             if (!gameState.attackingCard) {
                 showMessage('Primeiro selecione uma carta sua para atacar!');
                 return;
             }
 
             const attacker = findCardData(gameState.attackingCard);
+            if (window.PvpSession) {
+                const localSeat = document.body.dataset.seat || gameState.currentPlayer;
+                if (!attacker || attacker.ownerId !== localSeat) {
+                    showMessage('Ataque direto inválido: só pode usar cartas próprias.', 'warning');
+                    return;
+                }
+            }
             if (!attacker) return;
 
             const opponent = gameState.currentPlayer === 'p1' ? 'p2' : 'p1';
@@ -881,11 +896,13 @@
             const cardElement = document.getElementById(cardId);
             if (cardElement) {
                 const statsElement = cardElement.querySelector('.card-stats');
-                statsElement.innerHTML = `
-                    <span class="attack">${cardData.attack}</span>
-                    <span>/</span>
-                    <span class="defense">${cardData.defense}</span>
-                `;
+                if (statsElement) {
+                    statsElement.innerHTML = `
+                        <span class="attack">${cardData.attack}</span>
+                        <span>/</span>
+                        <span class="defense">${cardData.defense}</span>
+                    `;
+                }
             }
         }
 
@@ -964,17 +981,23 @@
             // Fecha modais que possam estar abertos com dados da partida anterior
             closeCardModal();
             closeDiscardModal();
-            startNewMatch();
+            if (typeof startNewMatch === 'function') {
+                startNewMatch();
+            }
             initFirstTurn();
 
             ['p1', 'p2'].forEach(player => {
                 const diceButton = document.getElementById(`dice-${player}`);
-                diceButton.disabled = false;
-                diceButton.title = 'Dado da Sorte (2 energia)';
+                if (diceButton) {
+                    diceButton.disabled = false;
+                    diceButton.title = 'Dado da Sorte (2 energia)';
+                }
                 
                 // Reset names
                 const nameElement = document.querySelector(`.player${player === 'p1' ? '1' : '2'}-stats .player-name`);
-                nameElement.innerText = player === 'p1' ? 'Jogador 1' : 'Jogador 2';
+                if (nameElement) {
+                    nameElement.innerText = player === 'p1' ? 'Jogador 1' : 'Jogador 2';
+                }
                 updateHandCounter(player);
                 updateDiscardCount(player);
             });
@@ -1017,7 +1040,7 @@
             card.onmousedown = (e) => console.log('🖱️ Mouse down on card:', cardId);
             
             // Adicionar duplo clique para criaturas equipadas
-            card.ondblclick = () => handleCardDoubleClick(cardId, cardDataCopy);
+            card.ondblclick = () => handleCardDoubleClick(cardId, cardInstance.data);
             
             // Adicionar tooltip para criaturas equipadas
             card.onmouseenter = () => updateTooltipForEquippedCard(cardId);
@@ -1053,6 +1076,7 @@
         function renderHandsFromState() {
             ['p1', 'p2'].forEach(player => {
                 const handElement = document.getElementById(`hand-${player}`);
+                if (!handElement) return;
                 handElement.innerHTML = '';
 
                 gameState.cards[player].hand.forEach(cardInstance => {
@@ -1106,48 +1130,41 @@
 
         // Função para atualizar contador de cartas na mão
         function updateHandCounter(player) {
-            const handElement = document.getElementById(`hand-${player}`);
             const titleElement = document.getElementById(`hand-title-${player}`);
-            const cardCount = handElement ? handElement.children.length : 0;
-            
-            if (titleElement) {
-                titleElement.setAttribute('data-count', cardCount);
-            }
+            if (!titleElement) return;
+            const playerName = window.GameStateModel.getPlayerName(gameState, player) || (player === 'p1' ? 'Jogador 1' : 'Jogador 2');
+            const count = gameState.cards[player]?.hand?.length ?? 0;
+            titleElement.innerText = `Mão - ${playerName} (${count})`;
         }
 
         function addCardToHand(player) {
-            const handElement = document.getElementById(`hand-${player}`);
+            // Intercept local pull
+            if (window.PvpSession?.intercept({cmd:'ADD_CARD', args:{player}})) return;
+            // Em PvP, só o jogador local pode puxar cartas. Se o alvo não é o local,
+            // apenas atualiza o contador de cartas na mão do oponente.
+            if (window.PvpSession && player !== window.PvpSession.state.currentPlayer) {
+                updateHandCounter(player);
+                return;
+            }
             const currentCards = gameState.cards[player].hand.length;
-            
             if (currentCards >= 7) {
                 console.log(`❌ Não é possível sacar: limite de 7 cartas na mão atingido (atual: ${currentCards})`);
                 showMessage('Limite de 7 cartas na mão atingido!', 'warning');
                 return;
             }
-
-            // Usar sistema de deck se disponível
             if (typeof drawCardFromDeck === 'function') {
                 const drawnCard = drawCardFromDeck(player);
                 if (drawnCard) {
                     const newCard = createCard(drawnCard, player);
-                    
-                    // Adicionar animação de entrada
                     newCard.element.classList.add('new-card');
-                    
                     document.getElementById(`hand-${player}`).appendChild(newCard.element);
-                    updateHandCounter(player); // Atualizar contador
-                    
-                    // Remover classe de animação após completar
-                    setTimeout(() => {
-                        newCard.element.classList.remove('new-card');
-                    }, 800);
-                    
+                    updateHandCounter(player);
+                    setTimeout(() => { newCard.element.classList.remove('new-card'); }, 800);
                     console.log('📜 Card rendered from gameState:', newCard.id, 'Player:', player);
                     console.log('📜 Total cards in hand:', gameState.cards[player].hand.length);
                 }
                 return;
             }
-            
             // Fallback para sistema antigo se deck system não estiver carregado
             const fallbackCards = [
                 { id: 'fallback1', name: 'Criatura Básica', type: 'criatura', cost: 3, attack: 3, defense: 3, icon: '🦄' }
@@ -1157,6 +1174,7 @@
 
             window.GameStateModel.registerCard(gameState, newCard, 'hand', player);
             document.getElementById(`hand-${player}`).appendChild(newCard.element);
+            updateHandCounter(player);
         }
 
         function toggleGearMenu() {
@@ -1193,7 +1211,11 @@
             
             // Remover após 2 segundos
             setTimeout(() => {
-                document.body.removeChild(messageElement);
+                // jsdom (used em testes unitários) não implementa Element.contains.
+                // Use parentNode check para garantir compatibilidade.
+                if (messageElement.parentNode) {
+                    messageElement.parentNode.removeChild(messageElement);
+                }
             }, 2000);
         }
 
@@ -1308,7 +1330,9 @@
                     });
                     
                     gameState.attackingCard = cardId;
-                    cardElement.classList.add('attacking');
+                    if (cardElement) {
+                        cardElement.classList.add('attacking');
+                    }
                     highlightTargets();
                     
                     const attackerName = cardData.data.name;
@@ -1359,11 +1383,6 @@
                     const currentEnergy = window.GameStateModel.getPlayerStat(gameState, 'energy', gameState.currentPlayer);
                     console.log('🎯 Current energy:', currentEnergy);
                     
-                    // Verificar se é carta de suporte
-                    // Cartas de suporte nunca vão para o campo: elas precisam de uma
-                    // criatura como alvo. Por isso o highlight do campo é ignorado aqui e
-                    // o drop nas criaturas fica liberado sempre, mesmo sem energia — o
-                    // motivo exato da recusa aparece no drop (handleEquipmentDrop/dropCard).
                     if (cardData.data.type === 'suporte') {
                         highlightEquippableCreatures(cardData, currentEnergy >= effectiveCost);
                         if (currentEnergy >= effectiveCost) {
@@ -1375,16 +1394,18 @@
                         return;
                     }
 
-                    // Destacar campos válidos para drop (invocação normal de criaturas/evoluções)
+                    // Destacar campos válidos para drop
                     const playerField = document.getElementById(`field-${gameState.currentPlayer}`);
-                    if (currentEnergy >= effectiveCost) {
-                        playerField.classList.add('field-drop-zone');
-                        updateInvocationInfo(`Arraste para o campo para invocar (Custo: ${effectiveCost})`);
-                        console.log('🎯 Field marked as valid drop zone');
-                    } else {
-                        playerField.classList.add('field-invalid-drop');
-                        updateInvocationInfo(`Energia insuficiente! Precisa de ${effectiveCost}, você tem ${currentEnergy}`);
-                        console.log('🎯 Field marked as invalid - insufficient energy');
+                    if (playerField) {
+                        if (currentEnergy >= effectiveCost) {
+                            playerField.classList.add('field-drop-zone');
+                            updateInvocationInfo(`Arraste para o campo para invocar (Custo: ${effectiveCost})`);
+                            console.log('🎯 Field marked as valid drop zone');
+                        } else {
+                            playerField.classList.add('field-invalid-drop');
+                            updateInvocationInfo(`Energia insuficiente! Precisa de ${effectiveCost}, você tem ${currentEnergy}`);
+                            console.log('🎯 Field marked as invalid - insufficient energy');
+                        }
                     }
                 } else {
                     console.log('🎯 Not in invocation phase or not current player');
@@ -1424,34 +1445,37 @@
         }
 
         function dropCard(e) {
+            // Intercept local drop
+            if (window.PvpSession?.intercept({cmd:'DROP_CARD', args:{cardId: e.dataTransfer.getData('text/plain')}})) return;
             e.preventDefault();
             const cardId = e.dataTransfer.getData('text/plain');
             const cardElement = document.getElementById(cardId);
-            
+
             if (!cardElement) return;
 
             // Verificar se é drop em campo ou em criatura
             const isCreatureDrop = e.currentTarget.classList.contains('card');
-            
+
             if (isCreatureDrop) {
-                // O drop na criatura borbulha até o container do campo, que também
-                // tem um handler ondrop — interromper a propagação evita que o mesmo
-                // drop seja processado duas vezes (equipagem bem-sucedida seguida do
-                // aviso "devem ser equipadas em uma criatura").
                 e.stopPropagation();
                 handleEquipmentDrop(e, cardId);
                 return;
             }
 
             const targetPlayer = e.currentTarget.dataset.player;
+            // PvP: impedir que o jogador arraste cartas do oponente
+            if (window.PvpSession) {
+                const localSeat = document.body.dataset.seat || gameState.currentPlayer;
+                if (targetPlayer !== localSeat) {
+                    // Não permite drop em mãos ou campo do adversário
+                    return;
+                }
+            }
             const cardData = findCardData(cardId);
-            
+
             if (!cardData || cardData.player !== targetPlayer) return;
 
             if (cardData.data.type === 'suporte') {
-                // Mensagem honesta: se a equipagem está bloqueada por fase, turno ou
-                // energia, esse é o motivo real. A mensagem genérica só vale quando o
-                // drop no campo foi a única coisa errada (alvo deveria ser criatura).
                 const supportRejection = getSupportEquipRejection(cardData);
                 showMessage(
                     supportRejection || 'Cartas de suporte devem ser equipadas em uma criatura, não no campo.',
@@ -1480,8 +1504,6 @@
                 return;
             }
 
-            // Cartas de evolução exigem a carta base correspondente em campo
-            // (ex: Turtol Maximus exige Turtol). A invocação descarta a base.
             let evolutionBaseInstanceId = null;
             let evolutionBaseAttachmentIds = [];
             if (cardData.data.type === 'evolução') {
@@ -1567,7 +1589,6 @@
                 
                 setTimeout(() => {
                     cardElement.classList.remove('card-play-animation');
-                    // Atualizar highlights após invocação
                     if (gameState.currentPhase === 'invocation') {
                         highlightSummonableCards();
                     }
@@ -1607,14 +1628,14 @@
             
             for (let player of ['p1', 'p2']) {
                 console.log(`🔍 Checking ${player} hand:`, gameState.cards[player].hand.length, 'cards');
-                let card = gameState.cards[player].hand.find(c => c.id === cardId);
+                let card = gameState.cards[player].hand.find(c => c.id === cardId || c.instanceId === cardId);
                 if (card) {
                     console.log('🔍 Found in hand:', card);
                     return card;
                 }
                 
                 console.log(`🔍 Checking ${player} field:`, gameState.cards[player].field.length, 'cards');
-                card = gameState.cards[player].field.find(c => c.id === cardId);
+                card = gameState.cards[player].field.find(c => c.id === cardId || c.instanceId === cardId);
                 if (card) {
                     console.log('🔍 Found in field:', card);
                     return card;
@@ -1624,8 +1645,6 @@
             return null;
         }
 
-        // Custo efetivo (base + modificadores do motor, ex: Trox invocado grátis, Roller custando mais a cada retorno).
-        // Faz fallback para o custo bruto do catálogo quando o motor ainda não conhece a instância.
         function getEffectiveCardCost(cardId, cardData) {
             if (window.gameEngine && gameState.cardInstances[cardId]) {
                 try {
@@ -1639,7 +1658,9 @@
 
         function showCardModal(cardData) {
             const modal = document.getElementById('cardModal');
+            if (!modal) return;
             const modalCard = modal.querySelector('.modal-card');
+            if (!modalCard) return;
             
             // Limpar conteúdo anterior
             const existingContent = modalCard.querySelector('.modal-card-content');
@@ -1676,7 +1697,7 @@
                 </div>
                 <div style="margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 8px;">
                     <h3 style="color: var(--primary-color); margin-bottom: 10px; text-align: center;">Habilidade:</h3>
-                    <p style="font-size: 16px; line-height: 1.4; text-align: center; color: var(--text-color);">${cardData.hability}</p>
+                    <p style="font-size: 16px; line-height: 1.4; text-align: center; color: var(--text-color);">${cardData.hability || cardData.ability || 'Sem habilidade especial.'}</p>
                 </div>
             `;
             
@@ -1688,7 +1709,8 @@
         }
 
         function closeCardModal() {
-            document.getElementById('cardModal').classList.remove('visible');
+            const modal = document.getElementById('cardModal');
+            if (modal) modal.classList.remove('visible');
         }
 
         // ===== SISTEMA DE DESCARTE =====
@@ -1696,6 +1718,7 @@
         function viewDiscard(player) {
             const discardPile = gameState.cards[player].discard;
             const modal = document.getElementById('discardModal');
+            if (!modal) return;
             const title = document.getElementById('discardModalTitle');
             const grid = document.getElementById('discardCardsGrid');
             
@@ -1752,30 +1775,15 @@
         }
 
         function closeDiscardModal() {
-            document.getElementById('discardModal').classList.remove('visible');
+            const modal = document.getElementById('discardModal');
+            if (modal) modal.classList.remove('visible');
         }
 
         function addToDiscard(player, cardData) {
             console.log(`📥 Tentando adicionar carta ao descarte de ${player}:`, cardData ? cardData.name : 'CARTA UNDEFINED');
             
-            // Validar parâmetros
-            if (!player) {
-                console.log('💥 ERRO: Player é undefined em addToDiscard');
-                return;
-            }
-            
-            if (!cardData) {
-                console.log('💥 ERRO: cardData é undefined em addToDiscard');
-                return;
-            }
-            
-            if (!gameState.cards[player]) {
-                console.log(`💥 ERRO: gameState.cards[${player}] não existe`);
-                return;
-            }
-            
-            if (!gameState.cards[player].discard) {
-                console.log(`💥 ERRO: zona de descarte de ${player} não existe`);
+            if (!player || !cardData || !gameState.cards[player] || !gameState.cards[player].discard) {
+                console.log('💥 ERRO: Parâmetros inválidos em addToDiscard');
                 return;
             }
             
@@ -1821,7 +1829,6 @@
         }
 
         function handleCardDoubleClick(cardId, cardData) {
-            // Não executar duplo clique durante a fase de combate
             if (gameState.currentPhase === 'combat') {
                 console.log('🚫 Duplo clique desabilitado durante a fase de combate');
                 return;
@@ -1837,30 +1844,25 @@
                 }, 200);
             }
             
-            // Verificar se a carta está equipada (tem cartas de suporte)
+            // Verificar se a carta está equipada
             if (cardElement && cardElement.classList.contains('equipped')) {
                 const equipmentCards = cardElement.querySelectorAll('.equipment-card');
                 
                 if (equipmentCards.length > 0) {
-                    // Se há múltiplos equipamentos, mostrar o primeiro (mais recente)
                     const latestEquipment = equipmentCards[equipmentCards.length - 1];
                     const supportCardData = JSON.parse(latestEquipment.getAttribute('data-support-card'));
                     
-                    // Efeito visual na carta de equipamento
                     latestEquipment.style.transform = 'scale(1.1) rotate(0deg)';
                     setTimeout(() => {
                         latestEquipment.style.transform = '';
                     }, 300);
                     
-                    // Mostrar modal com a carta de suporte
                     showCardModal(supportCardData);
-                    
                     console.log('🔍 Showing equipment modal for:', supportCardData.name);
                 } else {
                     console.log('⚠️ Creature is marked as equipped but no equipment cards found');
                 }
             } else if (cardElement) {
-                // Se não está equipada, mostrar a própria carta
                 showCardModal(cardData);
                 console.log('🔍 Showing creature modal for:', cardData.name);
             }
@@ -1887,6 +1889,7 @@
         function showTurnNotification(message, duration = 2000) {
             const notification = document.getElementById('turnNotification');
             const text = document.getElementById('notificationText');
+            if (!notification || !text) return;
             
             text.innerHTML = message;
             notification.classList.add('show');
@@ -1901,6 +1904,10 @@
 
         // Função para mostrar informações dos decks
         function showDeckInfo() {
+            if (window.PvpSession && document.body.dataset.seat !== 'p1' && document.body.dataset.seat !== 'p2') {
+                showMessage('Você não pode visualizar decks em modo PvP.', 'warning');
+                return;
+            }
             if (!gameState.decks || !window.deckBuilder) {
                 showMessage('Sistema de deck não carregado!');
                 return;
@@ -1927,16 +1934,9 @@ Cartas restantes:
 • Player 1: ${gameState.decks.p1.length}
 • Player 2: ${gameState.decks.p2.length}`;
             
-                showMessage(info);
+            showMessage(info);
         }
 
-        // Função de teste para adicionar cartas ao campo
-
-
-        // Sistema de equipamento de cartas de suporte
-        // Validação compartilhada da equipagem de suportes (fase, turno e energia
-        // com custo efetivo). Usada pelo drop em criatura e pelo drop no campo para
-        // que ambos os caminhos exibam exatamente o mesmo motivo de recusa.
         function getSupportEquipRejection(supportCardData) {
             if (!supportCardData) return 'Carta não encontrada.';
             if (gameState.currentPhase !== 'invocation') {
@@ -1962,15 +1962,11 @@ Cartas restantes:
             
             if (!supportCardData || !creatureCardData) return;
             
-            // Verificar se é carta de suporte
             if (supportCardData.data.type !== 'suporte') {
                 showMessage('Apenas cartas de suporte podem ser equipadas!');
                 return;
             }
 
-            // Cartas com habilidade ativada a partir da mão (ex: Adubaram) são
-            // efeitos de uso único, não equipamentos — precisam ser ativadas
-            // direto da mão (painel de habilidades manuais), nunca equipadas.
             const handOnlyRule = window.CardRules?.getActivatedRule(supportCardData.data.id);
             if (handOnlyRule?.sourceZone === 'hand') {
                 showMessage(
@@ -1980,7 +1976,6 @@ Cartas restantes:
                 return;
             }
             
-            // Verificar se é criatura
             if (creatureCardData.data.type !== 'criatura') {
                 showMessage('Cartas de suporte só podem ser equipadas em criaturas!');
                 return;
@@ -1994,13 +1989,7 @@ Cartas restantes:
                 showMessage(migratedTargetCheck.reason, 'warning');
                 return;
             }
-            
-            // Cartas de suporte podem ser aplicadas em qualquer criatura
-            // (Tanto aliadas quanto inimigas)
-            
-            // Verificar fase, turno e energia (custo efetivo) com o mesmo helper
-            // usado pelo drop no campo, para que o motivo exibido seja idêntico
-            // nos dois caminhos.
+
             const equipRejection = getSupportEquipRejection(supportCardData);
             if (equipRejection) {
                 showMessage(equipRejection, 'warning');
@@ -2011,11 +2000,19 @@ Cartas restantes:
         }
 
         function equipSupportCard(supportCardId, creatureCardId) {
+            if (window.PvpSession?.intercept({cmd:'EQUIP_SUPPORT', args:{supportCardId, creatureCardId}})) return;
             const supportCardData = findCardData(supportCardId);
             const creatureCardData = findCardData(creatureCardId);
             
             if (!supportCardData || !creatureCardData) return;
             
+            if (window.PvpSession) {
+                const localSeat = document.body.dataset.seat || gameState.currentPlayer;
+                if (supportCardData.ownerId !== localSeat) {
+                    showMessage('Não pode equipar suporte de outro jogador.', 'warning');
+                    return;
+                }
+            }
             const migratedEquipmentEffects = window.CardRules
                 ?.createEquipmentEffects(supportCardData, creatureCardId, gameState);
             const equipmentStatEffects = migratedEquipmentEffects || [
@@ -2111,82 +2108,57 @@ Cartas restantes:
             renderPlayerStat('energy', supportCardData.player);
             playSound('energySound');
             
-            // Adicionar equipamento à criatura
             if (!creatureCardData.data.equipment) {
                 creatureCardData.data.equipment = [];
             }
             creatureCardData.data.equipment.push(supportCardData.data);
             
             const creatureElement = document.getElementById(creatureCardId);
-            if (!creatureElement) {
-                return;
-            }
+            if (!creatureElement) return;
             
             creatureElement.classList.add('equipped');
-            
-            // Criar carta de equipamento visual empilhada
             createEquipmentVisual(creatureElement, supportCardData.data);
             
-            // Ativar habilidades do equipamento
             if (window.cardAbilities) {
                 window.cardAbilities.onCardEquipped(supportCardId, supportCardData.data, creatureCardId);
             }
 
             renderFieldsFromState();
             
-            // Remover elemento visual da carta de suporte
             const supportElement = document.getElementById(supportCardId);
             if (supportElement) {
                 supportElement.remove();
             }
             
-            // Feedback
-                showMessage(`${supportCardData.data.name} foi equipada em ${creatureCardData.data.name}!`);
-            
-            // Limpar highlights
+            showMessage(`${supportCardData.data.name} foi equipada em ${creatureCardData.data.name}!`);
             clearEquipmentHighlights();
             
-            // Atualizar highlights de invocação
             if (gameState.currentPhase === 'invocation') {
                 highlightSummonableCards();
             }
         }
 
-        // Destaca criaturas de ambos os jogadores durante o arrasto de um suporte.
-        // O drop fica liberado em todas as criaturas para que o motivo exato da
-        // recusa apareça no drop (fase, turno, energia ou alvo inválido). A classe
-        // visual é verde quando a equipagem é possível e vermelha quando o alvo
-        // é legítimo mas a equipagem está bloqueada (ex.: energia insuficiente).
         function highlightEquippableCreatures(supportCardData, canEquip = true) {
             const allCreatures = [...gameState.cards.p1.field, ...gameState.cards.p2.field];
 
             allCreatures.forEach(creature => {
-                if (creature.data.type !== 'criatura') {
-                    return;
-                }
+                if (creature.data.type !== 'criatura') return;
                 const creatureElement = document.getElementById(creature.id);
-                if (!creatureElement) {
-                    return;
-                }
+                if (!creatureElement) return;
                 const targetCheck = window.CardRules?.validateEquipmentTarget
                     ? window.CardRules.validateEquipmentTarget(supportCardData, creature)
                     : { valid: true };
                 creatureElement.classList.add(targetCheck.valid && canEquip ? 'can-be-equipped' : 'cannot-be-equipped');
-                // Permitir drop na criatura
                 creatureElement.ondrop = (e) => dropCard(e);
                 creatureElement.ondragover = (e) => allowDrop(e);
             });
         }
 
         function clearEquipmentHighlights() {
-            // Limpar tanto os alvos válidos quanto os inválidos, removendo sempre os
-            // handlers instalados durante o arrasto de suportes.
             ['p1', 'p2'].forEach(player => {
                 gameState.cards[player].field.forEach(creature => {
                     const creatureElement = document.getElementById(creature.id);
-                    if (!creatureElement) {
-                        return;
-                    }
+                    if (!creatureElement) return;
                     creatureElement.classList.remove('can-be-equipped', 'cannot-be-equipped');
                     creatureElement.ondrop = null;
                     creatureElement.ondragover = null;
@@ -2200,20 +2172,17 @@ Cartas restantes:
         }
 
         function createEquipmentVisual(creatureElement, supportCardData) {
-            // Remover equipamentos visuais existentes se necessário para recriar com novo layout
             const existingEquipments = creatureElement.querySelectorAll('.equipment-card');
             const equipmentCount = existingEquipments.length;
             
-            // Criar nova carta de equipamento
             const equipmentCard = document.createElement('div');
             equipmentCard.className = 'card equipment-card support';
             
-            // Efeito de empilhamento mais sutil e elegante
             const baseOffsetX = -3;
             const baseOffsetY = -3;
-            const offsetIncrement = 1; // Menor incremento para efeito mais sutil
-            const rotationVariation = [-2, 1, -1, 1.5, -0.5]; // Rotações mais suaves
-            const opacityLevels = [0.7, 0.6, 0.5, 0.4, 0.3]; // Opacidade decrescente
+            const offsetIncrement = 1;
+            const rotationVariation = [-2, 1, -1, 1.5, -0.5];
+            const opacityLevels = [0.7, 0.6, 0.5, 0.4, 0.3];
             
             const offsetX = baseOffsetX - (equipmentCount * offsetIncrement);
             const offsetY = baseOffsetY - (equipmentCount * offsetIncrement);
@@ -2226,14 +2195,8 @@ Cartas restantes:
             equipmentCard.style.zIndex = `${-1 - equipmentCount}`;
             equipmentCard.style.opacity = opacity;
             
-            // Armazenar dados da carta de suporte para acesso no duplo clique
             equipmentCard.setAttribute('data-support-card', JSON.stringify(supportCardData));
             
-            // Usar apenas imagem real, sem fallback de ícone
-            const cardImage = supportCardData.image ? 
-                `<img src="${supportCardData.image}" alt="${supportCardData.name}" class="card-image-real" style="pointer-events: none;">` :
-                `<div class="card-image" style="pointer-events: none;"></div>`;
-
             const cardImageClickable = supportCardData.image ? 
                 `<img src="${supportCardData.image}" alt="${supportCardData.name}" class="card-image-real">` :
                 `<div class="card-image"></div>`;
@@ -2249,12 +2212,8 @@ Cartas restantes:
                 </div>
             `;
             
-            // Adicionar clique na carta de equipamento para mostrar modal
             equipmentCard.onclick = (e) => {
                 e.stopPropagation();
-                // Na fase de combate, o clique deve selecionar/atacar a criatura
-                // que carrega o equipamento, não abrir os detalhes do equipamento
-                // (senão fica impossível mirar em criaturas equipadas).
                 if (gameState.currentPhase === 'combat') {
                     selectCard(creatureElement.id);
                     return;
@@ -2263,7 +2222,6 @@ Cartas restantes:
                 console.log('🔍 Clicked on equipment card:', supportCardData.name);
             };
             
-            // Adicionar a carta de equipamento atrás da criatura
             creatureElement.appendChild(equipmentCard);
         }
 
@@ -2271,11 +2229,13 @@ Cartas restantes:
         document.addEventListener('DOMContentLoaded', async function() {
             updateUI();
             
-            // Carregar sistema de cartas
-            const cardsLoaded = await loadCardSystem();
+            let cardsLoaded = false;
+            if (typeof loadCardSystem === 'function') {
+                cardsLoaded = await loadCardSystem();
+            }
             
-            if (cardsLoaded) {
-                const matchDecks = startNewMatch();
+            if (cardsLoaded && typeof startNewMatch === 'function') {
+                startNewMatch();
                 console.log('Jogo iniciado com cartas reais!');
             } else {
                 console.log('Usando cartas básicas (fallback)');

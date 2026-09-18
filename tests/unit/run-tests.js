@@ -3847,6 +3847,133 @@ test('stateHash muda quando turno muda', () => {
     assert.notStrictEqual(hash1, hash2);
 });
 
+// Tests for PvP state and session
+const PvpState = require('../../src/js/pvp-state.js');
+const { PvpSession } = require('../../src/js/pvp-session.js');
+
+// 1. createHiddenInstance returns placeholder with null definitionId
+test('createHiddenInstance returns placeholder with correct instanceId and null definitionId', () => {
+    const placeholder = PvpState.createHiddenInstance('p1', 3);
+    assert.strictEqual(placeholder.instanceId, 'hidden_p1_3');
+    assert.strictEqual(placeholder.definitionId, null);
+    assert.strictEqual(placeholder.ownerId, 'p1');
+});
+
+// 2. createHiddenZone creates correct number of placeholders
+test('createHiddenZone creates correct number of placeholders', () => {
+    const zone = PvpState.createHiddenZone('p2', 'hand', 5);
+    assert.strictEqual(zone.length, 5);
+    assert.strictEqual(zone[0].instanceId, 'hidden_p2_0');
+    assert.strictEqual(zone[4].instanceId, 'hidden_p2_4');
+});
+
+// 3. createHiddenSlots identifies hidden slots in opponent zones
+test('createHiddenSlots identifies hidden slots', () => {
+    const state = GameStateModel.createInitialGameState();
+    // Replace opponent zones with placeholders
+    const placeholderZone = PvpState.createHiddenZone('p2', 'hand', 2);
+    state.players.p2.zones.hand = placeholderZone;
+    const hidden = PvpState.createHiddenSlots(state, 'p2');
+    assert.strictEqual(hidden.hand.length, 2);
+    assert.strictEqual(hidden.hand[0], 0);
+});
+
+// 4. createPvpIdFactory deterministic and unique
+test('createPvpIdFactory produces deterministic ids', () => {
+    const factory = PvpState.createPvpIdFactory(12345);
+    const id1 = factory('p1');
+    const id2 = factory('p2');
+    assert.ok(id1.startsWith('i_p1_'));
+    assert.ok(id2.startsWith('i_p2_'));
+    assert.notStrictEqual(id1, id2);
+    // Recreate factory with same seed and owner to ensure deterministic
+    const factory2 = PvpState.createPvpIdFactory(12345);
+    assert.strictEqual(factory2('p1'), id1);
+});
+
+// 5. revealInstance replaces placeholder correctly and is idempotent
+test('revealInstance replaces placeholder correctly', () => {
+    const state = GameStateModel.createInitialGameState();
+    const placeholderZone = PvpState.createHiddenZone('p1', 'hand', 1);
+    state.players.p1.zones.hand = placeholderZone;
+    const reveal = {
+        instanceId: 'inst_1',
+        definitionId: 'card_001',
+        ownerId: 'p1',
+        fromZone: 'hand',
+        slot: 0,
+    };
+    const real = PvpState.revealInstance(state, reveal);
+    assert.strictEqual(state.players.p1.zones.hand[0].instanceId, 'inst_1');
+    assert.strictEqual(state.cardInstances['inst_1'].definitionId, 'card_001');
+    // Idempotent
+    const real2 = PvpState.revealInstance(state, reveal);
+    assert.strictEqual(real, real2);
+});
+
+// 6. pvp-session handles command order and seq gaps
+test('pvp-session handles command order and seq gaps', () => {
+    const state = GameStateModel.createInitialGameState();
+    const sent = [];
+    const session = new PvpSession({
+        transportSend: cmd => sent.push(cmd),
+        transportOnMessage: null,
+        gameState: state,
+    });
+    // Send out-of-order command (seq 2 before 1)
+    session.handleMessage({ type: 'COMMAND', seq: 2, cmd: 'DRAW', actor: 'p1', args: [], reveals: [] });
+    // Should request resync
+    assert.ok(sent.some(c => c.type === 'REQUEST_RESYNC'));
+    // Send proper seq 1
+    session.handleMessage({ type: 'COMMAND', seq: 1, cmd: 'DRAW', actor: 'p1', args: [], reveals: [] });
+    // Next seq should be 2
+    assert.strictEqual(session.nextSeq, 3);
+});
+
+// 7. pvp-session does not mutate state on REJECTED
+test('pvp-session does not mutate state on REJECTED', () => {
+    const state = GameStateModel.createInitialGameState();
+    const session = new PvpSession({
+        transportSend: () => {},
+        transportOnMessage: null,
+        gameState: state,
+    });
+    const prevPV = state.players.p1.pv;
+    session.handleMessage({ type: 'REJECTED', reason: 'test' });
+    assert.strictEqual(state.players.p1.pv, prevPV);
+});
+
+// 8. pvp-session updates diceUsed on DICE_RESULT
+test('pvp-session updates diceUsed on DICE_RESULT', () => {
+    const state = GameStateModel.createInitialGameState();
+    const session = new PvpSession({
+        transportSend: () => {},
+        transportOnMessage: null,
+        gameState: state,
+    });
+    session.handleMessage({ type: 'DICE_RESULT', seq: 1, actor: 'p2', value: 4 });
+    assert.strictEqual(state.diceUsed.p2, true);
+});
+
+// 9. pvp-session replay produces same stateHash
+test('pvp-session replay produces same stateHash', () => {
+    const state = GameStateModel.createInitialGameState();
+    const session = new PvpSession({
+        transportSend: () => {},
+        transportOnMessage: null,
+        gameState: state,
+    });
+    const log = [
+        { type: 'COMMAND', seq: 1, cmd: 'DRAW', actor: 'p1', args: [], reveals: [] },
+        { type: 'COMMAND', seq: 2, cmd: 'SUMMON', actor: 'p1', args: { handSlot: 0 }, reveals: [] },
+    ];
+    session.handleMessage({ type: 'COMMAND_LOG', log });
+    const hashAfter = PvpProtocol.stateHash(state);
+    const hashBefore = PvpProtocol.stateHash(state);
+    assert.strictEqual(hashAfter, hashBefore);
+});
+
+
 let failures = 0;
 
 tests.forEach(({ name, callback }) => {

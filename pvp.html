@@ -1,255 +1,179 @@
-!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>X Monsters - Partida PvP Online</title>
+    <title>X Monsters - Jogo PVP</title>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
-    <!--
-        Casca de diagnostico do relay PvP (spec pvp-online-websocket-part-1).
-        Ela NAO e o tabuleiro: apenas conecta no WebSocket, mostra o assento e
-        lista as mensagens do servidor, permitindo validar o relay no navegador.
-        A parte 4 substitui esta pagina pelo tabuleiro forkado de game.html.
-    -->
-    <style>
-        :root {
-            --bg-color: #0f1115;
-            --card-bg-color: #1a1e28;
-            --text-color: #f1f5f9;
-            --primary-color: #d4af37;
-            --secondary-color: #334155;
-            --pv-color: #4ade80;
-            --energy-color: #fbbf24;
-            --pv-zero-color: #ef4444;
-            --border-radius: 8px;
-            --spacing: 15px;
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
-        body {
-            font-family: 'Cinzel', serif;
-            background: linear-gradient(135deg, var(--bg-color) 0%, #2d3748 100%);
-            color: var(--text-color);
-            min-height: 100vh;
-            padding: var(--spacing);
-        }
-
-        h1 { color: var(--primary-color); font-size: 1.5rem; margin-bottom: 10px; }
-
-        .shell {
-            width: min(900px, 100%);
-            margin: 0 auto;
-            background: var(--card-bg-color);
-            border: 2px solid var(--primary-color);
-            border-radius: var(--border-radius);
-            padding: calc(var(--spacing) * 1.5);
-        }
-
-        .info-row { font-size: 0.9rem; margin-bottom: 6px; }
-        .info-row span.valor { color: var(--primary-color); font-weight: 700; }
-
-        .status { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; background: var(--secondary-color); }
-        .status.conectado { background: var(--pv-color); color: #10131a; }
-        .status.erro { background: var(--pv-zero-color); color: #fff; }
-        .status.conectando { background: var(--energy-color); color: #10131a; }
-
-        .acoes { display: flex; gap: 10px; flex-wrap: wrap; margin: var(--spacing) 0; }
-
-        button {
-            font-family: 'Cinzel', serif;
-            padding: 8px 14px;
-            border-radius: var(--border-radius);
-            border: 1px solid var(--primary-color);
-            background: var(--primary-color);
-            color: #10131a;
-            font-weight: 700;
-            cursor: pointer;
-        }
-
-        button.secondary { background: transparent; color: var(--primary-color); }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .log {
-            height: 380px;
-            overflow-y: auto;
-            background: rgba(0, 0, 0, 0.35);
-            border: 1px solid var(--secondary-color);
-            border-radius: var(--border-radius);
-            padding: 10px;
-            font-family: Consolas, monospace;
-            font-size: 0.78rem;
-            line-height: 1.55;
-            white-space: pre-wrap;
-        }
-
-        .log .linha-entrada { color: var(--pv-color); }
-        .log .linha-saida { color: var(--energy-color); }
-        .log .linha-erro { color: var(--pv-zero-color); }
-    </style>
+    <link rel="stylesheet" href="src/css/game.css">
+    <link rel="stylesheet" href="src/css/pvp.css">
 </head>
 <body>
-    <div class="shell">
-        <h1>X Monsters &mdash; Partida PvP Online</h1>
-        <div class="info-row">Sala: <span class="valor" id="info-sala">&mdash;</span></div>
-        <div class="info-row">Assento: <span class="valor" id="info-assento">&mdash;</span></div>
-        <div class="info-row">Conexao: <span class="status conectando" id="info-status">conectando</span></div>
-        <div class="info-row">Turno do servidor: <span class="valor" id="info-turno">&mdash;</span></div>
-
-        <div class="acoes">
-            <button onclick="enviarComando('SET_PHASE', { phase: 'invocation' })">Fase de invocacao</button>
-            <button onclick="enviarComando('END_TURN', {})">Fim de turno</button>
-            <button class="secondary" onclick="pedirDado()">Sortear dado</button>
-            <button class="secondary" onclick="desconectar()">Desconectar</button>
+    <div class="game-container" data-seat="p1">
+        <!-- Player 2 Areas (Top Row) -->
+        <div class="player2-discard" onclick="viewDiscard('p2')" style="cursor: pointer;">
+            <div>Pilha de descarte</div>
+            <div style="font-size: 12px; color: var(--primary-color);">Player 2</div>
+            <div id="discard-count-p2" style="font-size: 10px; margin-top: 5px;">0 cartas</div>
         </div>
-
-        <div class="log" id="log"></div>
+        
+        <div class="player2-hand">
+            <div class="hand-title" id="hand-title-p2" data-count="0">Mão - Jogador 2</div>
+            <div id="hand-p2"></div>
+            <button class="peek-hand-btn" onclick="peekHand('p2')" onmouseleave="stopPeeking('p2')">👁️ Espiar Mão</button>
+        </div>
+        
+        <div class="player2-deck" onclick="addCardToHand('p2')">
+            <div>Deck Player 2</div>
+            <div style="font-size: 12px; color: var(--primary-color); margin-top: 5px;">Clique para sacar</div>
+        </div>
+        
+        <!-- Player 2 Stats and Field -->
+        <div class="player2-stats">
+            <div class="player-avatar">P2</div>
+            <div class="player-name" onclick="editName('p2')" style="color: var(--primary-color); cursor: pointer; margin: 5px 0;">Jogador 2</div>
+            <div class="stat">
+                <span class="stat-label">PV:</span>
+                <span class="stat-value pv-value" id="pv-p2" onclick="editStatValue('pv', 'p2')" style="cursor: pointer;">200</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Energia:</span>
+                <span class="stat-value energy-value" id="energy-p2" style="cursor: default;">6</span>
+                <div class="control-buttons">
+                    <button class="mini-button dice-button" id="dice-p2" onclick="rollDice('p2')" title="Dado da Sorte (2 energia)" style="margin-top: 4px;">🎲</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="player2-field" id="field-p2" data-player="p2" ondrop="dropCard(event)" ondragover="allowDrop(event)">
+            <!-- Cartas em campo do jogador 2 -->
+        </div>
+        
+        <!-- Phase Buttons (Center) -->
+        <div class="phase-buttons">
+            <div class="game-info-panel">
+                <div>Turno: <span id="current-player">Jogador 1</span></div>
+                <div>Fase: <span id="current-phase">Energia</span></div>
+                <div id="combat-info">
+                    <div id="combat-instruction">Selecione uma carta para atacar</div>
+                </div>
+            </div>
+            
+            <div class="phases-section">
+                <button class="phase-button active" id="energy-phase" onclick="setPhase('energy')">Energia</button>
+                <button class="phase-button" id="invocation-phase" onclick="setPhase('invocation')">Invocação</button>
+                <button class="phase-button" id="combat-phase" onclick="setPhase('combat')">Combate</button>
+            </div>
+            
+            <div class="control-section">
+                <button class="action-button" onclick="endTurn()">Fim Turno</button>
+                <button class="action-button" onclick="resetGame()">Resetar</button>
+            </div>
+        </div>
+        
+        <!-- Player 1 Stats and Field -->
+        <div class="player1-stats">
+            <div class="player-avatar">P1</div>
+            <div class="player-name" onclick="editName('p1')" style="color: var(--primary-color); cursor: pointer; margin: 5px 0;">Jogador 1</div>
+            <div class="stat">
+                <span class="stat-label">PV:</span>
+                <span class="stat-value pv-value" id="pv-p1" onclick="editStatValue('pv', 'p1')" style="cursor: pointer;">200</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Energia:</span>
+                <span class="stat-value energy-value" id="energy-p1" style="cursor: default;">6</span>
+                <div class="control-buttons">
+                    <button class="mini-button dice-button" id="dice-p1" onclick="rollDice('p1')" title="Dado da Sorte (2 energia)" style="margin-top: 4px;">🎲</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="player1-deck" onclick="addCardToHand('p1')">
+            <div>Deck Player 1</div>
+            <div style="font-size: 12px; color: var(--primary-color); margin-top: 5px;">Clique para sacar</div>
+        </div>
+        
+        <div class="player1-hand">
+            <div class="hand-title" id="hand-title-p1" data-count="0">Mão - Jogador 1</div>
+            <div id="hand-p1"></div>
+            <button class="peek-hand-btn" onclick="peekHand('p1')" onmouseleave="stopPeeking('p1')">👁️ Espiar Mão</button>
+        </div>
+        
+        <div class="player1-discard" onclick="viewDiscard('p1')" style="cursor: pointer;">
+            <div>Pilha de descarte</div>
+            <div style="font-size: 12px; color: var(--primary-color);">Player 1</div>
+            <div id="discard-count-p1" style="font-size: 10px; margin-top: 5px;">0 cartas</div>
+        </div>
     </div>
 
-    <script>
-        // Chave do token por sala/assento: identifica a reconexao do mesmo
-        // navegador sem exigir login (spec parte 5).
-        function chaveToken(sala, assento) {
-            return 'xmon-pvp-token-' + sala + '-' + assento;
-        }
+    <!-- Modal para visualizar carta -->
+    <div class="card-modal" id="cardModal">
+        <div class="modal-card">
+            <button class="modal-close" onclick="closeCardModal()">×</button>
+            <div id="modalCardContent"></div>
+        </div>
+    </div>
 
-        function obterToken(sala, assento) {
-            const chave = chaveToken(sala, assento);
-            let token = sessionStorage.getItem(chave);
-            if (!token) {
-                token = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
-                sessionStorage.setItem(chave, token);
-            }
-            return token;
-        }
+    <!-- Modal para visualizar descarte -->
+    <div class="discard-modal" id="discardModal">
+        <div class="discard-modal-content">
+            <div class="discard-modal-header">
+                <h3 id="discardModalTitle">Pilha de Descarte</h3>
+                <button class="modal-close" onclick="closeDiscardModal()">×</button>
+            </div>
+            <div class="discard-cards-grid" id="discardCardsGrid">
+                <!-- Cartas descartadas aparecerão aqui -->
+            </div>
+        </div>
+    </div>
 
-        // Rota esperada: /pvp/<sala>/<assento>; /pvp/<sala> deixa o servidor
-        // decidir o assento livre. Query string continua aceita como fallback.
-        function lerRota() {
-            const partes = window.location.pathname.split('/').filter(Boolean);
-            const parametros = new URLSearchParams(window.location.search);
-            let sala = null;
-            let assento = null;
-            if (partes[0] === 'pvp' && partes[1]) {
-                sala = partes[1];
-                assento = partes[2] || null;
-            }
-            sala = parametros.get('room') || sala;
-            assento = parametros.get('seat') || assento;
-            if (assento !== 'p1' && assento !== 'p2') {
-                assento = null;
-            }
-            return { sala, assento };
-        }
+    <!-- Modal Customizado Padronizado para Alertas e Ações -->
+    <div class="game-dialog-modal" id="gameDialogModal">
+        <div class="game-dialog-card">
+            <button class="modal-close" onclick="closeGameDialog()">×</button>
+            <div class="game-dialog-icon" id="gameDialogIcon">⚠️</div>
+            <h3 class="game-dialog-title" id="gameDialogTitle">Aviso</h3>
+            <div class="game-dialog-message" id="gameDialogMessage"></div>
+            <div class="game-dialog-actions" id="gameDialogActions">
+                <button class="game-dialog-btn game-dialog-btn-primary" id="gameDialogConfirmBtn" onclick="confirmGameDialog()">OK</button>
+                <button class="game-dialog-btn game-dialog-btn-cancel" id="gameDialogCancelBtn" onclick="closeGameDialog()" style="display: none;">Cancelar</button>
+            </div>
+        </div>
+    </div>
 
-        const rota = lerRota();
-        const estado = { socket: null, assento: rota.assento, sala: rota.sala, seq: 0 };
+    <!-- Botão flutuante de opções -->
+    <div class="gear-menu" id="gearMenu">
+        <button class="gear-btn" onclick="toggleGearMenu()" title="Opções">⚙️</button>
+        <div class="gear-dropdown" id="gearDropdown">
+            <button onclick="showDeckInfo(); toggleGearMenu()">📦 Decks</button>
+            <button onclick="resetGame(); toggleGearMenu()">🔄 Reset</button>
+        </div>
+    </div>
 
-        function registrar(mensagem, classe) {
-            const log = document.getElementById('log');
-            const linha = document.createElement('div');
-            linha.className = classe || '';
-            linha.textContent = new Date().toLocaleTimeString() + '  ' + mensagem;
-            log.appendChild(linha);
-            log.scrollTop = log.scrollHeight;
-        }
+    <!-- Notificação de mudança de turno -->
+    <div class="turn-notification" id="turnNotification">
+        <div id="notificationText"></div>
+    </div>
 
-        function definirStatus(texto, classe) {
-            const elemento = document.getElementById('info-status');
-            elemento.textContent = texto;
-            elemento.className = 'status ' + classe;
-        }
+    <!-- Elementos de áudio -->
+    <audio id="punchSound" preload="auto"><source src="assets/audio/punch.mp3" type="audio/mpeg"></audio>
+    <audio id="victorySound" preload="auto"><source src="assets/audio/victory.mp3" type="audio/mpeg"></audio>
+    <audio id="energySound" preload="auto"><source src="assets/audio/energy.mp3" type="audio/mpeg"></audio>
+    <audio id="healingSound" preload="auto"><source src="assets/audio/healing.mp3" type="audio/mpeg"></audio>
+    <audio id="wasteSound" preload="auto"><source src="assets/audio/waste.mp3" type="audio/mpeg"></audio>
 
-        function enviar(mensagem) {
-            if (!estado.socket || estado.socket.readyState !== WebSocket.OPEN) {
-                registrar('sem conexao: mensagem descartada', 'linha-erro');
-                return false;
-            }
-            estado.socket.send(JSON.stringify(mensagem));
-            registrar('-> ' + JSON.stringify(mensagem), 'linha-saida');
-            return true;
-        }
-
-        function enviarComando(cmd, args) {
-            enviar({ type: 'COMMAND', cmd: cmd, args: args || {} });
-        }
-
-        function pedirDado() {
-            enviar({ type: 'DICE_REQUEST' });
-        }
-
-        function desconectar() {
-            if (estado.socket) {
-                estado.socket.close();
-            }
-        }
-function tratarMensagem(mensagem) {
-            registrar('<- ' + JSON.stringify(mensagem), 'linha-entrada');
-            if (mensagem.type === 'ROOM_STATE' && mensagem.seuAssento) {
-                estado.assento = mensagem.seuAssento;
-                document.getElementById('info-assento').textContent = estado.assento;
-            }
-            if (mensagem.state) {
-                document.getElementById('info-turno').textContent =
-                    'turno ' + mensagem.state.turno + ' - ' + mensagem.state.jogadorAtual +
-                    ' - ' + mensagem.state.fase;
-            }
-            if (mensagem.type === 'COMMAND') {
-                estado.seq = mensagem.seq;
-            }
-            if (mensagem.type === 'MATCH_START') {
-                definirStatus('em partida', 'conectado');
-            }
-            if (mensagem.type === 'ERROR') {
-                definirStatus('erro', 'erro');
-            }
-        }
-
-        function conectar() {
-            if (!estado.sala) {
-                definirStatus('sala ausente na URL', 'erro');
-                registrar('Abra esta pagina pelo link gerado no lobby /pvp.', 'linha-erro');
-                return;
-            }
-            document.getElementById('info-sala').textContent = estado.sala;
-            const protocolo = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const url = protocolo + '//' + window.location.host + '/ws';
-            registrar('conectando em ' + url + ' ...');
-            const socket = new WebSocket(url);
-            estado.socket = socket;
-
-            socket.onopen = function () {
-                definirStatus('conectando', 'conectando');
-                enviar({
-                    type: 'HELLO',
-                    room: estado.sala,
-                    seat: estado.assento,
-                    token: obterToken(estado.sala, estado.assento || 'auto')
-                });
-            };
-
-            socket.onmessage = function (evento) {
-                let mensagem = null;
-                try {
-                    mensagem = JSON.parse(evento.data);
-                } catch (erro) {
-                    registrar('mensagem invalida do servidor', 'linha-erro');
-                    return;
-                }
-                tratarMensagem(mensagem);
-            };
-
-            socket.onclose = function () {
-                definirStatus('desconectado', 'erro');
-                registrar('conexao encerrada');
-            };
-
-            socket.onerror = function () {
-                definirStatus('erro de conexao', 'erro');
-            };
-        }
-
-        conectar();
-    </script>
+    <!-- Scripts de runtime -->
+    <script src="src/js/game-state.js"></script>
+    <script src="src/js/game-engine.js"></script>
+    <script src="src/js/card-rules.js"></script>
+    <script src="src/js/card-abilities.js"></script>
+    <script src="src/js/deck_system.js"></script>
+    <script src="src/js/manual_abilities.js"></script>
+    <script src="src/js/game.js"></script>
+    <!-- Scripts PvP -->
+    <script src="src/js/pvp-protocol.js"></script>
+    <script src="src/js/pvp-state.js"></script>
+    <script src="src/js/pvp-session.js"></script>
+    <script src="src/js/pvp-game.js"></script>
 </body>
 </html>

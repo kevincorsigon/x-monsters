@@ -2,7 +2,7 @@
  * pvp-state.js - Estado e helpers para partidas PvP
  *
  * O objetivo desta camada é abstrair a lógica de *placeholders* (cartas
- * ocultas) e de geração de IDs opacos.  Tudo é UMD (module.exports +
+ * ocultas) e de geração de IDs opacos. Tudo é UMD (module.exports +
  * window.PvpState) para manter a compatibilidade com o resto do código.
  *
  * Exporta:
@@ -13,6 +13,7 @@
  *   - createPvpIdFactory(seed)
  *   - constants: ZONE_NAMES, PLAYER_IDS
  */
+
 (function (root, factory) {
     const api = factory();
     if (typeof module !== 'undefined' && module.exports) {
@@ -27,9 +28,8 @@
 
     /**
      * Gera um instanceId opaco determinístico.
-     * @param {string} ownerId - p1 ou p2
      * @param {number} seed - seed do RNG
-     * @returns {function():string}
+     * @returns {function(string):string}
      */
     function createPvpIdFactory(seed) {
         const mulberry32 = function (s) {
@@ -58,10 +58,15 @@
         return {
             instanceId: `hidden_${ownerId}_${index}`,
             definitionId: null,
-            data: null,
-            ownerId: ownerId,
+            // data is a proxy that throws when accessed – protects secrecy
+            data: new Proxy({}, {
+                get(target, prop) {
+                    throw new Error('acesso a data de placeholder');
+                }
+            }),
+            ownerId,
             zone: null,
-            index: index,
+            index,
         };
     }
 
@@ -98,28 +103,34 @@
      * @param {object} state
      * @param {object} reveal { instanceId, definitionId, ownerId, fromZone, slot }
      */
-    function revealInstance(state, reveal) {
-        const { instanceId, definitionId, ownerId, fromZone, slot } = reveal;
-        const zone = state.players[ownerId].zones[fromZone];
-        if (!zone || slot >= zone.length) {
-            throw new Error('Reveal fora de zona');
-        }
-        const placeholder = zone[slot];
-        if (!placeholder || placeholder.definitionId !== null) {
-            throw new Error('Reveal não é placeholder');
-        }
-        const realInstance = {
-            instanceId,
-            definitionId,
-            data: null, // will be set by card‑rules when needed
-            ownerId,
-            zone: fromZone,
-            index: slot,
-        };
-        zone[slot] = realInstance;
-        state.cardInstances[instanceId] = realInstance;
-        return realInstance;
-    }
+     function revealInstance(state, reveal) {
+         const { instanceId, definitionId, ownerId, fromZone, slot } = reveal;
+         const zone = state.players[ownerId].zones[fromZone];
+         if (!zone || slot >= zone.length) {
+             throw new Error('Reveal fora de zona');
+         }
+         const placeholder = zone[slot];
+         // Se já existe uma instância na posição e o ID coincide, apenas devolvemos
+         // a instância existente (idempotência). Caso contrário, precisamos garantir
+         // que a posição ainda seja um placeholder.
+         if (placeholder && placeholder.definitionId !== null) {
+             if (placeholder.instanceId === instanceId) {
+                 return placeholder; // já revelado, não fazemos nada
+             }
+             throw new Error('Reveal não é placeholder');
+         }
+         const realInstance = {
+             instanceId,
+             definitionId,
+             data: null, // will be set by card-rules when needed
+             ownerId,
+             zone: fromZone,
+             index: slot,
+         };
+         zone[slot] = realInstance;
+         state.cardInstances[instanceId] = realInstance;
+         return realInstance;
+     }
 
     return {
         PLAYER_IDS,

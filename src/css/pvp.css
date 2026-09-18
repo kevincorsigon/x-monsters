@@ -1,0 +1,8 @@
+/* Espelhamento de perspectiva por data-seat */
+/* Quando data-seat="p2" inverte a ordem das áreas do grid sem mudar as media queries */
+div[data-seat="p2"] .game-container {
+    transform: scaleY(-1);
+}
+div[data-seat="p2"] .game-container > * {
+    transform: scaleY(-1);
+}
