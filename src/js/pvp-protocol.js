@@ -1,15 +1,18 @@
 /**
- * pvp-protocol.js - Validacao, normalizacao e hash de estado para PvP online.
+ * pvp-protocol.js - Validação, normalização e hash de estado para PvP online.
  *
- * UMD (module.exports + window.PvpProtocol). Nao tem dependencia de DOM.
+ * UMD (module.exports + window.PvpProtocol). Sem dependência de DOM.
  *
  * Exporta:
- *   - PROTOCOL_COMMANDS: lista de todos os comandos validos
- *   - normalizeCommand(rawMessage): valida e retorna {cmd, args, reveals, actor}
- *   - stateHash(state): hash FNV-1a deterministico da projecao publica do estado
+ *   - PROTOCOL_COMMANDS: lista de todos os comandos válidos da v1
+ *   - TURN_COMMANDS: subconjunto que exige ser o turno do ator
+ *   - REQUIRED_ARGS: campos obrigatórios por comando
+ *   - normalizeCommand(rawMessage, state): valida e devolve {cmd, args, reveals, actor}
+ *   - stateHash(state): hash FNV-1a determinístico da projeção pública do estado
+ *   - fnv1a(texto): hash FNV-1a 32 bits
  */
 (function (root, factory) {
-    var api = factory();
+    const api = factory();
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = api;
     }
@@ -17,27 +20,27 @@
 })(typeof window !== 'undefined' ? window : globalThis, function () {
     'use strict';
 
-    var PLAYER_IDS = ['p1', 'p2'];
-    var ZONE_NAMES = ['deck', 'hand', 'field', 'equipment', 'discard'];
-    var PHASES = ['energy', 'invocation', 'combat'];
+    const PLAYER_IDS = ['p1', 'p2'];
+    const ZONE_NAMES = ['deck', 'hand', 'field', 'equipment', 'discard'];
+    const PHASES = ['energy', 'invocation', 'combat'];
 
-    // Comandos que exigem ser o turno do ator.
-    var TURN_COMMANDS = [
+    // Comandos que exigem ser o turno do ator. CHOICE e DESTROY herdam o turno
+    // de quem abriu a ação, por isso ficam de fora.
+    const TURN_COMMANDS = [
         'DRAW', 'SUMMON', 'EQUIP', 'ATTACK', 'DIRECT_ATTACK',
         'ABILITY', 'SET_PHASE', 'END_TURN', 'ROLL_DICE'
     ];
+    const ALL_COMMANDS = TURN_COMMANDS.concat(['CHOICE', 'DESTROY', 'SET_NAME']);
 
-const ALL_COMMANDS = TURN_COMMANDS.concat(['CHOICE', 'DESTROY', 'SET_NAME']);
-
-    // Campos obrigatorios por comando.
-    var COMMAND_ARGS = {
+    // Campos obrigatórios por comando (contrato único cliente <-> servidor).
+    const REQUIRED_ARGS = {
         DRAW: [],
         ROLL_DICE: [],
         END_TURN: [],
         SUMMON: ['handSlot'],
-        EQUIP: ['creatureSlot', 'cardId'],
-        ATTACK: ['attackerSlot', 'targetSlot'],
-        DIRECT_ATTACK: ['attackerSlot'],
+        EQUIP: ['cardId', 'creatureId'],
+        ATTACK: ['attackerId', 'targetId'],
+        DIRECT_ATTACK: ['attackerId'],
         ABILITY: ['cardId'],
         CHOICE: ['choiceId', 'selection'],
         SET_PHASE: ['phase'],
@@ -45,213 +48,221 @@ const ALL_COMMANDS = TURN_COMMANDS.concat(['CHOICE', 'DESTROY', 'SET_NAME']);
         SET_NAME: ['name']
     };
 
-    var PROTOCOL_COMMANDS = ALL_COMMANDS;
-
     /**
-     * Valida um unico reveal.
+     * Valida um único reveal.
      * Cada reveal deve ter: instanceId, definitionId, ownerId, fromZone, slot.
+     * Devolve o motivo (string) ou null quando válido.
      */
     function validateReveal(reveal) {
         if (typeof reveal !== 'object' || reveal === null) {
-            return 'reveal invalido: nao e um objeto';
+            return 'reveal inválido: não é um objeto';
         }
         if (typeof reveal.instanceId !== 'string' || reveal.instanceId.length === 0) {
-            return 'reveal invalido: instanceId ausente ou vazio';
+            return 'reveal inválido: instanceId ausente ou vazio';
         }
         if (typeof reveal.definitionId !== 'string' || reveal.definitionId.length === 0) {
-            return 'reveal invalido: definitionId ausente ou vazio';
+            return 'reveal inválido: definitionId ausente ou vazio';
         }
         if (!PLAYER_IDS.includes(reveal.ownerId)) {
-            return 'reveal invalido: ownerId invalido (' + reveal.ownerId + ')';
+            return 'reveal inválido: ownerId inválido (' + reveal.ownerId + ')';
         }
         if (!ZONE_NAMES.includes(reveal.fromZone)) {
-            return 'reveal invalido: fromZone invalido (' + reveal.fromZone + ')';
+            return 'reveal inválido: fromZone inválido (' + reveal.fromZone + ')';
         }
         if (typeof reveal.slot !== 'number' || reveal.slot < 0) {
-            return 'reveal invalido: slot invalido';
+            return 'reveal inválido: slot inválido';
         }
         return null;
     }
 
+/**
+     * Exige um reveal para o slot informado (owner + zona + slot).
+     */
+    function requireReveal(reveals, ownerId, fromZone, slot) {
+        const found = reveals.some(
+            reveal => reveal.ownerId === ownerId &&
+                reveal.fromZone === fromZone &&
+                reveal.slot === slot
+        );
+        if (!found) {
+            throw new Error(
+                'Reveals ausente para a carta oculta em ' + fromZone + '[' + slot + '] de ' + ownerId
+            );
+        }
+    }
+
+    /**
+     * Uma posição já revelada não aceita novo reveal (evita sobrescrever
+     * identidade real com informação divergente).
+     */
+    function assertRevealsMatchPlaceholders(state, reveals) {
+        reveals.forEach((reveal, index) => {
+            const zone = state.players && state.players[reveal.ownerId]
+                && state.players[reveal.ownerId].zones
+                && state.players[reveal.ownerId].zones[reveal.fromZone];
+            if (!Array.isArray(zone)) return;
+            const ocupante = zone[reveal.slot];
+            if (!ocupante) return;
+            const isPlaceholder = ocupante.definitionId === null || ocupante.definitionId === undefined;
+            if (isPlaceholder) return;
+            throw new Error('reveal inválido: posição já revelada (índice ' + index + ')');
+        });
+    }
+
     /**
      * Normaliza e valida uma mensagem de comando.
-     * Retorna {cmd, args, reveals, actor} se valido.
-     * Lanca Error com motivo em pt-BR se invalido.
+     * Devolve {cmd, args, reveals, actor}. Lança Error (pt-BR) se inválido.
+     *
+     * @param {object} rawMessage
+     * @param {object} [state] estado local, usado para recusar reveal em cima
+     *   de posição que já tem identidade.
      */
-     function normalizeCommand(rawMessage, state) {
+    function normalizeCommand(rawMessage, state) {
         if (typeof rawMessage !== 'object' || rawMessage === null) {
-            throw new Error('Mensagem invalida: nao e um objeto');
+            throw new Error('Mensagem inválida: não é um objeto');
         }
 
-        var cmd = rawMessage.cmd;
+        const cmd = rawMessage.cmd;
         if (typeof cmd !== 'string') {
-            throw new Error('Comando invalido: cmd ausente ou nao e string');
+            throw new Error('Comando inválido: cmd ausente ou não é string');
         }
-
         if (!ALL_COMMANDS.includes(cmd)) {
             throw new Error('Comando desconhecido: ' + cmd);
         }
 
-        var actor = rawMessage.actor;
+        const actor = rawMessage.actor;
         if (!PLAYER_IDS.includes(actor)) {
-            throw new Error('Ator invalido: ' + actor + ' (esperado p1 ou p2)');
+            throw new Error('Ator inválido: ' + actor + ' (esperado p1 ou p2)');
         }
 
-        var args = rawMessage.args || {};
-        if (typeof args !== 'object' || args === null) {
-            throw new Error('Args invalido: nao e um objeto');
+        const args = rawMessage.args === undefined ? {} : rawMessage.args;
+        if (typeof args !== 'object' || args === null || Array.isArray(args)) {
+            throw new Error('Args inválido: não é um objeto');
         }
 
-        // Valida argumentos obrigatorios para este comando.
-        var requiredArgs = COMMAND_ARGS[cmd] || [];
-        for (var i = 0; i < requiredArgs.length; i++) {
-            var field = requiredArgs[i];
+        const requiredArgs = REQUIRED_ARGS[cmd] || [];
+        requiredArgs.forEach(field => {
             if (!(field in args) || args[field] === undefined || args[field] === null) {
                 throw new Error('Args ausente para ' + cmd + ': ' + field);
             }
-        }
+        });
 
-        // SET_PHASE exige fase valida.
+        if (cmd === 'SUMMON' && (typeof args.handSlot !== 'number' || args.handSlot < 0)) {
+            throw new Error('SUMMON: handSlot inválido (' + args.handSlot + ')');
+        }
         if (cmd === 'SET_PHASE' && !PHASES.includes(args.phase)) {
-            throw new Error('SET_PHASE: fase invalida (' + args.phase + ')');
+            throw new Error('SET_PHASE: fase inválida (' + args.phase + ')');
         }
 
-         // Valida reveals, se presentes.
-        var reveals = rawMessage.reveals || [];
+        const reveals = rawMessage.reveals === undefined ? [] : rawMessage.reveals;
         if (!Array.isArray(reveals)) {
-            throw new Error('Reveals invalido: nao e um array');
+            throw new Error('Reveals inválido: não é um array');
         }
-        for (var r = 0; r < reveals.length; r++) {
-            var problem = validateReveal(reveals[r]);
+        reveals.forEach((reveal, index) => {
+            const problem = validateReveal(reveal);
             if (problem) {
-                throw new Error(problem + ' (indice ' + r + ')');
+                throw new Error(problem + ' (índice ' + index + ')');
             }
-         }
-         // ----
-         // Placeholder check (applies only if state provided)
-         if (state) {
-             // Helper: procura placeholder por instanceId na state
-             function findPlaceholder(state, instanceId) {
-                 const PLAYER_IDS = ['p1', 'p2'];
-                 const ZONE_NAMES = ['deck', 'hand', 'field', 'equipment', 'discard'];
-                 for (let pi = 0; pi < PLAYER_IDS.length; pi++) {
-                     const playerId = PLAYER_IDS[pi];
-                     const player = state.players[playerId];
-                     for (let zi = 0; zi < ZONE_NAMES.length; zi++) {
-                         const zoneName = ZONE_NAMES[zi];
-                         const zone = player.zones[zoneName] || [];
-                         for (let si = 0; si < zone.length; si++) {
-                             const card = zone[si];
-                             if (card && card.instanceId === instanceId && card.definitionId === null) {
-                                 return { ownerId: card.ownerId, fromZone: zoneName, slot: si };
-                             }
-                         }
-                     }
-                 }
-                 return null;
-             }
-             // Check all instanceId references in args (cardId)
-             const potentialRefs = ['cardId'];
-             potentialRefs.forEach(field => {
-                 if (args[field]) {
-                     const instanceId = args[field];
-                     const placeholder = findPlaceholder(state, instanceId);
-                     if (placeholder) {
-                         // find matching reveal
-                         const reveal = reveals.find(r => r.instanceId === instanceId);
-                         if (!reveal) {
-                             throw new Error(`Reveals ausente para ${instanceId}`);
-                         }
-                         if (reveal.ownerId !== placeholder.ownerId || reveal.slot !== placeholder.slot || reveal.fromZone !== placeholder.fromZone) {
-                             throw new Error(`reveal invalido`);
-                         }
-                     }
-                 }
-             });
-         }
-         // ----
-         return {
-             cmd: cmd,
-             actor: actor,
-             args: args,
-             reveals: reveals
-         };
-     }
+        });
 
-    /**
-     * FNV-1a 32-bit hash. Deterministico e sem dependencia de biblioteca.
+        // Toda carta que sai da mão precisa viajar com o seu reveal: o receptor
+        // conhece o slot, nunca a identidade.
+        if (cmd === 'SUMMON') {
+            requireReveal(reveals, actor, 'hand', args.handSlot);
+        }
+        if (cmd === 'EQUIP') {
+            const revealDaMaoPropria = reveals.some(
+                reveal => reveal.ownerId === actor && reveal.fromZone === 'hand'
+            );
+            if (!revealDaMaoPropria) {
+                throw new Error('Reveals ausente para EQUIP: a carta de suporte vem da mão');
+            }
+        }
+
+        if (state) {
+            assertRevealsMatchPlaceholders(state, reveals);
+        }
+
+        return { cmd, actor, args, reveals };
+    }
+
+/**
+     * FNV-1a 32 bits. Determinístico e sem dependência de biblioteca.
      */
-    function fnv1a(str) {
-        var hash = 2166136261;
-        for (var i = 0; i < str.length; i++) {
-            hash = ((hash ^ str.charCodeAt(i)) * 16777619) >>> 0;
+    function fnv1a(texto) {
+        let hash = 2166136261;
+        for (let i = 0; i < texto.length; i++) {
+            hash = Math.imul(hash ^ texto.charCodeAt(i), 16777619) >>> 0;
         }
         return hash >>> 0;
     }
 
     /**
-     * Projeta o estado para uma string canonica (ordem fixa, sem depender
-     * de iteracao de chaves de objeto) e faz hash FNV-1a.
+     * Projeção canônica do estado (ordem fixa, sem depender de iteração de
+     * chaves de objeto) e hash FNV-1a.
      *
-     * Campos incluidos (todos publicos):
+     * Campos incluídos (todos públicos):
      *   - turn, currentPlayer, currentPhase
      *   - pv, energy, maxEnergy de cada jogador
      *   - .length das 5 zonas de cada jogador
-     *   - numero de cardInstances (chaves)
+     *   - nº de cardInstances
      *   - .length de effects
-     *   - pendingChoice.id (ou '-')
+     *   - pendingChoice.id
+     *   - diceUsed de cada jogador
      *
-     * Campos de UI (attackingCard, selectedCard, etc.) ficam de fora.
+     * Campos de UI (attackingCard, selectedCard, elementos) ficam de fora.
      */
     function stateHash(state) {
-        var parts = [];
+        if (!state || typeof state !== 'object') {
+            return fnv1a('estado-invalido');
+        }
 
+        const parts = [];
         parts.push('t=' + (state.turn || 0));
         parts.push('p=' + (state.currentPlayer || '-'));
         parts.push('ph=' + (state.currentPhase || '-'));
 
-        PLAYER_IDS.forEach(function (playerId) {
-            var player = state.players && state.players[playerId];
-            if (!player) {
-                parts.push('p' + playerId + '=none');
+        PLAYER_IDS.forEach(playerId => {
+            const player = state.players && state.players[playerId];
+            if (!player || !player.zones) {
+                parts.push(playerId + '=none');
                 return;
             }
-            parts.push('p' + playerId + '=' +
-                'pv:' + (player.pv || 0) +
+            const zones = player.zones;
+            parts.push(playerId + '=pv:' + (player.pv || 0) +
                 '|en:' + (player.energy || 0) +
                 '|mx:' + (player.maxEnergy || 0) +
-                '|deck:' + (player.zones.deck || []).length +
-                '|hand:' + (player.zones.hand || []).length +
-                '|field:' + (player.zones.field || []).length +
-                '|eq:' + (player.zones.equipment || []).length +
-                '|discard:' + (player.zones.discard || []).length
+                '|deck:' + (zones.deck || []).length +
+                '|hand:' + (zones.hand || []).length +
+                '|field:' + (zones.field || []).length +
+                '|eq:' + (zones.equipment || []).length +
+                '|discard:' + (zones.discard || []).length
             );
         });
 
-        var ci = state.cardInstances || {};
-        var ciCount = typeof Object.keys === 'function'
-            ? Object.keys(ci).length
-            : 0;
-        parts.push('ci=' + ciCount);
-
+        parts.push('ci=' + Object.keys(state.cardInstances || {}).length);
         parts.push('ef=' + (state.effects || []).length);
 
-        var pc = state.pendingChoice;
-        parts.push('pc=' + (pc && pc.id ? pc.id : '-'));
+        const pendingChoice = state.pendingChoice;
+        parts.push('pc=' + (pendingChoice && pendingChoice.id ? pendingChoice.id : '-'));
 
-        parts.push('du=' + (state.diceUsed
-            ? (state.diceUsed.p1 ? '1' : '0') + (state.diceUsed.p2 ? '1' : '0')
-            : '00'));
+        const diceUsed = state.diceUsed || {};
+        parts.push('du=' + (diceUsed.p1 ? '1' : '0') + (diceUsed.p2 ? '1' : '0'));
 
         return fnv1a(parts.join('|'));
     }
 
     return {
-        PROTOCOL_COMMANDS: PROTOCOL_COMMANDS,
-        TURN_COMMANDS: TURN_COMMANDS,
-        ALL_COMMANDS: ALL_COMMANDS,
-        normalizeCommand: normalizeCommand,
-        stateHash: stateHash,
-        fnv1a: fnv1a
+        PLAYER_IDS,
+        ZONE_NAMES,
+        PHASES,
+        PROTOCOL_COMMANDS: ALL_COMMANDS.slice(),
+        TURN_COMMANDS,
+        ALL_COMMANDS,
+        REQUIRED_ARGS,
+        normalizeCommand,
+        validateReveal,
+        stateHash,
+        fnv1a
     };
 });

@@ -15,6 +15,7 @@ Exit code 0 = tudo passou.
 
 import asyncio
 import json
+import re
 import subprocess
 import sys
 import time
@@ -51,10 +52,13 @@ class WsClient:
         self.ws = None
         self.messages = []          # mensagens recebidas, em ordem
         self._recv_task = None
+        self._queue = None          # fila interna drenada pelo listener de fundo
 
     async def connect(self, room_id, token=None):
+        from collections import deque
         token = token or f"smoke_{self.seat}"
-        self.ws = await connect(WS_URL)
+        self.ws = await connect(WS_URL, max_size=None, max_queue=None)
+        self._queue = deque()
         await self.ws.send(json.dumps({
             "type": "HELLO",
             "room": room_id,
@@ -67,10 +71,19 @@ class WsClient:
     async def _listen(self):
         try:
             while True:
-                raw = await asyncio.wait_for(self.ws.recv(), timeout=TIMEOUT * 3)
-                self.messages.append(json.loads(raw))
+                raw = await self.ws.recv()
+                mensagem = json.loads(raw)
+                self.messages.append(mensagem)
+                if self._queue is not None:
+                    self._queue.append(mensagem)
         except (asyncio.TimeoutError, Exception):
             pass
+
+    async def drain(self, secs=2.0):
+        """Espera o listener de fundo consumir o backlog (sem recv duplo)."""
+        fim = time.time() + secs
+        while time.time() < fim:
+            await asyncio.sleep(0.05)
 
     async def send(self, payload):
         if isinstance(payload, str):
@@ -138,16 +151,16 @@ async def run_test():
         assert_true(p2.has_type("MATCH_START"), "p2 recebeu MATCH_START")
 
         # ── rejeita terceiro cliente no mesmo assento ──
-        p3 = WsClient("p1")
+        p1c = WsClient("p1")
         try:
-            await p3.connect(room_id, "smoke_p1_copy")
+            await p1c.connect(room_id, "intruso")
             await asyncio.sleep(0.5)
-            rejected = any(m.get("type") == "ERROR" for m in p3.messages)
+            rejected = any(m.get("type") == "ERROR" for m in p1c.messages)
             assert_true(rejected, "terceiro cliente no mesmo assento é rejeitado")
         except Exception:
             assert_true(True, "terceiro cliente no mesmo assento é rejeitado")
         finally:
-            await p3.close()
+            await p1c.close()
 
         # ── END_TURN de p1 aceito e replicado ──
         await p1.send({
@@ -209,8 +222,10 @@ async def run_test():
             "END_TURN fora do turno é rejeitado para p1",
         )
 
+        # So o p1 cai (F5): o p2 segue conectado para validar o GAME_OVER
+        # replicado mais adiante. Fechar os dois aqui mataria o listener
+        # do p2 e o assert final nunca passaria.
         await p1.close()
-        await p2.close()
 
         # ── matches/<roomId>.json existe e tem o ledger ──
         ledger = ROOT / "matches" / f"{room_id}.json"
@@ -225,6 +240,139 @@ async def run_test():
         assert_true("END_TURN" in cmds, "ledger registra END_TURN")
         assert_true("ROLL_DICE" in cmds, "ledger registra ROLL_DICE")
         assert_true(data["roomId"] == room_id, "roomId no ledger confere")
+        abertura = [c for c in data["commands"] if c["cmd"] == "DRAW"]
+        assert_true(
+            len(abertura) == 10,
+            "ledger tem as 10 compras da abertura (5 por assento)",
+        )
+        assert_true(
+            data["commands"] == sorted(data["commands"], key=lambda c: c["seq"]),
+            "ledger está em ordem de seq",
+        )
+
+        # ── sigilo: nada no espelho além do que foi revelado ──
+        texto = ledger.read_text(encoding="utf-8")
+        revelados = {
+            reveal["definitionId"]
+            for comando in data["commands"]
+            for reveal in (comando.get("reveals") or [])
+        }
+        mencoes = set(re.findall(r"card_\d{3}", texto))
+        assert_true(
+            mencoes <= revelados,
+            "o JSON não expõe identidade de carta que nunca foi revelada",
+        )
+        identidade_nos_args = any(
+            "card_" in json.dumps(comando.get("args") or {}) for comando in data["commands"]
+        )
+        assert_true(
+            not identidade_nos_args,
+            "os args dos comandos usam slot/id opaco, nunca definitionId",
+        )
+
+        # ── reconexão (F5): mesmo token retoma o assento e recebe o log ──
+        await p1.close()
+        await asyncio.sleep(0.4)
+        p1b = WsClient("p1")
+        await p1b.connect(room_id, "smoke_p1")
+        await asyncio.sleep(0.6)
+
+        assert_true(p1b.has_type("MATCH_START"), "reconexão recebe MATCH_START")
+        assert_true(p1b.has_type("COMMAND_LOG"), "reconexão recebe COMMAND_LOG")
+        logs = [m for m in p1b.messages if m.get("type") == "COMMAND_LOG"]
+        if logs:
+            assert_true(
+                len(logs[-1]["log"]) >= len(data["commands"]),
+                "o log da reconexão traz o ledger inteiro",
+            )
+            assert_true(
+                logs[-1]["lastSeq"] >= 12,
+                f"lastSeq da reconexão é o do ledger ({logs[-1]['lastSeq']})",
+            )
+        match_start = [m for m in p1b.messages if m.get("type") == "MATCH_START"][-1]
+        assert_true(
+            match_start["seat"] == "p1" and match_start["opponentSeat"] == "p2",
+            "MATCH_START da reconexão devolve o assento correto",
+        )
+        assert_true(
+            "deck" in match_start,
+            "MATCH_START carrega o deck privado do assento (ou None com fallback pela seed)",
+        )
+        nomes_revelados = {
+            reveal["instanceId"]
+            for comando in data["commands"]
+            for reveal in (comando.get("reveals") or [])
+        }
+        identidade_no_log = {
+            str(card.get("definitionId"))
+            for cards in [match_start.get("deck") or []]
+            for card in cards
+        }
+        assert_true(
+            nomes_revelados.isdisjoint(identidade_no_log),
+            "o deck privado não vaza identidade no log de comandos",
+        )
+
+        # Drena o backlog sem matar o listener: o p2 recebe ROOM_STATE/OPPONENT
+        # extras na reconexão, e o buffer interno do cliente (max_queue) pode
+        # descartar o GAME_OVER se ninguém consumir a fila a tempo.
+        await p2.drain(1.0)
+        await p1b.drain(1.0)
+
+        # ── fim de partida: resultado registrado e replicado nos dois ──
+        n_antes = len(p2.messages)
+        await p1b.send({
+            "type": "GAME_OVER",
+            "winner": "p1",
+            "reason": "pv-zero",
+            "turn": 2,
+            "at": "2026-09-19T00:00:00",
+        })
+        for _ in range(200):
+            if any(m.get("type") == "GAME_OVER" for m in p2.messages[n_antes:]):
+                break
+            await asyncio.sleep(0.05)
+
+        p1_over = [m for m in p1b.messages if m.get("type") == "GAME_OVER"]
+        p2_over = [m for m in p2.messages[n_antes:] if m.get("type") == "GAME_OVER"]
+        assert_true(len(p1_over) >= 1, "p1 recebeu GAME_OVER")
+        assert_true(len(p2_over) >= 1, "p2 recebeu GAME_OVER replicado")
+        if p1_over and p2_over:
+            assert_true(
+                p1_over[-1]["winner"] == p2_over[-1]["winner"] == "p1",
+                "os dois lados concordam no vencedor",
+            )
+
+        final = json.loads(ledger.read_text(encoding="utf-8"))
+        assert_true(
+            final.get("resultado", {}).get("winner") == "p1",
+            "matches/<roomId>.json registra o resultado",
+        )
+        assert_true(final.get("status") == "finished", "a sala fica 'finished'")
+        assert_true(
+            "at" in final["resultado"] and "reason" in final["resultado"],
+            "resultado traz motivo e horário",
+        )
+
+        # Comando após o fim é rejeitado.
+        await p1b.send({"type": "COMMAND", "cmd": "END_TURN", "args": {}, "reveals": []})
+        await asyncio.sleep(0.4)
+        rejeicoes = [m for m in p1b.messages if m.get("type") == "REJECTED"]
+        assert_true(
+            any("terminou" in (m.get("reason") or "") for m in rejeicoes),
+            "sala finalizada rejeita novos comandos",
+        )
+
+        # ── nova partida: sala nova, links novos ──
+        nova = http_post(f"{API_BASE}/api/matches")
+        assert_true(nova["roomId"] != room_id, "POST /api/matches cria uma sala nova")
+        assert_true(
+            nova["links"]["p1"].endswith(f"/pvp/{nova['roomId']}/p1"),
+            "os links da sala nova apontam para ela",
+        )
+
+        await p1b.close()
+        await p2.close()
 
     finally:
         server.terminate()

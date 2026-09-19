@@ -25,10 +25,12 @@ import os
 import random
 import re
 import secrets
+import subprocess
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from websockets.asyncio.server import serve
 from websockets.http11 import Headers, Response
@@ -65,6 +67,11 @@ ROOM_TTL_IDLE = 2 * 60 * 60
 
 DEFAULT_CONFIG = {"initialPv": 200, "initialEnergy": 6}
 
+# Cartas na mão inicial de cada jogador: as compras entram no ledger para que os
+# dois clientes reapliquem exatamente a mesma abertura.
+INITIAL_HAND = 5
+DECK_SIZE = 40
+
 HELLO_TIMEOUT = 15.0
 
 JSON_CONTENT_TYPE = "application/json; charset=utf-8"
@@ -81,6 +88,17 @@ def now_iso(timestamp=None):
 
 def other_seat(seat):
     return "p2" if seat == "p1" else "p1"
+
+
+def _connection_alive(connection):
+    """True enquanto o socket do `websockets` estiver aberto.
+
+    Dublês de teste sem `.state` sao tratados como vivos (comportamento antigo).
+    """
+    state = getattr(connection, "state", None)
+    if state is None:
+        return True
+    return getattr(state, "name", str(state)) == "OPEN"
 
 
 def http_response(status, reason, body=b"", content_type="text/plain; charset=utf-8"):
@@ -130,6 +148,7 @@ class Room:
     last_seq: int = 0
     commands: list = field(default_factory=list)
     result: dict | None = None
+    decks: dict | None = None
     current_player: str = "p1"
     phase: str = "energy"
     turn: int = 1
@@ -172,8 +191,16 @@ class Room:
         }
 
     def claim(self, seat, token, connection):
-        """Tenta ocupar um assento. Devolve None em caso de sucesso."""
+        """Tenta ocupar um assento. Devolve None em caso de sucesso.
+
+        Um F5 derruba o socket antigo e reconecta em seguida; como o `finally`
+        da conexao anterior pode nao ter rodado ainda, uma conexao fechada e
+        tratada como livre (o mesmo token do navegador assume o assento).
+        """
         target = self.seats[seat]
+        if target.connected and not _connection_alive(target.connection):
+            # Socket morto que ainda nao passou pelo `finally`: libera o assento.
+            target.connection = None
         if target.connected:
             return f"Assento {seat} ja esta ocupado nesta partida"
         if target.token is not None and token != target.token:
@@ -232,7 +259,7 @@ class Room:
             return f"Comando desconhecido: {cmd}"
         if not isinstance(args, dict):
             return "Argumentos do comando invalidos"
-        if self.pending_choice and cmd != "CHOICE":
+        if self.pending_choice and cmd not in ("CHOICE", "DESTROY"):
             return "Existe uma escolha pendente: resolva a escolha antes de agir"
         if cmd == "CHOICE":
             if not self.pending_choice:
@@ -242,6 +269,56 @@ class Room:
             return "Nao e o seu turno"
         if cmd == "SET_PHASE" and args.get("phase") not in PHASES:
             return "Fase invalida"
+        if cmd == "SUMMON":
+            hand_slot = args.get("handSlot")
+            if not isinstance(hand_slot, int) or isinstance(hand_slot, bool) or not 0 <= hand_slot <= 6:
+                return "Slot de mao invalido para SUMMON"
+        if cmd == "ROLL_DICE" and any(
+            entry["actor"] == seat and entry["cmd"] == "ROLL_DICE" for entry in self.commands
+        ):
+            return "O dado da sorte ja foi usado nesta partida"
+        return None
+
+    def seed_initial_hand(self, per_player=INITIAL_HAND):
+        """Registra a abertura (compra inicial) no ledger, alternando assentos.
+
+        As compras iniciais precisam passar pelo mesmo caminho dos demais
+        comandos: assim os dois clientes aplicam a mesma sequencia e as maos
+        nascem identicas das duas perspectivas.
+        """
+        entries = []
+        for _ in range(per_player):
+            for seat in SEATS:
+                entries.append(self.add_command(seat, "DRAW", {"player": seat}, []))
+        return entries
+
+    def revealed_definitions(self):
+        """Definicoes que os comandos anunciaram (o resto nunca saiu do cliente)."""
+        definitions = set()
+        for entry in self.commands:
+            for reveal in entry.get("reveals") or []:
+                definition_id = reveal.get("definitionId")
+                if definition_id:
+                    definitions.add(definition_id)
+        return definitions
+
+    def reset_for_rematch(self):
+        """Prepara a sala para uma nova partida (assentos liberados, ledger limpo).
+
+        O espelho da partida anterior continua em `matches/<roomId>.json`.
+        """
+        self.last_seq = 0
+        self.commands = []
+        self.result = None
+        self.current_player = "p1"
+        self.phase = "energy"
+        self.turn = 1
+        self.pending_choice = False
+        self.started = False
+        self.status = "waiting"
+        self.updated_at = time.time()
+
+
 class RoomRegistry:
     """Salas vivas em memoria. Reiniciar o servidor descarta tudo, por design."""
 
@@ -300,6 +377,99 @@ async def persist_room(room):
         await asyncio.to_thread(write_ledger_sync, room.room_id, room.ledger_dict())
     except OSError as error:
         log(f"[aviso] nao foi possivel gravar matches/{room.room_id}.json: {error}")
+
+
+def generate_decks(seed, size=DECK_SIZE):
+    """Delega o embaralhamento ao `scripts/deck_factory.js`.
+
+    O balanceamento de deck vive em `src/js/deck_system.js`; reimplementá-lo em
+    Python criaria uma segunda fonte de verdade (spec parte 2, decisao 3). Quando
+    o Node nao estiver disponivel, devolvemos None e cada cliente gera o proprio
+    deck a partir da mesma seed (resultado identico, ja que o RNG e o mesmo).
+    """
+    script = ROOT / "scripts" / "deck_factory.js"
+    if not script.is_file():
+        return None
+    try:
+        result = subprocess.run(
+            ["node", str(script), f"--seed={seed}", f"--size={size}"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=True,
+            encoding="utf-8",
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        log(f"[aviso] deck_factory indisponivel ({error}); o cliente gera o deck pela seed")
+        return None
+
+    try:
+        decks = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        log(f"[aviso] deck_factory devolveu JSON invalido ({error})")
+        return None
+
+    if not isinstance(decks, dict) or not decks.get("p1") or not decks.get("p2"):
+        log("[aviso] deck_factory devolveu decks incompletos")
+        return None
+    return decks
+
+
+def match_start_payload(room, seat):
+    """MATCH_START do assento: apenas o deck privado dele e a contagem do outro."""
+    decks = room.decks or {}
+    deck = decks.get(seat)
+    opponent_size = len(decks.get(other_seat(seat)) or []) or DECK_SIZE
+    return {
+        "type": "MATCH_START",
+        "roomId": room.room_id,
+        "seat": seat,
+        "opponentSeat": other_seat(seat),
+        "assentoInicial": room.current_player,
+        "config": room.config,
+        "seed": room.seed,
+        "deck": deck,
+        "opponentDeckSize": opponent_size,
+        "initialHand": INITIAL_HAND,
+        "state": room.public_state(),
+    }
+
+
+def command_log_payload(room, reason):
+    """Ledger completo: usado na reconexao (F5) e no resync por gap/divergencia."""
+    return {
+        "type": "COMMAND_LOG",
+        "roomId": room.room_id,
+        "lastSeq": room.last_seq,
+        "log": list(room.commands),
+        "reason": reason,
+    }
+
+
+async def start_match(room):
+    """Gera os decks, registra a abertura no ledger e inicia a partida."""
+    if room.decks is None:
+        room.decks = generate_decks(room.seed)
+    room.seed_initial_hand(INITIAL_HAND)
+    room.started = True
+    room.status = "playing"
+    room.updated_at = time.time()
+    await persist_room(room)
+
+    for target_seat in SEATS:
+        target = room.seats[target_seat].connection
+        if target is None:
+            continue
+        await send_message(target, match_start_payload(room, target_seat))
+        # O log vem logo depois do MATCH_START: o cliente remonta o estado e
+        # reaplica a abertura (as 5 compras iniciais).
+        await send_message(target, command_log_payload(room, "abertura"))
+
+    log(
+        f"[partida] {room.room_id} iniciada (seed {room.seed}, "
+        f"{len(room.commands)} comandos de abertura)"
+    )
 
 
 def content_type_for(path):
@@ -471,9 +641,12 @@ async def handle_dice_request(room, seat, connection):
     value = random.randint(1, 6)
     entry = room.add_command(seat, "ROLL_DICE", {"value": value, "custo": 2}, [])
     await persist_room(room)
-    # O ledger guarda ROLL_DICE; no fio sai DICE_RESULT para a UI reagir na hora.
-    await broadcast(room, {"type": "COMMAND", **entry})
-    await broadcast(room, {"type": "DICE_RESULT", "seq": entry["seq"], "actor": seat, "value": value})
+    # O ledger guarda ROLL_DICE (unico lugar onde o valor vive) e o DICE_RESULT
+    # leva a seq do ledger, para entrar na mesma ordenacao dos demais comandos.
+    await broadcast(
+        room,
+        {"type": "DICE_RESULT", "seq": entry["seq"], "actor": seat, "value": value},
+    )
     log(f"[dado] {room.room_id} {seat} tirou {value}")
 
 
@@ -508,10 +681,53 @@ async def handle_client_message(connection, room, seat, message):
         await handle_dice_request(room, seat, connection)
     elif kind == "PING":
         await send_message(connection, {"type": "PONG", "at": now_iso()})
+    elif kind == "GAME_OVER":
+        await handle_game_over(connection, room, seat, message)
+    elif kind in ("COMMAND_LOG_REQUEST", "REQUEST_RESYNC"):
+        # Reconexao/gap: devolve o ledger inteiro para o cliente reaplicar.
+        await send_message(
+            connection,
+            {
+                "type": "COMMAND_LOG",
+                "roomId": room.room_id,
+                "lastSeq": room.last_seq,
+                "log": list(room.commands),
+                "reason": message.get("reason") or "solicitado",
+            },
+        )
+        log(f"[sync] {room.room_id} {seat} pediu o log ({len(room.commands)} comandos)")
     else:
         await send_message(
             connection, {"type": "ERROR", "reason": f"Mensagem desconhecida: {kind}"}
         )
+
+
+async def handle_game_over(connection, room, seat, message):
+    """Registra o resultado da partida (o primeiro GAME_OVER valido vence)."""
+    if room.status == "finished":
+        await send_message(connection, {"type": "ERROR", "reason": "A partida ja terminou"})
+        return
+
+    winner = message.get("winner")
+    if winner not in SEATS:
+        await send_message(
+            connection,
+            {"type": "ERROR", "reason": f"Vencedor invalido: {winner!r} (esperado p1 ou p2)"},
+        )
+        return
+
+    room.status = "finished"
+    room.updated_at = time.time()
+    room.result = {
+        "winner": winner,
+        "reason": message.get("reason") or "pv-zero",
+        "turn": message.get("turn") or room.turn,
+        "at": message.get("at") or now_iso(),
+        "reportedBy": seat,
+    }
+    await persist_room(room)
+    await broadcast(room, {"type": "GAME_OVER", **room.result})
+    log(f"[fim] {room.room_id}: vencedor {winner} ({room.result['reason']})")
 
 
 async def handle_socket(connection):
@@ -525,9 +741,16 @@ async def handle_socket(connection):
         await connection.close()
         return
 
-    room_id = str(hello.get("room") or "")
-    seat = hello.get("seat")
-    token = hello.get("token")
+    # A spec permite `/ws?room=<id>&seat=p1|p2`; o HELLO tem prioridade.
+    query = parse_qs(urlsplit(connection.request.path).query)
+
+    def parametro(nome):
+        valores = query.get(nome) or []
+        return valores[0] if valores else None
+
+    room_id = str(hello.get("room") or parametro("room") or "")
+    seat = hello.get("seat") or parametro("seat")
+    token = hello.get("token") or parametro("token")
 
     if not ROOM_ID_RE.match(room_id):
         await send_message(connection, {"type": "ERROR", "reason": "Identificador de sala invalido"})
@@ -567,29 +790,17 @@ async def handle_socket(connection):
     )
     await broadcast(room, {"type": "ROOM_STATE", "state": room.public_state()})
 
-    if room.both_connected() and not room.started:
-        room.started = True
-        room.status = "playing"
-        room.updated_at = time.time()
-        await persist_room(room)
-        for target_seat in SEATS:
-            target = room.seats[target_seat].connection
-            if target is None:
-                continue
-            await send_message(
-                target,
-                {
-                    "type": "MATCH_START",
-                    "roomId": room.room_id,
-                    "seat": target_seat,
-                    "opponentSeat": other_seat(target_seat),
-                    "assentoInicial": room.current_player,
-                    "config": room.config,
-                    "seed": room.seed,
-                    "state": room.public_state(),
-                },
-            )
-        log(f"[partida] {room_id} iniciada com os dois assentos conectados")
+    # Reconexao (F5): o estado local se perde, entao remontamos a partida e
+    # reaplicamos o ledger inteiro antes de aceitar comandos novos.
+    if room.status == "playing" or room.started:
+        await send_message(connection, match_start_payload(room, seat))
+        await send_message(connection, command_log_payload(room, "reconexao"))
+        log(
+            f"[reconexao] {room_id} assento {seat} retomou a partida "
+            f"({len(room.commands)} comandos reaplicados)"
+        )
+    elif room.both_connected() and not room.started:
+        await start_match(room)
 
     try:
         async for raw in connection:

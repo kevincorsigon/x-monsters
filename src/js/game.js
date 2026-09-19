@@ -16,6 +16,31 @@
         // Geração da partida: invalida callbacks (setTimeout) da partida anterior
         window.matchGeneration = 0;
 
+        // ── Ponte com a sessão PvP ───────────────────────────────────────────
+        // Em PvP os handlers de UI interceptam a ação e enviam o comando; durante
+        // a aplicação remota a sessão devolve false, e o corpo do handler roda
+        // normalmente (o autor também aplica pelo broadcast do servidor).
+        function pvpGuard(request) {
+            const sessao = window.PvpSession;
+            if (!sessao || typeof sessao.intercept !== 'function') return false;
+            return sessao.intercept(request);
+        }
+
+        function pvpAplicando() {
+            const sessao = window.PvpSession;
+            return Boolean(sessao && typeof sessao.isApplying === 'function' && sessao.isApplying());
+        }
+
+        function pvpReveal(cardId, fromZone) {
+            const reveal = window.PvpGame?.buildReveal?.(cardId, fromZone);
+            return reveal ? [reveal] : [];
+        }
+
+        // Assento local marcado por `pvp-game.js` no corpo da página.
+        function assentoLocal() {
+            return document.body?.dataset?.seat || null;
+        }
+
         // Sistema de cartas será carregado do JSON
         let cardsDatabase = null;
         let deckBuilder = null;
@@ -50,6 +75,12 @@
 
         // Funções de controle de stats (do contador original)
         function endGame(vencedor) {
+            // Em PvP quem sentencia o fim é o servidor: aqui só informamos o
+            // resultado e esperamos o GAME_OVER oficial (mesmo vencedor nos dois).
+            if (typeof window.sendGameOver === 'function') {
+                window.sendGameOver(vencedor);
+                return;
+            }
             // Define que o jogo terminou
             window.gameOver = true;
             // Vinheta de vitória: cobre o fim disparado pelo motor
@@ -188,8 +219,15 @@
             }
         }
 
-        function rollDice(player) {
-            if (window.PvpSession?.intercept({cmd:'ROLL_DICE', args:{player}})) return;
+        function rollDice(player, forcedValue = null) {
+            // Em PvP o dado é do servidor: pedimos e só aplicamos no DICE_RESULT.
+            if (forcedValue === null && pvpGuard({ cmd: 'ROLL_DICE', args: { player } })) {
+                if (window.PvpSession?.sendDiceRequest) {
+                    window.PvpSession.sendDiceRequest();
+                    showMessage('🎲 Pedindo o dado ao servidor…', 'info');
+                }
+                return;
+            }
             if (gameState.diceUsed[player]) {
                 showMessage('Você já usou o dado da sorte nesta partida!', 'warning');
                 return;
@@ -206,13 +244,12 @@
             const diceButton = document.getElementById(`dice-${player}`);
             diceButton.classList.add('dice-animation');
 
-            setTimeout(() => {
-                const diceResult = Math.floor(Math.random() * 6) + 1;
+            const aplicarResultado = (diceResult) => {
                 changeStat('energy', player, diceResult);
-                
+
                 // Exibe animação/feedback ao invés de alert
                 showMessage(`🎲 Dado da Sorte! Ganhou ${diceResult} de energia!`, 'info');
-                
+
                 const diceValueEl = document.createElement('div');
                 diceValueEl.textContent = `+${diceResult}`;
                 diceValueEl.className = 'dice-result-floating';
@@ -223,6 +260,16 @@
                 diceButton.disabled = true;
                 diceButton.title = 'Dado da sorte já usado nesta partida';
                 diceButton.classList.remove('dice-animation');
+            };
+
+            // Valor do servidor (PvP) aplica na hora; no modo local anima 800ms.
+            if (forcedValue !== null) {
+                aplicarResultado(Number(forcedValue));
+                return;
+            }
+
+            setTimeout(() => {
+                aplicarResultado(Math.floor(Math.random() * 6) + 1);
             }, 800);
         }
 
@@ -282,6 +329,7 @@
         }
 
         function endTurn() {
+            if (pvpGuard({ cmd: 'END_TURN', args: {} })) return;
             const endingPlayer = gameState.currentPlayer;
             const endingPhase = gameState.currentPhase;
             const endingTurn = gameState.turn;
@@ -370,6 +418,14 @@
             
             updateUI();
             
+            // Em PvP a compra e a troca de fase do novo turno são comandos
+            // próprios (o servidor replica nos dois), então o encadeamento local
+            // por setTimeout não vale aqui.
+            if (window.PvpSession) {
+                showTurnNotification(` ${currentPlayerName}<br/>Preparando o turno…`, 1500);
+                return;
+            }
+
             // Automaticamente mudar para fase de invocação após delay
             const generation = window.matchGeneration;
             setTimeout(() => {
@@ -384,7 +440,7 @@
         }
 
         function setPhase(phase) {
-            if (window.PvpSession?.intercept({cmd:'SET_PHASE', args:{phase}})) return;
+            if (pvpGuard({ cmd: 'SET_PHASE', args: { phase } })) return;
             console.log('Mudando para fase:', phase);
             const previousPhase = gameState.currentPhase;
             if (previousPhase === phase) return;
@@ -567,6 +623,11 @@
         }
 
         function peekHand(player) {
+            // Em PvP a mão alheia é segredo: nunca há o que espiar.
+            if (window.PvpSession && player !== assentoLocal()) {
+                showMessage('A mão do oponente é secreta nesta partida.', 'warning');
+                return;
+            }
             // Só permite espiar se não for o turno do jogador
             if (gameState.currentPlayer !== player) {
                 const handElement = document.querySelector(`.player${player === 'p1' ? '1' : '2'}-hand`);
@@ -740,9 +801,9 @@
         }
 
         function performAttack(attackerId, targetId) {
-            if (window.PvpSession?.intercept({cmd:'PERFORM_ATTACK', args:{attackerId, targetId}})) return;
+            if (pvpGuard({ cmd: 'ATTACK', args: { attackerId, targetId } })) return;
             const attacker = findCardData(attackerId);
-            if (window.PvpSession) {
+            if (window.PvpSession && !pvpAplicando()) {
                 const localSeat = document.body.dataset.seat || gameState.currentPlayer;
                 if (!attacker || attacker.ownerId !== localSeat) {
                     showMessage('Ataque inválido: só pode atacar com suas próprias cartas.', 'warning');
@@ -837,6 +898,14 @@
             }
 
             result.defeated.forEach(cardId => {
+                // Em PvP o descarte pós-combate é o comando DESTROY: os dois
+                // clientes aplicam na mesma ordem do ledger.
+                if (window.PvpSession) {
+                    if (!pvpAplicando()) {
+                        pvpGuard({ cmd: 'DESTROY', args: { cardId } });
+                    }
+                    return;
+                }
                 setTimeout(() => destroyCard(cardId), 500);
             });
             
@@ -846,14 +915,14 @@
         }
 
         function directAttack() {
-            if (window.PvpSession?.intercept({cmd:'DIRECT_ATTACK', args:{attackingCard:gameState.attackingCard}})) return;
+            if (pvpGuard({ cmd: 'DIRECT_ATTACK', args: { attackerId: gameState.attackingCard } })) return;
             if (!gameState.attackingCard) {
                 showMessage('Primeiro selecione uma carta sua para atacar!');
                 return;
             }
 
             const attacker = findCardData(gameState.attackingCard);
-            if (window.PvpSession) {
+            if (window.PvpSession && !pvpAplicando()) {
                 const localSeat = document.body.dataset.seat || gameState.currentPlayer;
                 if (!attacker || attacker.ownerId !== localSeat) {
                     showMessage('Ataque direto inválido: só pode usar cartas próprias.', 'warning');
@@ -1080,12 +1149,32 @@
                 handElement.innerHTML = '';
 
                 gameState.cards[player].hand.forEach(cardInstance => {
+                    // Carta oculta (mão alheia no PvP): só o verso, nunca identidade.
+                    if (cardInstance.definitionId === null || cardInstance.definitionId === undefined) {
+                        handElement.appendChild(createCardBack(cardInstance));
+                        return;
+                    }
                     const renderedCard = createCard(cardInstance, player);
                     handElement.appendChild(renderedCard.element);
                 });
 
                 updateHandCounter(player);
             });
+        }
+
+        // Verso de carta: mantém a contagem da mão alheia sem revelar nada.
+        function createCardBack(cardInstance) {
+            const card = document.createElement('div');
+            card.className = 'card card-back';
+            card.id = cardInstance.instanceId;
+            card.setAttribute('aria-label', 'Carta oculta do oponente');
+            return card;
+        }
+
+        // Slot da carta na mão: a identidade da carta oculta viaja só no reveal.
+        function getHandSlot(cardId, player) {
+            const mao = gameState.players?.[player]?.zones?.hand || [];
+            return mao.findIndex(carta => carta && carta.instanceId === cardId);
         }
         window.renderHandsFromState = renderHandsFromState;
 
@@ -1138,11 +1227,11 @@
         }
 
         function addCardToHand(player) {
-            // Intercept local pull
-            if (window.PvpSession?.intercept({cmd:'ADD_CARD', args:{player}})) return;
-            // Em PvP, só o jogador local pode puxar cartas. Se o alvo não é o local,
-            // apenas atualiza o contador de cartas na mão do oponente.
-            if (window.PvpSession && player !== window.PvpSession.state.currentPlayer) {
+            // Em PvP quem compra é o autor do comando DRAW: o oponente recebe o
+            // comando replicado e só vê a contagem mudar.
+            if (pvpGuard({ cmd: 'DRAW', args: { player } })) return;
+            // A mão do oponente nunca é renderizada localmente: só o contador.
+            if (window.PvpSession && player !== assentoLocal()) {
                 updateHandCounter(player);
                 return;
             }
@@ -1445,8 +1534,20 @@
         }
 
         function dropCard(e) {
-            // Intercept local drop
-            if (window.PvpSession?.intercept({cmd:'DROP_CARD', args:{cardId: e.dataTransfer.getData('text/plain')}})) return;
+            // Em PvP a invocação vira o comando SUMMON: o slot identifica o
+            // placeholder e o reveal leva a identidade da carta.
+            const cardIdArrastado = e?.dataTransfer?.getData?.('text/plain') || '';
+            const playerAlvo = e?.currentTarget?.dataset?.player;
+            const ehCampo = e?.currentTarget && !e.currentTarget.classList.contains('card');
+            if (ehCampo && playerAlvo === assentoLocal() &&
+                pvpGuard({
+                    cmd: 'SUMMON',
+                    args: { handSlot: getHandSlot(cardIdArrastado, playerAlvo) },
+                    reveals: pvpReveal(cardIdArrastado, 'hand')
+                })) {
+                return;
+            }
+
             e.preventDefault();
             const cardId = e.dataTransfer.getData('text/plain');
             const cardElement = document.getElementById(cardId);
@@ -1464,7 +1565,7 @@
 
             const targetPlayer = e.currentTarget.dataset.player;
             // PvP: impedir que o jogador arraste cartas do oponente
-            if (window.PvpSession) {
+            if (window.PvpSession && !pvpAplicando()) {
                 const localSeat = document.body.dataset.seat || gameState.currentPlayer;
                 if (targetPlayer !== localSeat) {
                     // Não permite drop em mãos ou campo do adversário
@@ -1904,8 +2005,10 @@
 
         // Função para mostrar informações dos decks
         function showDeckInfo() {
-            if (window.PvpSession && document.body.dataset.seat !== 'p1' && document.body.dataset.seat !== 'p2') {
-                showMessage('Você não pode visualizar decks em modo PvP.', 'warning');
+            // Em PvP o deck do oponente é secreto (spec parte 4, decisão 6):
+            // a estatística de deck alheio seria vazamento de informação.
+            if (window.PvpSession) {
+                showMessage('O deck do oponente é secreto nesta partida.', 'warning');
                 return;
             }
             if (!gameState.decks || !window.deckBuilder) {
@@ -2000,13 +2103,17 @@ Cartas restantes:
         }
 
         function equipSupportCard(supportCardId, creatureCardId) {
-            if (window.PvpSession?.intercept({cmd:'EQUIP_SUPPORT', args:{supportCardId, creatureCardId}})) return;
+            if (pvpGuard({
+                cmd: 'EQUIP',
+                args: { cardId: supportCardId, creatureId: creatureCardId },
+                reveals: pvpReveal(supportCardId, 'hand')
+            })) return;
             const supportCardData = findCardData(supportCardId);
             const creatureCardData = findCardData(creatureCardId);
             
             if (!supportCardData || !creatureCardData) return;
             
-            if (window.PvpSession) {
+            if (window.PvpSession && !pvpAplicando()) {
                 const localSeat = document.body.dataset.seat || gameState.currentPlayer;
                 if (supportCardData.ownerId !== localSeat) {
                     showMessage('Não pode equipar suporte de outro jogador.', 'warning');

@@ -179,6 +179,26 @@ function activateMigratedAbility(cardId) {
         return;
     }
 
+    if (window.PvpSession) {
+        // Em PvP a habilidade viaja como comando ABILITY: o autor também só
+        // aplica o efeito quando o servidor replicar (evita divergência).
+        window.PvpSession.sendCommand('ABILITY', {
+            cardId,
+            abilityId: rule.abilityId,
+            targetIds: selectedTargetIds || []
+        });
+        return;
+    }
+
+    applyMigratedAbilityLocally(rule, cardId, selectedTargetIds, legalTargetIds);
+}
+
+/**
+ * Aplica a habilidade manual no estado local.
+ * Separado do handler de UI para que a sessão PvP possa reaplicar o comando
+ * remoto sem reenviá-lo ao servidor.
+ */
+function applyMigratedAbilityLocally(rule, cardId, selectedTargetIds, legalTargetIds) {
     const result = window.CardRules.activateAbility(
         window.gameEngine,
         cardId,
@@ -190,7 +210,8 @@ function activateMigratedAbility(cardId) {
         return;
     }
 
-    const affectedTargetIds = rule.allEnemies ? legalTargetIds : selectedTargetIds || [];
+    const targets = legalTargetIds || window.CardRules?.getActivatedTargets(window.gameState, cardId) || [];
+    const affectedTargetIds = rule.allEnemies ? targets : selectedTargetIds || [];
     affectedTargetIds.forEach(targetId => {
         const target = window.gameState.cardInstances[targetId];
         if (target?.zone !== 'field') {
@@ -203,6 +224,8 @@ function activateMigratedAbility(cardId) {
     window.cardAbilities?.showAbilityFeedback(affectedTargetIds[0] || cardId, rule.feedback);
     updateManualAbilitiesList();
 }
+
+window.applyMigratedAbilityLocally = applyMigratedAbilityLocally;
 
 // Integrar com mudanças de turno
 function setupAbilitySystemIntegration() {

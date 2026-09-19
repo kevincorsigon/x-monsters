@@ -1,8 +1,20 @@
-/* Espelhamento de perspectiva por data-seat */
-/* Quando data-seat="p2" inverte a ordem das áreas do grid sem mudar as media queries */
-div[data-seat="p2"] .game-container {
-    transform: scaleY(-1);
+/* Espelhamento de perspectiva por data-seat (spec parte 4, DoD 1).
+ * O assento vive em document.body.dataset.seat; quando e p2 as areas
+ * do grid trocam de lado sem tocar em src/css/game.css. */
+body[data-seat="p2"] .game-container {
+    grid-template-areas:
+        "player1-discard player1-hand player1-deck"
+        "player1-stats player1-field player1-field"
+        "phase-buttons phase-buttons phase-buttons"
+        "player2-stats player2-field player2-field"
+        "player2-deck player2-hand player2-discard";
 }
-div[data-seat="p2"] .game-container > * {
-    transform: scaleY(-1);
+
+/* Mao alheia no PvP: N versos + contagem, nunca identidade. */
+.card-back {
+    background: linear-gradient(135deg, #1a1e28 0%, #11151e 100%);
+    border: 2px solid var(--primary-color);
+    border-radius: var(--border-radius);
+    min-width: 70px;
+    min-height: 100px;
 }
