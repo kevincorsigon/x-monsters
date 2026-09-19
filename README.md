@@ -36,6 +36,21 @@ de aleatoriedade (dado e decks) e grava um espelho da partida em
 > declarado pelos clientes. Não exponha na internet sem refletir sobre
 > anti-cheat.
 
+> **Pré-requisitos locais:** Python 3 (com o módulo `websockets`) e Node.js.
+> O `deck_factory.js` (Node) é o balanceador oficial dos decks; sem ele o
+> servidor fallback para "cada cliente monta o próprio deck a partir da seed"
+> (resultado idêntico, já que o RNG é o mesmo).
+
+### Via local
+
+Instale a dependência Python do servidor (um vez por máquina):
+
+```powershell
+py -3 -m pip install websockets
+```
+
+Inicie o servidor:
+
 ```powershell
 py -3 server.py              # escuta em 127.0.0.1:8000
 py -3 server.py --host 0.0.0.0   # acessível na rede local
@@ -50,10 +65,91 @@ Fluxo:
    versos com apenas a contagem de cartas visível.
 4. Ao final da partida, a página exibe um link para gerar uma nova partida.
 
-Smoke test automatizado:
+Smoke test automatizado (server + 2 clientes WebSocket):
 
 ```powershell
 py -3 tests/pvp/smoke_match.py
+```
+
+### Via Docker Compose (recomendado)
+
+O `docker-compose.yml` empacota o servidor (Python 3 + Node + `websockets`) e
+prexa a porta `8000`. O diretório `matches/` é persistido em um **volume
+gerenciado pelo Docker**, de modo que os JSON das partidas sobrevivem a
+paradas e reinicializações do container.
+
+Build e início (uma vez por máquina):
+
+```powershell
+docker compose up -d
+```
+
+Acesso:
+
+- Lobby: `http://localhost:8000/pvp`
+- Jogo completo (local): `http://localhost:8000/game.html`
+- Partida PvP: abra `…/pvp/<roomId>/p1` e `…/pvp/<roomId>/p2` em navegadores separados
+
+Parar o serviço:
+
+```powershell
+docker compose down
+```
+
+Parar e remover o volume de matches (apaga todos os JSON das partidas):
+
+```powershell
+docker compose down -v
+```
+
+Variantes úteis:
+
+```powershell
+# Alterar porta (ex: 9000 no host):
+HOST_PORT=9000 docker compose up -d
+
+# Acompanhar logs em tempo real:
+docker compose logs -f
+
+# Inspecionar os JSON das partidas sem parar o container:
+docker run --rm -v xmonsters_matches:/matches -w /matches busybox ls -lh
+
+# Executar testes dentro do container (usa os arquivos locais via bind mount):
+docker compose run --rm --no-deps -v ${PWD}:/app -w /app x-monsters python3 tests/pvp/smoke_match.py
+docker compose run --rm --no-deps -v ${PWD}:/app -w /app x-monsters node tests/unit/run-tests.js
+```
+
+> Nota: o volume `xmonsters_matches` é criado automaticamente pelo Docker Compose
+> na primeira execução. Ele persiste independentemente do ciclo de vida do
+> container — parar/remover o container **não** apaga os dados. Use `down -v`
+> explicitamente apenas quando quiser limpar todas as partidas salvas.
+
+### Via Docker (imagem standalone)
+
+Se preferir rodar sem Docker Compose, a mesma imagem pode ser usada com
+`docker run`. Porém, sem volume mapeado, os JSON das partidas serão perdidos
+a cada reinicialização:
+
+```powershell
+docker build -t x-monsters .
+docker run --rm -p 8000:8000 x-monsters
+```
+
+Para persistência via `docker run`, monte um diretório host em `/app/matches`:
+
+```powershell
+docker run --rm -p 8000:8000 -v ${PWD}/matches:/app/matches x-monsters
+```
+
+### Gerar decks determinísticos
+
+O `scripts/deck_factory.js` (Node, RNG mulberry32) gera dois decks idênticos a
+partir de uma seed — usado pelo servidor ao criar a sala e útil para
+auditoria/rastreabilidade:
+
+```powershell
+node scripts/deck_factory.js --seed=123 --size=50
+# {"p1":[...50 defs...],"p2":[...50 defs...]}
 ```
 
 ## Estrutura

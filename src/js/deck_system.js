@@ -484,14 +484,14 @@ function startNewMatch() {
         return;
     }
     
-    const matchDecks = window.deckBuilder.createMatchDecks(40);
+    const matchDecks = window.deckBuilder.createMatchDecks(50);
     
     window.GameStateModel.resetMatchState(gameState, {
         p1: matchDecks.player1,
         p2: matchDecks.player2
     }, window.gameConfig);
     
-    // Dar cartas iniciais (5 para cada jogador)
+    // Baralho PvP/hotseat: 50 cartas (mão inicial segue 5 para cada jogador)
     for (let i = 0; i < 5; i++) {
         drawCardFromDeck('p1');
         drawCardFromDeck('p2');

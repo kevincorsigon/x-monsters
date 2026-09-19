@@ -10,6 +10,11 @@ body[data-seat="p2"] .game-container {
         "player2-deck player2-hand player2-discard";
 }
 
+/* Botoes de espiar nunca aparecem no PvP (rede de seguranca). */
+body[data-seat] .peek-hand-btn {
+    display: none !important;
+}
+
 /* Mao alheia no PvP: N versos + contagem, nunca identidade. */
 .card-back {
     background: linear-gradient(135deg, #1a1e28 0%, #11151e 100%);

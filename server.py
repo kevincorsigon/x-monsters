@@ -70,7 +70,7 @@ DEFAULT_CONFIG = {"initialPv": 200, "initialEnergy": 6}
 # Cartas na mão inicial de cada jogador: as compras entram no ledger para que os
 # dois clientes reapliquem exatamente a mesma abertura.
 INITIAL_HAND = 5
-DECK_SIZE = 40
+DECK_SIZE = 50
 
 HELLO_TIMEOUT = 15.0
 
@@ -489,10 +489,22 @@ def resolve_static(path_only):
 
     Devolve None para traversal, caminho inexistente ou qualquer coisa dentro de
     matches/ - o espelho das partidas nunca e servido por HTTP.
+
+    URLs PvP como /pvp/<roomId>/p1 carregam recursos relativos (src/css/..., src/js/...)
+    que o browser resolve para /pvp/<roomId>/src/css/... . Removemos o prefixo da
+    sala para encontrar os arquivos reais na raiz do projeto.
     """
     relative = unquote(path_only).lstrip("/")
     if not relative:
         relative = "index.html"
+
+    # URLs de pagina PvP carregam recursos com caminho relativo que inclui
+    # o prefixo da sala; removemos para localizar os arquivos na raiz.
+    parts = [p for p in relative.split("/") if p]
+    if len(parts) >= 3 and parts[0] == "pvp" and ROOM_ID_RE.match(parts[1]):
+        # /pvp/<roomId>/src/css/pvp.css -> src/css/pvp.css
+        relative = "/".join(parts[2:])
+
     candidate = (ROOT / relative).resolve()
     if candidate != ROOT and not str(candidate).startswith(str(ROOT) + os.sep):
         return None

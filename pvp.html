@@ -20,10 +20,10 @@
         <div class="player2-hand">
             <div class="hand-title" id="hand-title-p2" data-count="0">Mão - Jogador 2</div>
             <div id="hand-p2"></div>
-            <button class="peek-hand-btn" onclick="peekHand('p2')" onmouseleave="stopPeeking('p2')">👁️ Espiar Mão</button>
+            <button class="peek-hand-btn" style="display:none" data-pvp-hidden="1" onclick="peekHand('p2')" onmouseleave="stopPeeking('p2')">👁️ Espiar Mão</button>
         </div>
         
-        <div class="player2-deck" onclick="addCardToHand('p2')">
+        <div class="player2-deck" data-deck="p2">
             <div>Deck Player 2</div>
             <div style="font-size: 12px; color: var(--primary-color); margin-top: 5px;">Clique para sacar</div>
         </div>
@@ -31,10 +31,10 @@
         <!-- Player 2 Stats and Field -->
         <div class="player2-stats">
             <div class="player-avatar">P2</div>
-            <div class="player-name" onclick="editName('p2')" style="color: var(--primary-color); cursor: pointer; margin: 5px 0;">Jogador 2</div>
+            <div class="player-name" data-editname="p2" style="color: var(--primary-color); cursor: pointer; margin: 5px 0;">Jogador 2</div>
             <div class="stat">
                 <span class="stat-label">PV:</span>
-                <span class="stat-value pv-value" id="pv-p2" onclick="editStatValue('pv', 'p2')" style="cursor: pointer;">200</span>
+                <span class="stat-value pv-value" id="pv-p2" data-editstat="pv-p2" style="cursor: pointer;">200</span>
             </div>
             <div class="stat">
                 <span class="stat-label">Energia:</span>
@@ -67,17 +67,17 @@
             
             <div class="control-section">
                 <button class="action-button" onclick="endTurn()">Fim Turno</button>
-                <button class="action-button" onclick="resetGame()">Resetar</button>
+                <button class="action-button direct-attack-btn" id="direct-attack-btn" onclick="directAttack()" style="display: none;">Ataque Direto</button>
             </div>
         </div>
         
         <!-- Player 1 Stats and Field -->
         <div class="player1-stats">
             <div class="player-avatar">P1</div>
-            <div class="player-name" onclick="editName('p1')" style="color: var(--primary-color); cursor: pointer; margin: 5px 0;">Jogador 1</div>
+            <div class="player-name" data-editname="p1" style="color: var(--primary-color); cursor: pointer; margin: 5px 0;">Jogador 1</div>
             <div class="stat">
                 <span class="stat-label">PV:</span>
-                <span class="stat-value pv-value" id="pv-p1" onclick="editStatValue('pv', 'p1')" style="cursor: pointer;">200</span>
+                <span class="stat-value pv-value" id="pv-p1" data-editstat="pv-p1" style="cursor: pointer;">200</span>
             </div>
             <div class="stat">
                 <span class="stat-label">Energia:</span>
@@ -88,7 +88,7 @@
             </div>
         </div>
         
-        <div class="player1-deck" onclick="addCardToHand('p1')">
+        <div class="player1-deck" data-deck="p1">
             <div>Deck Player 1</div>
             <div style="font-size: 12px; color: var(--primary-color); margin-top: 5px;">Clique para sacar</div>
         </div>
@@ -96,13 +96,18 @@
         <div class="player1-hand">
             <div class="hand-title" id="hand-title-p1" data-count="0">Mão - Jogador 1</div>
             <div id="hand-p1"></div>
-            <button class="peek-hand-btn" onclick="peekHand('p1')" onmouseleave="stopPeeking('p1')">👁️ Espiar Mão</button>
+            <button class="peek-hand-btn" style="display:none" data-pvp-hidden="1" onclick="peekHand('p1')" onmouseleave="stopPeeking('p1')">👁️ Espiar Mão</button>
         </div>
         
         <div class="player1-discard" onclick="viewDiscard('p1')" style="cursor: pointer;">
             <div>Pilha de descarte</div>
             <div style="font-size: 12px; color: var(--primary-color);">Player 1</div>
             <div id="discard-count-p1" style="font-size: 10px; margin-top: 5px;">0 cartas</div>
+        </div>
+
+        <!-- Player 1 Field -->
+        <div class="player1-field" id="field-p1" data-player="p1" ondrop="dropCard(event)" ondragover="allowDrop(event)">
+            <!-- Cartas em campo do jogador 1 -->
         </div>
     </div>
 
@@ -145,8 +150,8 @@
     <div class="gear-menu" id="gearMenu">
         <button class="gear-btn" onclick="toggleGearMenu()" title="Opções">⚙️</button>
         <div class="gear-dropdown" id="gearDropdown">
-            <button onclick="showDeckInfo(); toggleGearMenu()">📦 Decks</button>
-            <button onclick="resetGame(); toggleGearMenu()">🔄 Reset</button>
+            <button onclick="pvpDeckInfo(); toggleGearMenu()">📦 Decks</button>
+            <button onclick="pvpResetAviso(); toggleGearMenu()">🔄 Reset</button>
         </div>
     </div>
 

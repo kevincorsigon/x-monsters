@@ -93,7 +93,11 @@
 
     /**
      * Uma posição já revelada não aceita novo reveal (evita sobrescrever
-     * identidade real com informação divergente).
+     * identidade real com informação divergente). Exceção idempotente: quando
+     * o ocupante já revelado é a MESMA carta do reveal (mesmo instanceId),
+     * é a reaplicação do próprio comando pelo autor — a mão do autor nunca
+     * tem placeholder, então o broadcast da própria jogada cairia aqui sem
+     * essa exceção (mesma regra de idempotência do revealInstance).
      */
     function assertRevealsMatchPlaceholders(state, reveals) {
         reveals.forEach((reveal, index) => {
@@ -105,6 +109,7 @@
             if (!ocupante) return;
             const isPlaceholder = ocupante.definitionId === null || ocupante.definitionId === undefined;
             if (isPlaceholder) return;
+            if (ocupante.instanceId === reveal.instanceId) return;
             throw new Error('reveal inválido: posição já revelada (índice ' + index + ')');
         });
     }

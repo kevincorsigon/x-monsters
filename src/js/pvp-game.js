@@ -19,7 +19,7 @@
     'use strict';
 
     const TOKEN_KEY_PREFIX = 'xmPvpToken:';
-    const DECK_SIZE = 40;
+    const DECK_SIZE = 50;
 
     let seatLocal = null;
     let roomIdLocal = null;
@@ -212,7 +212,7 @@
             atualizarBadges('falha de conexão');
         });
 
-        session = new window.PvpSession({
+        session = new window.PvpSession.PvpSession({
             transportSend: (mensagem) => {
                 if (socket && socket.readyState === WebSocket.OPEN) {
                     socket.send(JSON.stringify(mensagem));
@@ -225,7 +225,7 @@
             onGameOver: tratarFimDePartida
         });
         // O construtor de PvpSession registra a instancia em PvpSession.current;
-        // window.PvpSession segue sendo a classe (new + metodos estaticos).
+        // window.PvpSession segue sendo o modulo UMD ({ PvpSession: class }).
 
         atualizarBadges('conectando…');
         return session;
@@ -331,6 +331,7 @@
         window.__pvpPartidaMontada = true;
 
         marcarAssento();
+        vincularControlesLocais(assento);
         estadoDaPartida = 'em partida';
         atualizarBadges('em partida');
         window.renderHandsFromState?.();
@@ -553,6 +554,63 @@
     }
 
     /**
+     * Liga os controles clicaveis apenas no assento local: deck compra,
+     * nome/PV editaveis e dado. O lado do oponente fica sem handler.
+     */
+    function vincularControlesLocais(assento) {
+        const outro = outroAssento(assento);
+        document.querySelectorAll('[data-deck]').forEach(el => {
+            const dono = el.getAttribute('data-deck');
+            el.onclick = null;
+            if (dono === assento) {
+                el.style.cursor = 'pointer';
+                el.onclick = () => window.addCardToHand?.(dono);
+            } else {
+                el.style.cursor = 'default';
+                el.onclick = () => window.showMessage?.('O deck do oponente e secreto nesta partida.', 'warning');
+            }
+        });
+        document.querySelectorAll('[data-editname]').forEach(el => {
+            const dono = el.getAttribute('data-editname');
+            el.onclick = null;
+            if (dono === assento) {
+                el.style.cursor = 'pointer';
+                el.onclick = () => window.editName?.(dono);
+            } else {
+                el.style.cursor = 'default';
+                el.onclick = null;
+            }
+        });
+        document.querySelectorAll('[data-editstat]').forEach(el => {
+            const dono = (el.getAttribute('data-editstat') || '').split('-').pop();
+            el.onclick = null;
+            if (dono === assento) {
+                el.style.cursor = 'pointer';
+                el.onclick = () => {
+                    const parts = (el.getAttribute('data-editstat') || '').split('-');
+                    window.editStatValue?.(parts[0], parts[1]);
+                };
+            } else {
+                el.style.cursor = 'default';
+                el.onclick = null;
+            }
+        });
+        const botaoDado = document.getElementById('dice-' + outro);
+        if (botaoDado) botaoDado.disabled = true;
+    }
+
+    /** Gear "Decks" no PvP: mostra so o deck proprio (o alheio e segredo). */
+    function pvpDeckInfo() {
+        const assento = seatLocal || document.body?.dataset?.seat;
+        window.mostrarInfoDeckProprio?.(assento);
+    }
+
+    /** Gear "Reset" no PvP: nova partida = sala nova (spec parte 5, DoD 3). */
+    function pvpResetAviso() {
+        window.showMessage?.('Use "Nova partida" ao final da partida para criar uma sala nova.', 'warning');
+    }
+
+    /**
      * Em PvP o estado vem do MATCH_START: travamos o bootstrap local de
      * `startNewMatch` e o `resetGame` do hotseat antes do DOMContentLoaded.
      */
@@ -585,6 +643,8 @@
         }
     }
 
+    window.pvpDeckInfo = pvpDeckInfo;
+    window.pvpResetAviso = pvpResetAviso;
     api.buildReveal = buildReveal;
     api.aplicarComandoDoLedger = aplicarComandoDoLedger;
     api.gerarDeckLocal = gerarDeckLocal;

@@ -1,0 +1,36 @@
+# Runtime-only (nunca commitado, escrito pelo servidor)
+matches/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+ENV/
+.env
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Temporary / debug
+*.tmp
+*.temp
+*_temp.png
+*_temp.jpg
+debug_*.png
+debug_*.jpg
+logs/
+
+# Logs do próprio projeto
+*.log
+log/

@@ -21,13 +21,13 @@
         // a aplicação remota a sessão devolve false, e o corpo do handler roda
         // normalmente (o autor também aplica pelo broadcast do servidor).
         function pvpGuard(request) {
-            const sessao = window.PvpSession;
+            const sessao = window.PvpSession?.PvpSession;
             if (!sessao || typeof sessao.intercept !== 'function') return false;
             return sessao.intercept(request);
         }
 
         function pvpAplicando() {
-            const sessao = window.PvpSession;
+            const sessao = window.PvpSession?.PvpSession;
             return Boolean(sessao && typeof sessao.isApplying === 'function' && sessao.isApplying());
         }
 
@@ -169,7 +169,7 @@
         }
 
         function editName(player) {
-            if (window.PvpSession && player !== document.body.dataset.seat) {
+            if (window.PvpSession?.PvpSession && player !== document.body.dataset.seat) {
                 showMessage('Apenas o jogador local pode alterar nomes.', 'warning');
                 return;
             }
@@ -222,8 +222,8 @@
         function rollDice(player, forcedValue = null) {
             // Em PvP o dado é do servidor: pedimos e só aplicamos no DICE_RESULT.
             if (forcedValue === null && pvpGuard({ cmd: 'ROLL_DICE', args: { player } })) {
-                if (window.PvpSession?.sendDiceRequest) {
-                    window.PvpSession.sendDiceRequest();
+                if (window.PvpSession?.PvpSession?.sendDiceRequest) {
+                    window.PvpSession.PvpSession.sendDiceRequest();
                     showMessage('🎲 Pedindo o dado ao servidor…', 'info');
                 }
                 return;
@@ -486,24 +486,29 @@
         }
 
         function updateUI() {
-            document.getElementById('current-player').textContent = 
-                gameState.currentPlayer === 'p1' ? 'Jogador 1' : 'Jogador 2';
-            
-            const phaseNames = { energy: 'Energia', invocation: 'Invocação', combat: 'Combate' };
-            document.getElementById('current-phase').textContent = phaseNames[gameState.currentPhase];
+            const turnoElement = document.getElementById('current-player');
+            if (turnoElement) {
+                turnoElement.textContent = gameState.currentPlayer === 'p1' ? 'Jogador 1' : 'Jogador 2';
+            }
+
+            const faseElement = document.getElementById('current-phase');
+            if (faseElement) {
+                const phaseNames = { energy: 'Energia', invocation: 'Invocação', combat: 'Combate' };
+                faseElement.textContent = phaseNames[gameState.currentPhase] || gameState.currentPhase;
+            }
 
             // Atualizar botões de fase (semáforo)
             document.querySelectorAll('.phase-button').forEach(btn => {
                 btn.classList.remove('active');
             });
-            
+
             // Mapear fases para IDs dos botões
             const phaseButtonIds = {
                 'energy': 'energy-phase',
-                'invocation': 'invocation-phase', 
+                'invocation': 'invocation-phase',
                 'combat': 'combat-phase'
             };
-            
+
             const activeButtonId = phaseButtonIds[gameState.currentPhase];
             const activeButton = document.getElementById(activeButtonId);
             if (activeButton) {
@@ -511,9 +516,12 @@
             }
 
             // Atualizar campo ativo
-            document.getElementById('field-p1').classList.remove('field-active');
-            document.getElementById('field-p2').classList.remove('field-active');
-            document.getElementById(`field-${gameState.currentPlayer}`).classList.add('field-active');
+            const field1 = document.getElementById('field-p1');
+            const field2 = document.getElementById('field-p2');
+            const currentField = document.getElementById(`field-${gameState.currentPlayer}`);
+            if (field1) field1.classList.remove('field-active');
+            if (field2) field2.classList.remove('field-active');
+            if (currentField) currentField.classList.add('field-active');
 
             // Controlar visibilidade das mãos baseado no turno
             updateHandVisibility();
@@ -521,14 +529,14 @@
             // Mostrar/ocultar informações de combate e botão de ataque direto
             const combatInfo = document.getElementById('combat-info');
             const directAttackBtn = document.getElementById('direct-attack-btn');
-            
+
             if (gameState.currentPhase === 'combat') {
-                combatInfo.style.display = 'block';
-                directAttackBtn.style.display = 'block';
+                if (combatInfo) combatInfo.style.display = 'block';
+                if (directAttackBtn) directAttackBtn.style.display = 'block';
                 updateCombatInstructions();
             } else {
-                combatInfo.style.display = 'none';
-                directAttackBtn.style.display = 'none';
+                if (combatInfo) combatInfo.style.display = 'none';
+                if (directAttackBtn) directAttackBtn.style.display = 'none';
             }
 
             // Atualizar instruções baseadas na fase
@@ -605,6 +613,9 @@
         }
 
         function updateHandVisibility() {
+            // Em PvP a mao alheia e sempre N versos + contagem (renderHandsFromState):
+            // o esconderijo de hotseat por turno nao se aplica.
+            if (window.PvpSession) return;
             const player1Hand = document.querySelector('.player1-hand');
             const player2Hand = document.querySelector('.player2-hand');
             
@@ -701,15 +712,15 @@
             const directAttackBtn = document.getElementById('direct-attack-btn');
             const protectedCards = opponentCards.length - validTargets;
             const canAttackDirectly = window.CardRules.canDirectAttack(gameState, attackerId);
-            
+
             if (opponentCards.length === 0) {
-                directAttackBtn.style.display = 'inline-block';
+                if (directAttackBtn) directAttackBtn.style.display = 'inline-block';
                 updateCombatInfo('Campo inimigo vazio! Use "Ataque Direto"');
             } else if (validTargets === 0 && canAttackDirectly) {
-                directAttackBtn.style.display = 'inline-block';
+                if (directAttackBtn) directAttackBtn.style.display = 'inline-block';
                 updateCombatInfo(`Todas as cartas inimigas estão protegidas! Use "Ataque Direto"`);
             } else {
-                directAttackBtn.style.display = canAttackDirectly ? 'inline-block' : 'none';
+                if (directAttackBtn) directAttackBtn.style.display = canAttackDirectly ? 'inline-block' : 'none';
                 let message = `Clique em uma carta inimiga (vermelha) para atacar`;
                 if (protectedCards > 0) {
                     message += ` - ${protectedCards} carta(s) protegida(s) 🛡️`;
@@ -720,7 +731,8 @@
         }
 
         function updateCombatInfo(message) {
-            document.getElementById('combat-instruction').textContent = message;
+            const instruction = document.getElementById('combat-instruction');
+            if (instruction) instruction.textContent = message;
         }
 
         function isCardInField(cardId) {
@@ -922,7 +934,7 @@
             }
 
             const attacker = findCardData(gameState.attackingCard);
-            if (window.PvpSession && !pvpAplicando()) {
+            if (window.PvpSession?.PvpSession && !pvpAplicando()) {
                 const localSeat = document.body.dataset.seat || gameState.currentPlayer;
                 if (!attacker || attacker.ownerId !== localSeat) {
                     showMessage('Ataque direto inválido: só pode usar cartas próprias.', 'warning');
@@ -1231,7 +1243,7 @@
             // comando replicado e só vê a contagem mudar.
             if (pvpGuard({ cmd: 'DRAW', args: { player } })) return;
             // A mão do oponente nunca é renderizada localmente: só o contador.
-            if (window.PvpSession && player !== assentoLocal()) {
+            if (window.PvpSession?.PvpSession && player !== assentoLocal()) {
                 updateHandCounter(player);
                 return;
             }
@@ -1534,6 +1546,7 @@
         }
 
         function dropCard(e) {
+            e.preventDefault();
             // Em PvP a invocação vira o comando SUMMON: o slot identifica o
             // placeholder e o reveal leva a identidade da carta.
             const cardIdArrastado = e?.dataTransfer?.getData?.('text/plain') || '';
@@ -1548,7 +1561,6 @@
                 return;
             }
 
-            e.preventDefault();
             const cardId = e.dataTransfer.getData('text/plain');
             const cardElement = document.getElementById(cardId);
 
@@ -1565,7 +1577,7 @@
 
             const targetPlayer = e.currentTarget.dataset.player;
             // PvP: impedir que o jogador arraste cartas do oponente
-            if (window.PvpSession && !pvpAplicando()) {
+            if (window.PvpSession?.PvpSession && !pvpAplicando()) {
                 const localSeat = document.body.dataset.seat || gameState.currentPlayer;
                 if (targetPlayer !== localSeat) {
                     // Não permite drop em mãos ou campo do adversário
@@ -2003,11 +2015,33 @@
             }, duration);
         }
 
+        // Gear "Decks" no PvP: estatistica so do proprio deck (spec parte 4, decisao 6).
+        // O deck do oponente e segredo; exibir numeros dele seria vazamento.
+        function mostrarInfoDeckProprio(assento) {
+            const dono = assento || document.body?.dataset?.seat || 'p1';
+            if (!gameState.decks || !window.deckBuilder) {
+                showMessage('Sistema de deck não carregado!');
+                return;
+            }
+            const stats = window.deckBuilder.getDeckStats(gameState.decks[dono]);
+            const restantes = gameState.decks[dono].length;
+            showMessage(
+                `SEU DECK (${dono === 'p1' ? 'Jogador 1' : 'Jogador 2'}):\n` +
+                `• Total: ${stats.total} cartas\n` +
+                `• Criaturas: ${stats.criaturas}\n` +
+                `• Suportes: ${stats.suportes}\n` +
+                `• Evoluções: ${stats.evolucoes}\n` +
+                `• Custo médio: ${stats.custoMedio}\n\n` +
+                `Cartas restantes: ${restantes}`
+            );
+        }
+        window.mostrarInfoDeckProprio = mostrarInfoDeckProprio;
+
         // Função para mostrar informações dos decks
         function showDeckInfo() {
             // Em PvP o deck do oponente é secreto (spec parte 4, decisão 6):
             // a estatística de deck alheio seria vazamento de informação.
-            if (window.PvpSession) {
+            if (window.PvpSession?.PvpSession) {
                 showMessage('O deck do oponente é secreto nesta partida.', 'warning');
                 return;
             }
@@ -2113,7 +2147,7 @@ Cartas restantes:
             
             if (!supportCardData || !creatureCardData) return;
             
-            if (window.PvpSession && !pvpAplicando()) {
+            if (window.PvpSession?.PvpSession && !pvpAplicando()) {
                 const localSeat = document.body.dataset.seat || gameState.currentPlayer;
                 if (supportCardData.ownerId !== localSeat) {
                     showMessage('Não pode equipar suporte de outro jogador.', 'warning');

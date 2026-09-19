@@ -1,0 +1,46 @@
+# X Monsters — Docker Compose
+#
+# Serviço PvP Online com persistência dos JSON das partidas em ./matches
+#
+# Uso:
+#   docker compose up -d          # iniciar em background
+#   docker compose logs -f        # acompanhar logs
+#   docker compose down           # parar e remover container
+#   docker compose down -v        # parar e remover também o volume (apaga matches/)
+#
+# Acesso:
+#   - Lobby:    http://localhost:8000/pvp
+#   - Jogo:     http://localhost:8000/game.html
+#   - PvP:      http://localhost:8000/pvp/<roomId>/p1 ou /p2
+
+services:
+  x-monsters:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: x-monsters
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-8000}:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Persiste os JSON das partidas (matches/<roomId>.json) na máquina host
+      - matches_data:/app/matches
+    # O servidor escuta em 0.0.0.0 dentro do container (ver Dockerfile CMD)
+    # Para acessar de outra máquina na rede, use http://<IP-do-host>:8000
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  matches_data:
+    name: xmonsters_matches
+    # O driver default (local) guarda os dados em:
+    #   Windows:    \\wsl$\docker-desktop-data\data\docker\volumes\xmonsters_matches\_data
+    #   Linux:      /var/lib/docker/volumes/xmonsters_matches/_data
+    # Para acesso direto via terminal:
+    #   docker run --rm -v xmonsters_matches:/matches -w /matches busybox ls -la

@@ -130,6 +130,7 @@ function updateManualAbilitiesList() {
     // Cartas com sourceZone: 'hand' são efeitos de uso único ativados direto
     // da mão (ex: Adubaram) — não pertencem aos loops de campo/equipamento.
     playerHand.forEach(card => {
+        if (!card?.data) return;
         const cardData = window.cardsDatabase?.cards?.find(c => c.id === card.data.id);
         const migratedRule = window.CardRules?.getActivatedRule(card.data.id);
         if (migratedRule && cardData && migratedRule.sourceZone === 'hand') {
@@ -139,6 +140,7 @@ function updateManualAbilitiesList() {
     });
 
     playerEquipment.forEach(card => {
+        if (!card?.data) return;
         const cardData = window.cardsDatabase?.cards?.find(c => c.id === card.data.id);
         const migratedRule = window.CardRules?.getActivatedRule(card.data.id);
         if (migratedRule && cardData && migratedRule.sourceZone !== 'hand') {
@@ -148,6 +150,7 @@ function updateManualAbilitiesList() {
     });
 
     playerCards.forEach(card => {
+        if (!card?.data) return;
         const cardData = window.cardsDatabase?.cards?.find(c => c.id === card.data.id);
         const migratedRule = window.CardRules?.getActivatedRule(card.data.id);
 
@@ -179,10 +182,10 @@ function activateMigratedAbility(cardId) {
         return;
     }
 
-    if (window.PvpSession) {
+    if (window.PvpSession?.PvpSession) {
         // Em PvP a habilidade viaja como comando ABILITY: o autor também só
         // aplica o efeito quando o servidor replicar (evita divergência).
-        window.PvpSession.sendCommand('ABILITY', {
+        window.PvpSession.PvpSession.sendCommand('ABILITY', {
             cardId,
             abilityId: rule.abilityId,
             targetIds: selectedTargetIds || []

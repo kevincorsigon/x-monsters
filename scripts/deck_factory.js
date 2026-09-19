@@ -50,10 +50,10 @@ function parseArgs() {
 function main() {
     const args = parseArgs();
     const seed = parseInt(args.seed || '0', 10);
-    const size = parseInt(args.size || '40', 10);
+    const size = parseInt(args.size || '50', 10);
 
     if (isNaN(seed)) {
-        console.error('Uso: node scripts/deck_factory.js --seed=123 --size=40');
+        console.error('Uso: node scripts/deck_factory.js --seed=123 --size=50');
         process.exit(1);
     }
 
