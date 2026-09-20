@@ -178,6 +178,9 @@
         const classe = playerId === 'p1' ? '.player1-stats' : '.player2-stats';
         const elemento = document.querySelector(`${classe} .player-name`);
         if (elemento) elemento.innerText = nome;
+        // O título da mão também reflete o nome, como o editName faz localmente.
+        const handTitle = document.getElementById(`hand-title-${playerId}`);
+        if (handTitle) handTitle.innerText = `Mão - ${nome}`;
     }
 
 // ── transporte, sessão e UI ──────────────────────────────────────────────

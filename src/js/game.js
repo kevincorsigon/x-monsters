@@ -176,6 +176,9 @@
             const nameElement = document.querySelector(`.player${player === 'p1' ? '1' : '2'}-stats .player-name`);
             const newName = prompt('Digite o novo nome do jogador:', nameElement.innerText);
             if (newName && newName.trim()) {
+                // Em PvP o nome é comando do ledger: o broadcast atualiza os
+                // dois clientes (autor incluído) na mesma ordem.
+                if (pvpGuard({ cmd: 'SET_NAME', args: { name: newName.trim() } })) return;
                 // Atualiza visualmente o nome no painel de stats
                 nameElement.innerText = newName;
                 // Persiste o nome no estado canônico
@@ -910,10 +913,14 @@
             }
 
             result.defeated.forEach(cardId => {
-                // Em PvP o descarte pós-combate é o comando DESTROY: os dois
-                // clientes aplicam na mesma ordem do ledger.
+                // Em PvP o combate é determinístico: os dois clientes aplicam o
+                // ATTACK do ledger e chegam à mesma lista de defeated. Durante
+                // a aplicação remota o pvpGuard está bloqueado (applying), então
+                // o descarte é feito direto aqui — sempre na mesma ordem.
                 if (window.PvpSession) {
-                    if (!pvpAplicando()) {
+                    if (pvpAplicando()) {
+                        destroyCard(cardId);
+                    } else {
                         pvpGuard({ cmd: 'DESTROY', args: { cardId } });
                     }
                     return;
@@ -1008,10 +1015,15 @@
                 window.GameStateModel.moveCard(gameState, cardId, 'discard', cardData.ownerId);
             }
             updateDiscardCount(cardData.ownerId);
-            renderFieldsFromState();
+            // Uma única reprojeção do campo, após a animação: o render remove
+            // qualquer .card fora do campo e mataria o efeito se rodasse antes.
 
             // Remover do DOM com animação
             const cardElement = document.getElementById(cardId);
+            const removerEDesenhar = () => {
+                cardElement?.remove();
+                renderFieldsFromState();
+            };
             if (cardElement) {
                 console.log('💥 Elemento DOM encontrado, iniciando animação');
                 
@@ -1019,14 +1031,15 @@
                 cardElement.style.animation = 'cardDestroy 0.5s ease-out forwards';
                 
                 // Mostrar feedback visual de descarte
-                showMessage(`${cardData.data.name} foi para o descarte!`, 'info');
+                showMessage(`${cardData.data?.name || 'Carta'} foi para o descarte!`, 'info');
                 
                 setTimeout(() => {
                     console.log('💥 Removendo elemento do DOM');
-                    cardElement.remove();
+                    removerEDesenhar();
                 }, 500);
             } else {
                 console.log('💥 ERRO: Elemento DOM não encontrado para carta:', cardId);
+                removerEDesenhar();
             }
         }
 
@@ -1092,13 +1105,27 @@
         }
 
         // Funções de cartas
-        function createCard(cardData, player) {
+                function createCard(cardData, player) {
             const cardInstance = cardData.instanceId && cardData.data
                 ? cardData
                 : window.GameStateModel.createCardInstance(cardData, player, { zone: 'hand' });
             const cardId = cardInstance.instanceId;
             const card = document.createElement('div');
             
+            // --- Fallback: se a definição é nula (placeholder em estado transitório),
+            // renderiza um card mínimo seguro para a mão local sem quebrar a UI. ---
+            if (!cardInstance.data) {
+                card.className = 'card';
+                card.draggable = true;
+                card.setAttribute('draggable', 'true');
+                card.id = cardId;
+                card.innerHTML = '<div class="card-name" style="pointer-events: none;">???</div>';
+                cardInstance.element = card;
+                cardInstance.player = cardInstance.controllerId;
+                gameState.cardInstances[cardInstance.instanceId] = cardInstance;
+                return cardInstance;
+            }
+
             // Mapear tipos em português para inglês para as classes CSS
             const typeMapping = {
                 'suporte': 'support',
@@ -1160,9 +1187,23 @@
                 if (!handElement) return;
                 handElement.innerHTML = '';
 
+                const isLocalHand = player === assentoLocal();
+                const emPvp = Boolean(window.PvpSession);
+
                 gameState.cards[player].hand.forEach(cardInstance => {
-                    // Carta oculta (mão alheia no PvP): só o verso, nunca identidade.
-                    if (cardInstance.definitionId === null || cardInstance.definitionId === undefined) {
+                    // Mão do jogador local: nunca é card-back (perspectiva PvP).
+                    // Só o verso do oponente é oculto — a sua própria mão, mesmo
+                    // saindo de um estado transitório, sempre mostra a identidade.
+                    //
+                    // No PvP a mão alheia é SEMPRE verso, mesmo que a instância
+                    // local tenha identidade (reveal pendente de movimento,
+                    // retorno à mão por efeito de combate/turno): contagem sim,
+                    // identidade nunca (spec parte 3).
+                    if (emPvp && !isLocalHand) {
+                        handElement.appendChild(createCardBack(cardInstance));
+                        return;
+                    }
+                    if (!isLocalHand && (cardInstance.definitionId === null || cardInstance.definitionId === undefined)) {
                         handElement.appendChild(createCardBack(cardInstance));
                         return;
                     }
@@ -1689,19 +1730,25 @@
                 renderPlayerStat('energy', targetPlayer);
                 playSound('energySound');
                 
-                // Remover da mão e adicionar ao campo
+                // Remover da mão e adicionar ao campo.
+                // PvP: na mão alheia a carta era um verso (identidade oculta);
+                // o campo é público, então o verso é trocado pelo card de frente.
+                const ehVerso = cardElement.classList.contains('card-back');
                 cardElement.remove();
-                e.currentTarget.appendChild(cardElement);
+                const cardNoCampo = ehVerso
+                    ? createCard(gameState.cardInstances[cardId], targetPlayer).element
+                    : cardElement;
+                e.currentTarget.appendChild(cardNoCampo);
                 
                 // Atualizar contador de cartas na mão
                 updateHandCounter(targetPlayer);
                 
                 // Animação de invocação
-                cardElement.classList.add('card-play-animation');
-                cardElement.classList.remove('can-be-summoned', 'dragging');
+                cardNoCampo.classList.add('card-play-animation');
+                cardNoCampo.classList.remove('can-be-summoned', 'dragging');
                 
                 setTimeout(() => {
-                    cardElement.classList.remove('card-play-animation');
+                    cardNoCampo.classList.remove('card-play-animation');
                     if (gameState.currentPhase === 'invocation') {
                         highlightSummonableCards();
                     }

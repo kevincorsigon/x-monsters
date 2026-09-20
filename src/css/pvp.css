@@ -15,11 +15,114 @@ body[data-seat] .peek-hand-btn {
     display: none !important;
 }
 
-/* Mao alheia no PvP: N versos + contagem, nunca identidade. */
+/* Mao alheia no PvP: N versos + contagem, nunca identidade.
+   O verso exibido e assets/verso.jpeg; o gradiente fica como fallback
+   caso a imagem nao carregue. */
 .card-back {
-    background: linear-gradient(135deg, #1a1e28 0%, #11151e 100%);
+    background: url('../../assets/verso.jpeg') center / cover no-repeat,
+        linear-gradient(135deg, #1a1e28 0%, #11151e 100%);
     border: 2px solid var(--primary-color);
     border-radius: var(--border-radius);
     min-width: 70px;
     min-height: 100px;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Espelhamento de animações de mão para assento p2 (spec parte 4,
+   DoD 3). O grid já é invertido pelo bloco acima; agora invertemos
+   as animações: player 2 (embaixo) usa as regras originais do player
+   1 (baixo) e vice-versa. Sem isso, as cartas sacadas usam
+   transform-origin / rotate / translateY pensados para a posição
+   espelhada e saem voando para fora da tela.
+   ────────────────────────────────────────────────────────────── */
+
+/* --- align-items dos containers (onde as cartas "penduram") ---
+   Player 1 agora no topo → flex-start (como player 2 original)
+   Player 2 agora embaixo → flex-end   (como player 1 original)   */
+body[data-seat="p2"] .player1-hand #hand-p1 { align-items: flex-start; }
+body[data-seat="p2"] .player2-hand #hand-p2 { align-items: flex-end; }
+
+/* --- transform-origin e z-index base das cartas --- */
+body[data-seat="p2"] .player1-hand .card {
+    transform-origin: center top;
+    z-index: 10;
+}
+body[data-seat="p2"] .player2-hand .card {
+    transform-origin: center bottom;
+    z-index: 1;
+}
+
+/* --- animação de compra (new-card): transform-origin por posição --- */
+body[data-seat="p2"] .player1-hand .card.new-card { transform-origin: center top; }
+body[data-seat="p2"] .player2-hand .card.new-card { transform-origin: center bottom; }
+
+/* --- rotações em arco: player 1 (topo) usa fan-up (orig. player 2) --- */
+body[data-seat="p2"] .player1-hand .card:nth-child(1)  { transform: rotate(20deg)  translateY(-10px); }
+body[data-seat="p2"] .player1-hand .card:nth-child(2)  { transform: rotate(15deg)  translateY(-5px); }
+body[data-seat="p2"] .player1-hand .card:nth-child(3)  { transform: rotate(10deg)  translateY(-2px); }
+body[data-seat="p2"] .player1-hand .card:nth-child(4)  { transform: rotate(5deg)   translateY(0px); }
+body[data-seat="p2"] .player1-hand .card:nth-child(5)  { transform: rotate(0deg)   translateY(0px); }
+body[data-seat="p2"] .player1-hand .card:nth-child(6)  { transform: rotate(-5deg)  translateY(0px); }
+body[data-seat="p2"] .player1-hand .card:nth-child(7)  { transform: rotate(-10deg)  translateY(-2px); }
+body[data-seat="p2"] .player1-hand .card:nth-child(8)  { transform: rotate(-15deg)  translateY(-5px); }
+body[data-seat="p2"] .player1-hand .card:nth-child(9)  { transform: rotate(-20deg)  translateY(-10px); }
+
+/* --- rotações em arco: player 2 (embaixo) usa fan-down (orig. player 1) --- */
+body[data-seat="p2"] .player2-hand .card:nth-child(1)  { transform: rotate(-20deg) translateY(10px); }
+body[data-seat="p2"] .player2-hand .card:nth-child(2)  { transform: rotate(-15deg) translateY(5px); }
+body[data-seat="p2"] .player2-hand .card:nth-child(3)  { transform: rotate(-10deg) translateY(2px); }
+body[data-seat="p2"] .player2-hand .card:nth-child(4)  { transform: rotate(-5deg)  translateY(0px); }
+body[data-seat="p2"] .player2-hand .card:nth-child(5)  { transform: rotate(0deg)   translateY(0px); }
+body[data-seat="p2"] .player2-hand .card:nth-child(6)  { transform: rotate(5deg)   translateY(0px); }
+body[data-seat="p2"] .player2-hand .card:nth-child(7)  { transform: rotate(10deg)  translateY(2px); }
+body[data-seat="p2"] .player2-hand .card:nth-child(8)  { transform: rotate(15deg)  translateY(5px); }
+body[data-seat="p2"] .player2-hand .card:nth-child(9)  { transform: rotate(20deg)  translateY(10px); }
+
+/* --- hover: player 1 (topo) sobe a carta pra baixo (centro) --- */
+body[data-seat="p2"] .player1-hand .card:hover {
+    transform: rotate(0deg) scale(2.2) translateY(60px) !important;
+    z-index: 1001;
+    box-shadow: 0 20px 40px rgba(201, 165, 103, 0.8), 0 0 30px rgba(245, 201, 74, 0.6);
+    border-color: var(--energy-color);
+    filter: brightness(1.2) drop-shadow(0 0 20px rgba(245, 201, 74, 0.8));
+}
+
+/* --- hover: player 2 (embaixo) sobe a carta pra cima (centro) --- */
+body[data-seat="p2"] .player2-hand .card:hover {
+    transform: rotate(0deg) scale(2.2) translateY(-60px) !important;
+    z-index: 1000;
+    box-shadow: 0 20px 40px rgba(201, 165, 103, 0.8), 0 0 30px rgba(245, 201, 74, 0.6);
+    border-color: var(--energy-color);
+    filter: brightness(1.2) drop-shadow(0 0 20px rgba(245, 201, 74, 0.8));
+}
+
+/* --- hover de suporte: player 1 (topo) para baixo --- */
+body[data-seat="p2"] .player1-hand .card.support:hover {
+    transform: rotate(0deg) scale(2.2) translateY(60px) !important;
+    border: 3px solid #e6e6e6 !important;
+    box-shadow: 0 20px 40px rgba(192, 192, 192, 0.8), 0 0 30px rgba(230, 230, 230, 0.6) !important;
+    filter: brightness(1.2) drop-shadow(0 0 20px rgba(230, 230, 230, 0.8)) !important;
+    z-index: 1001 !important;
+}
+
+/* --- hover de suporte: player 2 (embaixo) para cima --- */
+body[data-seat="p2"] .player2-hand .card.support:hover {
+    transform: rotate(0deg) scale(2.2) translateY(-60px) !important;
+    border: 3px solid #e6e6e6 !important;
+    box-shadow: 0 20px 40px rgba(192, 192, 192, 0.8), 0 0 30px rgba(230, 230, 230, 0.6) !important;
+    filter: brightness(1.2) drop-shadow(0 0 20px rgba(230, 230, 230, 0.8)) !important;
+}
+
+/* --- hover de equipamento: player 1 (topo) para baixo (orig. player 2) --- */
+body[data-seat="p2"] .player1-hand .card.equipped:hover .equipment-card {
+    transform: rotate(5deg) scale(2.1) translateY(55px) translateX(-10px);
+    opacity: 0.8;
+    z-index: 999;
+}
+
+/* --- hover de equipamento: player 2 (embaixo) para cima (orig. player 1) --- */
+body[data-seat="p2"] .player2-hand .card.equipped:hover .equipment-card {
+    transform: rotate(-5deg) scale(2.1) translateY(-55px) translateX(-10px);
+    opacity: 0.8;
+    z-index: 999;
 }
