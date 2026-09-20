@@ -1355,6 +1355,8 @@
         card_085: 'card_077'  // Marik 2 <- Marik
     });
 
+    // elite = criatura com mais de 50 de ataque no catálogo; um card pode levar
+    // traits duplos/triplos (ex.: Marik 2 = lobisomem + elite).
     const TRAITS_BY_DEFINITION = Object.freeze({
         card_018: Object.freeze(['robotico']),
         card_023: Object.freeze(['robotico']),
@@ -1375,13 +1377,15 @@
         card_068: Object.freeze(['elite', 'paladino', 'humanoide']),
         card_071: Object.freeze(['dragao']),
         card_076: Object.freeze(['elite', 'vampiro']),
-        card_078: Object.freeze(['lobisomem']),
-        card_079: Object.freeze(['lobisomem']),
-        card_080: Object.freeze(['lobisomem', 'fogo']),
-        card_081: Object.freeze(['lobisomem']),
-        card_082: Object.freeze(['lobisomem']),
-        card_083: Object.freeze(['aquatico']),
+        card_077: Object.freeze(['humanoide', 'guerreiro', 'lobisomem']),
+        card_078: Object.freeze(['lobisomem', 'elite']),
+        card_079: Object.freeze(['lobisomem', 'elite']),
+        card_080: Object.freeze(['lobisomem', 'fogo', 'elite']),
+        card_081: Object.freeze(['lobisomem', 'elite']),
+        card_082: Object.freeze(['lobisomem', 'elite']),
+        card_083: Object.freeze(['aquatico', 'elite']),
         card_084: Object.freeze(['elite', 'robotico']),
+        card_085: Object.freeze(['lobisomem', 'elite']),
         card_086: Object.freeze(['elite']),
         card_087: Object.freeze(['elite', 'guerreiro', 'humanoide'])
     });

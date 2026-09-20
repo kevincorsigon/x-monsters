@@ -185,11 +185,18 @@ function activateMigratedAbility(cardId) {
     if (window.PvpSession?.PvpSession) {
         // Em PvP a habilidade viaja como comando ABILITY: o autor também só
         // aplica o efeito quando o servidor replicar (evita divergência).
+        // Habilidades de mão (sourceZone: 'hand', ex.: Adubaram) precisam
+        // viajar com o reveal: no cliente do oponente a mão alheia são
+        // placeholders e, sem identidade, o ABILITY seria ignorado lá
+        // ('ABILITY sem regra') — o efeito saía só na tela do autor.
+        const reveals = rule.sourceZone === 'hand'
+            ? [window.PvpGame?.buildReveal?.(cardId, 'hand')].filter(Boolean)
+            : [];
         window.PvpSession.PvpSession.sendCommand('ABILITY', {
             cardId,
             abilityId: rule.abilityId,
             targetIds: selectedTargetIds || []
-        });
+        }, { reveals });
         return;
     }
 
