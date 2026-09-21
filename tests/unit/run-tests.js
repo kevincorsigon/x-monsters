@@ -1513,6 +1513,219 @@ test('a família Lobo é besta e volta a ser hospedeira da Flecha de Prata', () 
     assert.equal(CardRules.validateEquipmentTarget(flecha, lobo).valid, true);
 });
 
+test('matriz de equipamento: Flecha de Prata (humanoide/besta) e Estaca (guerreiro/humanoide)', () => {
+    // Valida o efeito assumido pelas correções de trait: quem hospeda os dois
+    // suportes de caça depois de `012` virar planta, `016` virar besta e a
+    // família Lobo ganhar `besta`.
+    const state = GameStateModel.createInitialGameState();
+    const host = (id, instanceId) => {
+        const carta = cardsDatabase.cards.find(c => c.id === id);
+        const instance = GameStateModel.createCardInstance({
+            id, name: carta.name, type: carta.type, cost: carta.cost,
+            attack: carta.attack, defense: carta.defense
+        }, 'p1', { instanceId });
+        instance.data.traits = [...carta.traits];
+        GameStateModel.registerCard(state, instance, 'field', 'p1');
+        return instance;
+    };
+    const suporte = id => GameStateModel.createCardInstance({
+        id, name: id, type: 'suporte', cost: 2, attack: 8, defense: 0
+    }, 'p1', { instanceId: `${id}_matriz` });
+    const permite = (equipamento, alvo) =>
+        CardRules.validateEquipmentTarget(equipamento, alvo).valid;
+
+    const flecha = suporte('card_097');
+    const estaca = suporte('card_102');
+    const guerreiro = host('card_056', 'host_guerreiro');
+    const alquimista = host('card_061', 'host_alquimista');
+    const lobo = host('card_079', 'host_lobo');
+    const baltz = host('card_016', 'host_baltz');
+    const tobinha = host('card_014', 'host_tobinha');
+    const natalino = host('card_012', 'host_natalino');
+    const rayi = host('card_023', 'host_robotico');
+    const superior = host('card_087', 'host_dragao');
+    const hidra = host('card_083', 'host_aquatico');
+
+    // card_097 — humanoide OU besta
+    assert.equal(permite(flecha, guerreiro), true);
+    assert.equal(permite(flecha, alquimista), true);
+    assert.equal(permite(flecha, lobo), true, 'família Lobo é besta');
+    assert.equal(permite(flecha, baltz), true, 'Baltz virou besta');
+    assert.equal(permite(flecha, tobinha), true);
+    assert.equal(permite(flecha, natalino), false, 'Natalino virou planta');
+    assert.equal(permite(flecha, rayi), false, 'robotico não é humanoide nem besta');
+    assert.equal(permite(flecha, superior), false, 'dragão não é humanoide nem besta');
+    assert.equal(permite(flecha, hidra), false, 'aquatico puro não entra');
+
+    // card_102 — guerreiro OU humanoide
+    assert.equal(permite(estaca, guerreiro), true);
+    assert.equal(permite(estaca, alquimista), true);
+    assert.equal(permite(estaca, lobo), false, 'lobo não é guerreiro nem humanoide');
+    assert.equal(permite(estaca, baltz), false);
+    assert.equal(permite(estaca, natalino), false);
+});
+
+test('catálogo de traits é fechado: vocabulário, sem duplicata e sem criatura órfã', () => {
+    const VOCABULARIO = new Set([
+        'humanoide', 'besta', 'dragao', 'demonio', 'voador', 'robotico', 'aquatico',
+        'planta', 'fantasma', 'magico', 'elite', 'guerreiro', 'paladino', 'vampiro',
+        'lobisomem', 'fogo'
+    ]);
+    const criaturas = cardsDatabase.cards
+        .filter(c => c.type === 'criatura' || c.type === 'evolução');
+    const semTraits = criaturas
+        .filter(c => !Array.isArray(c.traits) || c.traits.length === 0)
+        .map(c => c.id);
+    assert.deepEqual(semTraits, [], 'toda criatura/evolução precisa de traits');
+
+    const desconhecidos = [];
+    const duplicados = [];
+    criaturas.forEach(carta => {
+        (carta.traits || []).forEach(trait => {
+            if (!VOCABULARIO.has(trait)) desconhecidos.push(`${carta.id}: ${trait}`);
+        });
+        if (new Set(carta.traits).size !== carta.traits.length) {
+            duplicados.push(carta.id);
+        }
+    });
+    assert.deepEqual(desconhecidos, [], 'trait fora do vocabulário (typo?)');
+    assert.deepEqual(duplicados, [], 'trait repetida na mesma carta');
+});
+
+test('elite marca ATK > 50 e uma lista fechada de chefes com ATK menor', () => {
+    // Regra registrada em decisions.md: `elite` é derivável de ATK > 50
+    // (implicação de mão única). `elite` também marca chefes nomeados com
+    // ATK <= 50 — lista fechada, descoberta na auditoria dos traits:
+    // 036 Rei das Feras, 054 Lorde Sanguinário, 061 Alquimista Guardião,
+    // 067 Paladino Alvorada, 068 Paladino Crepuscular e 076 Condessa Carmilla.
+    const criaturas = cardsDatabase.cards
+        .filter(c => c.type === 'criatura' || c.type === 'evolução');
+    const CHEFES_SEM_ATK_ALTO = ['card_036', 'card_054', 'card_061', 'card_067',
+        'card_068', 'card_076'];
+
+    const semElite = criaturas
+        .filter(c => c.attack > 50 && !c.traits.includes('elite'))
+        .map(c => c.id);
+    assert.deepEqual(semElite, [], 'ATK > 50 exige a trait elite');
+
+    const eliteSemAtkAlto = criaturas
+        .filter(c => c.traits.includes('elite') && c.attack <= 50)
+        .map(c => c.id)
+        .sort();
+    assert.deepEqual(
+        eliteSemAtkAlto,
+        [...CHEFES_SEM_ATK_ALTO].sort(),
+        'a lista de elite com ATK <= 50 é fechada: só os chefes nomeados'
+    );
+});
+
+test('toda evolução herda os traits da base declarada no motor', () => {
+    const evolucoes = cardsDatabase.cards.filter(c => c.type === 'evolução');
+    assert.ok(evolucoes.length > 0, 'o catálogo tem cartas de evolução');
+    const divergentes = [];
+    evolucoes.forEach(evolucao => {
+        const baseId = CardRules.getEvolutionBaseDefinitionId(evolucao.id);
+        const base = cardsDatabase.cards.find(c => c.id === baseId);
+        if (!base) {
+            divergentes.push(`${evolucao.id}: base ${baseId} ausente no catálogo`);
+            return;
+        }
+        const faltando = base.traits.filter(t => !evolucao.traits.includes(t));
+        if (faltando.length) {
+            divergentes.push(`${evolucao.id} não herdou ${faltando.join(',')} de ${baseId}`);
+        }
+    });
+    assert.deepEqual(divergentes, []);
+});
+
+test('toda arte do catálogo é um PNG 768x1017 presente no disco', () => {
+    // Sostenta a conferência visual: as folhas de revisão só valem se a arte
+    // existir e estiver íntegra. Lê o IHDR direto (sem Pillow).
+    const raiz = path.join(__dirname, '..', '..');
+    const assinaturaPng = '\x89PNG\r\n\x1a\n';
+    const problemas = [];
+    cardsDatabase.cards.forEach(carta => {
+        if (!carta.image) {
+            problemas.push(`${carta.id}: sem campo image`);
+            return;
+        }
+        const caminho = path.join(raiz, carta.image);
+        if (!fs.existsSync(caminho)) {
+            problemas.push(`${carta.id}: arte ausente (${carta.image})`);
+            return;
+        }
+        const cabecalho = Buffer.alloc(24);
+        const descritor = fs.openSync(caminho, 'r');
+        fs.readSync(descritor, cabecalho, 0, 24, 0);
+        fs.closeSync(descritor);
+        if (cabecalho.toString('latin1', 0, 8) !== assinaturaPng) {
+            problemas.push(`${carta.id}: assinatura PNG inválida`);
+            return;
+        }
+        const largura = cabecalho.readUInt32BE(16);
+        const altura = cabecalho.readUInt32BE(20);
+        if (largura !== 768 || altura !== 1017) {
+            problemas.push(`${carta.id}: ${largura}x${altura} (esperado 768x1017)`);
+        }
+    });
+    assert.deepEqual(problemas, []);
+});
+
+test('inventário de traits do catálogo é fechado (lista por trait)', () => {
+    // Fotografia completa das 79 criaturas/evoluções: somar, remover ou trocar
+    // uma trait em qualquer carta quebra este teste. É o que segura as 60 cartas
+    // que ainda não passaram por conferência visual — mudanças de trait passam
+    // por aqui de propósito, obrigando a atualizar o inventário e o relatório.
+    const INVENTARIO = {
+        besta: ['card_011', 'card_013', 'card_014', 'card_016', 'card_017', 'card_019',
+            'card_021', 'card_022', 'card_036', 'card_039', 'card_041', 'card_044',
+            'card_048', 'card_049', 'card_050', 'card_053', 'card_063', 'card_069',
+            'card_070', 'card_073', 'card_075', 'card_078', 'card_079', 'card_080',
+            'card_081', 'card_082'],
+        humanoide: ['card_003', 'card_025', 'card_026', 'card_031', 'card_040',
+            'card_043', 'card_045', 'card_046', 'card_047', 'card_054', 'card_055',
+            'card_056', 'card_058', 'card_059', 'card_061', 'card_062', 'card_066',
+            'card_067', 'card_068', 'card_072', 'card_076', 'card_077', 'card_085',
+            'card_086'],
+        elite: ['card_036', 'card_054', 'card_061', 'card_067', 'card_068', 'card_076',
+            'card_078', 'card_079', 'card_080', 'card_081', 'card_082', 'card_083',
+            'card_084', 'card_085', 'card_086', 'card_087'],
+        dragao: ['card_020', 'card_029', 'card_035', 'card_037', 'card_051', 'card_052',
+            'card_065', 'card_071', 'card_087'],
+        lobisomem: ['card_059', 'card_077', 'card_078', 'card_079', 'card_080',
+            'card_081', 'card_082', 'card_085'],
+        guerreiro: ['card_043', 'card_046', 'card_047', 'card_056', 'card_072',
+            'card_077', 'card_085'],
+        robotico: ['card_018', 'card_023', 'card_027', 'card_033', 'card_064',
+            'card_065', 'card_084'],
+        voador: ['card_003', 'card_010_1', 'card_010_2', 'card_010_3', 'card_035',
+            'card_044', 'card_078'],
+        aquatico: ['card_032', 'card_034', 'card_038', 'card_063', 'card_074',
+            'card_083'],
+        demonio: ['card_010_1', 'card_010_2', 'card_010_3', 'card_024', 'card_060'],
+        magico: ['card_031', 'card_045', 'card_055', 'card_061'],
+        vampiro: ['card_054', 'card_062', 'card_076'],
+        fogo: ['card_057', 'card_080'],
+        paladino: ['card_067', 'card_068'],
+        planta: ['card_012', 'card_030'],
+        fantasma: ['card_042']
+    };
+    const divergentes = [];
+    Object.entries(INVENTARIO).forEach(([trait, esperados]) => {
+        const atuais = cardsDatabase.cards
+            .filter(c => (c.traits || []).includes(trait))
+            .map(c => c.id)
+            .sort();
+        const esperado = [...esperados].sort();
+        if (JSON.stringify(atuais) !== JSON.stringify(esperado)) {
+            const faltando = esperado.filter(id => !atuais.includes(id));
+            const extras = atuais.filter(id => !esperado.includes(id));
+            divergentes.push(`${trait}: faltando [${faltando}] extras [${extras}]`);
+        }
+    });
+    assert.deepEqual(divergentes, []);
+});
+
 test('dragões do catálogo estão marcados com a trait dragao', () => {
     const dragoes = ['card_020', 'card_029', 'card_035', 'card_037', 'card_051',
         'card_052', 'card_065', 'card_071', 'card_087'];

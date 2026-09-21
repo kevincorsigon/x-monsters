@@ -38,7 +38,11 @@ import csv
 import json
 import os
 import re
-from PIL import Image
+
+try:
+    from PIL import Image
+except ImportError:  # a triagem textual não depende de imagem
+    Image = None
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATABASE = os.path.join(BASE_DIR, 'data', 'cards_database.json')
@@ -211,6 +215,10 @@ def analisar(carta):
         'original': '',
         'erro': '',
     }
+    linha['sinais'] = ' | '.join(sinais(carta))
+    if Image is None:
+        linha['erro'] = 'PIL ausente: paleta não medida'
+        return linha
     caminho = os.path.join(BASE_DIR, carta['image'].replace('/', os.sep))
     if not os.path.exists(caminho):
         linha['erro'] = 'arte ausente'
@@ -248,6 +256,10 @@ def main():
 
     criaturas = carregar_criaturas()
     linhas = [analisar(carta) for carta in criaturas]
+
+    if Image is None:
+        print('AVISO: Pillow ausente — colunas de paleta omitidas. '
+              'Instale com: py -3 -m pip install -r requirements_ocr.txt')
 
     os.makedirs(os.path.dirname(args.csv), exist_ok=True)
     campos = ['id', 'name', 'traits', 'pistas', 'dominante', 'share_dominante',

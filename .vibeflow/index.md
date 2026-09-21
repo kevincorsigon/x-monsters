@@ -137,7 +137,9 @@ patterns:
   que empunha arma, 24 cartas — nunca junto de `dragao`/`robotico`/`aquatico`/`planta`/
   `fantasma`. A família Lobo `card_078`–`card_082` tem `lobisomem` **sem** `humanoide`:
   são caninos (`besta`), e ali `lobisomem` é trait temática de grupo).
-- `tests/unit/run-tests.js` — engine/rules/PvP regression tests (215 tests).
+- `tests/unit/run-tests.js` — engine/rules/PvP regression tests (221 tests:
+  inclui o inventário fechado de traits, a integridade das 110 artes e a matriz de
+  equipamento de `card_097`/`card_102`).
 - `tests/pvp/smoke_match.py` — server + 2 WS clients smoke test (ledger só com
   as compras esperadas; F5 não soma comando).
 - `tests/browser/test_pvp_draw.js` — regra da compra em PvP no DOM real +

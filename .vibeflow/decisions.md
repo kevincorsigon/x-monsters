@@ -1,6 +1,47 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-21 — Auditoria das 79 cartas: o que é travável sem olhar a arte
+
+Segunda rodada da revisão de traits: em vez de tentar adivinhar arte, foram
+fixados os invariantes que o catálogo pode provar sozinho. Seis testes novos na
+suíte de unidade (total **221/221**):
+
+1. **Inventário fechado por trait** — as 16 traits e as 79 cartas que as carregam
+   estão fixadas em teste. Qualquer trait somada, removida ou trocada quebra a
+   suíte. É o que protege as 60 cartas que ainda não passaram por olho humano.
+2. **Vocabulário fechado** — nenhuma criatura/evolução sem traits, nenhuma trait
+   fora do vocabulário (typo) e nenhuma repetida na mesma carta; as 31 cartas sem
+   traits são todas `suporte`.
+3. **`elite`** — ATK > 50 implica `elite` (mão única) e a lista de `elite` com
+   ATK <= 50 é exatamente a dos **6 chefes nomeados**: `card_036` Rei das Feras,
+   `card_054` Lorde Sanguinário, `card_061` Alquimista Guardião, `card_067`
+   Paladino Alvorada, `card_068` Paladino Crepuscular e `card_076` Condessa
+   Carmilla. Antes desta auditoria só `card_036` estava identificado.
+4. **`evolução`** — as duas evoluções herdam todos os traits da base declarada no
+   motor (`CardRules.getEvolutionBaseDefinitionId`), sem lista paralela no teste.
+5. **Integridade das artes** — as 110 imagens do catálogo existem, são PNG válidos
+   (IHDR + CRC) e medem 768x1017 (77 criaturas, 31 suportes, 2 evoluções). Lido
+   direto do header, sem Pillow, para rodar no Node puro.
+6. **Matriz de equipamento** — `card_097` (humanoide/besta) aceita guerreiro,
+   Alquimista, família Lobo, Baltz e Tobinha, e recusa Natalino (`planta`),
+   Raylaser (`robotico`), Superior (`dragao`) e Hidra (`aquatico`); `card_102`
+   (guerreiro/humanoide) aceita guerreiro e Alquimista e recusa lobos, Baltz e
+   Natalino.
+
+Triagem textual (`scripts/analyze_card_art_features.py`): 79 cartas varridas e
+**zero divergência de trait pendente**. As duas entradas restantes são nota de
+catálogo — `card_079` ("Lightning") e `card_082` ("Freeze") pedem `eletrico`/`gelo`,
+que o vocabulário não tem.
+
+O script agora roda sem Pillow (avisa e omite as colunas de paleta, que são
+descritivas e nunca geraram sinal): `py -3` deixa de quebrar por
+`ModuleNotFoundError: PIL`, usando o mesmo interpretador dos outros scripts.
+
+O que continua dependendo de gente: traits de corpo/habitat das 60 cartas sem
+inspeção visual — folhas de contato em `reports/trait-review/folha_00..08.jpg`
+(9 folhas, 3x3, com id, nome e traits impressos).
+
 ## 2026-09-21 — Seção E do relatório de traits aplicada (corpo por arte/efeito)
 
 O autor autorizou aplicar as sugestões pendentes de

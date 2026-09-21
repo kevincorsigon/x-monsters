@@ -4,11 +4,14 @@ Escopo: cruzar o campo `traits` de `data/cards_database.json` (79 criaturas +
 evoluções com traits, de 110 cartas) contra a arte impressa em
 `assets/cards/*.png`.
 
-Status: **suíte verde (215/215 unit, 20/20 browser)** com as **sugestões
-aplicadas** (seções A e E). A conferência **visual** continua parcial: 19 cartas
-foram inspecionadas por olhos humanos e o modelo desta sessão não aceita entrada
-de imagem (`Current model does not support image input`), então as 60 restantes
-ficam na fila da seção D — com a fila de triagem já priorizada pela seção C.
+Status: **suíte verde (221/221 unit, 20/20 browser)** com as **sugestões
+aplicadas** (seções A e E) e as 79 cartas **validadas em tudo que é verificável
+sem visão** (seção D): inventário de traits travado por teste, invariantes de
+corpo, integridade das 110 artes e triagem textual — hoje com **zero divergência
+de trait pendente**. O que resta é julgamento visual: 19 cartas foram inspecionadas
+por olhos humanos e o modelo desta sessão não aceita entrada de imagem
+(`Current model does not support image input`); as 60 restantes têm as folhas de
+contato prontas em `reports/trait-review/folha_00..08.jpg`.
 
 ## Critério usado (fonte: `.vibeflow/decisions.md`, 2026-09-21)
 
@@ -18,7 +21,11 @@ ficam na fila da seção D — com a fila de triagem já priorizada pela seção
 2. Ofício humano (`guerreiro`, `paladino`, `vampiro`) implica `humanoide`.
    **`lobisomem` não implica**: lobos são caninos; só licantropos de corpo
    humano (`card_059`, `card_077`, `card_085`) são `humanoide`.
-3. `elite` é derivável: criatura com ATK > 50.
+3. `elite` é derivável de ATK > 50 (implicação de **mão única**) e também marca
+   uma lista fechada de chefes nomeados com ATK <= 50: `card_036` Rei das Feras,
+   `card_054` Lorde Sanguinário, `card_061` Alquimista Guardião, `card_067`
+   Paladino Alvorada, `card_068` Paladino Crepuscular e `card_076` Condessa
+   Carmilla — lista levantada na auditoria de 2026-09-21 e travada por teste.
 4. `evolução` herda os traits da forma base (+ `elite` se ATK > 50).
 5. Canino, felino e afins são `besta` (família Lobo `078`–`082`); `magico`,
    `voador`, `aquatico` e `planta` descrevem ofício, meio ou substância quando a
@@ -136,7 +143,44 @@ Limite explícito: para traits de corpo (`humanoide`, `besta`, `dragao`,
 `robotico`, `voador`) nenhuma automação substitui a arte — a conferência visual
 da seção D continua sendo a única fonte.
 
-## D. Pendente de conferência visual (60 cartas)
+## D. Validação das 79 cartas e o que ainda depende de olho humano
+
+### D.1 Validação executável (feita, roda na suíte de unidade)
+
+1. **Inventário travado** — `inventário de traits do catálogo é fechado (lista por
+   trait)`: as 16 traits e as 79 cartas que as carregam estão fixadas em teste.
+   Somar, remover ou trocar uma trait em qualquer carta quebra a suíte, o que
+   protege justamente as 60 cartas que ninguém olhou ainda.
+2. **Vocabulário fechado** — nenhuma criatura/evolução sem traits, nenhuma trait
+   fora do vocabulário (`typo`) e nenhuma trait repetida na mesma carta. Também
+   confirma que as 31 cartas sem traits são todas do tipo `suporte`.
+3. **Corpo** — `humanoide` nunca coexiste com `dragao`/`robotico`/`aquatico`/
+   `planta`/`fantasma`; ofício humano (`guerreiro`/`paladino`/`vampiro`) sempre
+   com `humanoide`; a família Lobo tem `lobisomem` + `besta` e nunca `humanoide`.
+4. **`elite`** — ATK > 50 sempre com `elite`, e a lista de `elite` com ATK <= 50
+   é exatamente a dos 6 chefes nomeados (item 3 do critério).
+5. **`evolução`** — as duas evoluções herdam todos os traits da base declarada no
+   motor (`CardRules.getEvolutionBaseDefinitionId`).
+6. **Integridade das artes** — as **110** imagens do catálogo existem, são PNG
+   válidos (IHDR + CRC conferidos) e medem **768x1017**: 77 criaturas, 31
+   suportes e 2 evoluções. Sem isso as folhas de contato não valeriam nada.
+7. **Triagem textual** — 79 cartas varridas, **0 divergência de trait pendente**.
+   As 2 entradas restantes são nota de catálogo, não de carta: `card_079`
+   ("Lightning") e `card_082` ("Freeze") pedem traits `eletrico`/`gelo` que o
+   vocabulário não tem.
+8. **Matriz de equipamento** — teste dedicado confirma quem hospeda os dois
+   suportes de caça depois das correções: Flecha de Prata (`humanoide`/`besta`)
+   aceita guerreiro, Alquimista, família Lobo, Baltz e Tobinha e recusa Natalino
+   (`planta`), Raylaser (`robotico`), Superior (`dragao`) e Hidra (`aquatico`);
+   Estaca do Caçador (`guerreiro`/`humanoide`) aceita guerreiro e Alquimista e
+   recusa lobos, Baltz e Natalino.
+
+### D.2 O que continua exigindo olho humano (60 cartas)
+
+Traits de corpo (`humanoide`, `besta`, `dragao`, `robotico`, `voador`) e de
+habitat não são deriváveis do texto nem do recorte do painel: só a arte confirma.
+As folhas de contato com id, nome e traits estão em
+`reports/trait-review/folha_00..08.jpg`.
 
 48 de risco alto (trait específico que a arte precisa confirmar) e 12 de risco
 baixo (só `besta`/`elite`).
@@ -158,7 +202,7 @@ na folha antes de mexer):
 - `card_032` Hipool, `card_034` Medusa de Lama, `card_074` Nucles: `aquatico` declarado, mas a paleta do painel não tem azul — só a arte confirma se o cenário é aquático.
 - `card_079` "Lightning" e `card_082` "Freeze": o catálogo não tem traits `eletrico`/`gelo`; hoje não há como marcar — decisão de catálogo, não de carta.
 
-## E. Sugestões — APLICADAS (215/215)
+## E. Sugestões — APLICADAS (221/221)
 
 As nove correções da rodada anterior foram aplicadas pelo autor no catálogo
 (`data/cards_database.json`, fonte de verdade), no fallback
@@ -200,12 +244,16 @@ Contagem de `humanoide` no catálogo: 31 → **24**; `besta` vai a 26, `voador` 
 
 ```powershell
 py -3 scripts/generate_trait_review_sheets.py   # reports/trait-review/folha_00..08.jpg (3x3, id+nome+traits)
-py -3 scripts/analyze_card_art_features.py      # reports/trait-review/art_features.csv + fila de triagem + calibração
+py -3 scripts/analyze_card_art_features.py      # fila de triagem textual + CSV (paleta exige Pillow)
 py -3 -m http.server 8080                       # pré-requisito da suíte de browser (raiz do projeto)
-node tests/unit/run-tests.js                    # 215/215 após as seções A e E
+node tests/unit/run-tests.js                    # 221/221 (seções A, E e a validação da seção D)
 node tests/browser/run-browser-tests.js         # 20/20 com o servidor no ar (aborta se a porta estiver morta)
 py -3 tests/pvp/smoke_match.py                  # servidor + 2 clientes WS (sobe a própria porta)
 ```
+
+`analyze_card_art_features.py` roda sem Pillow (avisa e omite as colunas de
+paleta, que são descritivas e não geram sinal); com Pillow instalado ele mede a
+paleta do painel. Os sinais vêm só do texto.
 
 Cada folha traz 9 cartas com id, nome e traits impressos no topo do tile, então
 a comparação é visual e direta. O analisador imprime a fila de triagem textual e
