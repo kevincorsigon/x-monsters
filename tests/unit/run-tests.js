@@ -1375,11 +1375,116 @@ test('Scoul não ativa sozinho e Gobra (dragão) ativa pelo JSON', () => {
     assert.equal(fixture.engine.getEffectiveStat(fixture.source.instanceId, 'attack'), 20);
 });
 
-test('toda criatura do JSON tem ao menos uma trait', () => {
-    const semTrait = cardsDatabase.cards.filter(c => c.type === 'criatura' && !Array.isArray(c.traits));
+test('toda criatura e evolução do JSON tem ao menos uma trait', () => {
+    // `evolução` também é criatura (ver isCreatureCard): Turtol Maximus e Marik 2
+    // ficaram fora deste invariante enquanto ele só olhava `type === 'criatura'`.
+    const criaturas = cardsDatabase.cards.filter(c => c.type === 'criatura' || c.type === 'evolução');
+    assert.equal(criaturas.length, 79);
+    const semTrait = criaturas.filter(c => !Array.isArray(c.traits));
     assert.deepEqual(semTrait.map(c => c.id), []);
-    const vazias = cardsDatabase.cards.filter(c => c.type === 'criatura' && c.traits.length === 0);
+    const vazias = criaturas.filter(c => c.traits.length === 0);
     assert.deepEqual(vazias.map(c => c.id), []);
+});
+
+test('criaturas de corpo humano trazem a trait humanoide', () => {
+    // Critério (decision.md): humanoide = bípede + corpo de humano + capaz de
+    // empunhar arma. Aplicado por nome + hability + imagem da carta.
+    const humanoides = [
+        'card_003', 'card_012', 'card_016', 'card_025', 'card_026', 'card_031', 'card_040',
+        'card_043', 'card_045', 'card_046', 'card_047', 'card_054', 'card_055', 'card_056',
+        'card_058', 'card_059', 'card_061', 'card_062', 'card_066', 'card_067', 'card_068',
+        'card_072', 'card_076', 'card_077', 'card_078', 'card_079', 'card_080', 'card_081',
+        'card_082', 'card_085', 'card_086'
+    ];
+    const faltando = humanoides.filter(id => {
+        const carta = cardsDatabase.cards.find(c => c.id === id);
+        return !carta || !carta.traits.includes('humanoide');
+    });
+    assert.deepEqual(faltando, [], 'estas cartas deveriam ter humanoide');
+});
+
+test('humanoide exige corpo de humano: nunca junto de corpo não humano', () => {
+    // Corpos claramente não humanos (dragão, máquina, peixe, planta, espectro)
+    // não podem ser humanoide, mesmo em bípedes que empunham arma.
+    const corposNaoHumanos = ['dragao', 'robotico', 'aquatico', 'planta', 'fantasma'];
+    const conflitos = [];
+    cardsDatabase.cards
+        .filter(c => c.type === 'criatura' || c.type === 'evolução')
+        .forEach(carta => {
+            if (!carta.traits.includes('humanoide')) return;
+            const corpo = carta.traits.filter(t => corposNaoHumanos.includes(t));
+            if (corpo.length) conflitos.push(`${carta.id}: humanoide + ${corpo.join(',')}`);
+        });
+    assert.deepEqual(conflitos, []);
+    // Superior é um dragão de duas cabeças: corpo de dragão, não de humano.
+    assert.deepEqual(cardsDatabase.cards.find(c => c.id === 'card_087').traits, ['elite', 'dragao']);
+});
+
+test('traits de ofício humano (guerreiro/paladino/vampiro/lobisomem) implicam humanoide', () => {
+    // Quem empunha arma ou veste armadura tem corpo de humano por definição:
+    // o ofício nunca aparece sem o trait humanoide.
+    const oficios = ['guerreiro', 'paladino', 'vampiro', 'lobisomem'];
+    const orfaos = [];
+    cardsDatabase.cards
+        .filter(c => c.type === 'criatura' || c.type === 'evolução')
+        .forEach(carta => {
+            const oficio = carta.traits.filter(t => oficios.includes(t));
+            if (oficio.length && !carta.traits.includes('humanoide')) {
+                orfaos.push(`${carta.id}: ${oficio.join(',')} sem humanoide`);
+            }
+        });
+    assert.deepEqual(orfaos, []);
+});
+
+test('dragões do catálogo estão marcados com a trait dragao', () => {
+    const dragoes = ['card_020', 'card_029', 'card_035', 'card_037', 'card_051',
+        'card_052', 'card_065', 'card_071', 'card_087'];
+    const faltando = dragoes.filter(id => {
+        const carta = cardsDatabase.cards.find(c => c.id === id);
+        return !carta || !carta.traits.includes('dragao');
+    });
+    assert.deepEqual(faltando, [], 'estas cartas deveriam ter dragao');
+});
+
+test('Superior é dragão: Scoul reage a ele em campo', () => {
+    const fixture = createSummonRuleFixture('card_037');
+    fixture.source.data.traits = [...cardsDatabase.cards.find(c => c.id === 'card_037').traits];
+    emitSummoned(fixture.engine, fixture.source);
+    assert.equal(fixture.engine.getEffectiveStat(fixture.source.instanceId, 'attack'), 10);
+
+    const superior = addFieldCreature(fixture.state, 'p2', 'card_087', 'superior_dragao');
+    superior.data.traits = [...cardsDatabase.cards.find(c => c.id === 'card_087').traits];
+    assert.equal(CardRules.hasTrait(superior, 'dragao'), true);
+    assert.equal(fixture.engine.getEffectiveStat(fixture.source.instanceId, 'attack'), 20);
+});
+
+test('toda criatura com ATK maior que 50 tem a trait elite', () => {
+    const fortes = cardsDatabase.cards
+        .filter(c => (c.type === 'criatura' || c.type === 'evolução') && c.attack > 50);
+    assert.ok(fortes.length >= 10, 'o catálogo deve manter as criaturas acima de 50 de ATK');
+    const semElite = fortes.filter(c => !c.traits.includes('elite'));
+    assert.deepEqual(semElite.map(c => c.id), []);
+});
+
+test('evoluções herdam os traits da forma base', () => {
+    const turtol = cardsDatabase.cards.find(c => c.id === 'card_048');
+    const maximus = cardsDatabase.cards.find(c => c.id === 'card_075');
+    assert.deepEqual(maximus.traits, turtol.traits);
+
+    const marik = cardsDatabase.cards.find(c => c.id === 'card_077');
+    const marik2 = cardsDatabase.cards.find(c => c.id === 'card_085');
+    marik.traits.forEach(trait => {
+        assert.ok(marik2.traits.includes(trait), `Marik 2 deve herdar ${trait} de Marik`);
+    });
+    assert.ok(marik2.traits.includes('elite'), 'Marik 2 tem ATK > 50');
+});
+
+test('o fallback TRAITS_BY_DEFINITION está sincronizado com o catálogo', () => {
+    Object.entries(CardRules.TRAITS_BY_DEFINITION).forEach(([id, fallback]) => {
+        const carta = cardsDatabase.cards.find(c => c.id === id);
+        if (!carta || !Array.isArray(carta.traits)) return;
+        assert.deepEqual([...fallback].sort(), [...carta.traits].sort(), `${id} divergiu do JSON`);
+    });
 });
 
 test('traits do JSON têm precedência sobre o fallback legado', () => {

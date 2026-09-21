@@ -1372,37 +1372,40 @@
 
     // elite = criatura com mais de 50 de ataque no catálogo; um card pode levar
     // traits duplos/triplos (ex.: Marik 2 = lobisomem + elite).
+    // Este mapa é fallback legado (fixtures sem `data.traits`); a fonte de verdade
+    // é o `traits` do catálogo. Um teste de unidade garante que os dois não divergem.
     const TRAITS_BY_DEFINITION = Object.freeze({
         card_018: Object.freeze(['robotico']),
         card_023: Object.freeze(['robotico']),
         card_027: Object.freeze(['robotico']),
         card_033: Object.freeze(['robotico']),
-        card_036: Object.freeze(['elite']),
+        card_036: Object.freeze(['elite', 'besta']),
         card_043: Object.freeze(['humanoide', 'guerreiro']),
         card_052: Object.freeze(['dragao']),
-        card_054: Object.freeze(['elite', 'vampiro']),
-        card_055: Object.freeze(['magico']),
+        card_054: Object.freeze(['elite', 'vampiro', 'humanoide']),
+        card_055: Object.freeze(['magico', 'humanoide']),
         card_056: Object.freeze(['guerreiro', 'humanoide']),
         card_057: Object.freeze(['fogo']),
-        card_059: Object.freeze(['lobisomem']),
-        card_061: Object.freeze(['elite']),
-        card_062: Object.freeze(['vampiro']),
+        card_059: Object.freeze(['lobisomem', 'humanoide']),
+        card_061: Object.freeze(['elite', 'humanoide']),
+        card_062: Object.freeze(['vampiro', 'humanoide']),
         card_065: Object.freeze(['dragao', 'robotico']),
         card_067: Object.freeze(['elite', 'paladino', 'humanoide']),
         card_068: Object.freeze(['elite', 'paladino', 'humanoide']),
         card_071: Object.freeze(['dragao']),
-        card_076: Object.freeze(['elite', 'vampiro']),
+        card_075: Object.freeze(['besta']),
+        card_076: Object.freeze(['elite', 'vampiro', 'humanoide']),
         card_077: Object.freeze(['humanoide', 'guerreiro', 'lobisomem']),
-        card_078: Object.freeze(['lobisomem', 'elite']),
-        card_079: Object.freeze(['lobisomem', 'elite']),
-        card_080: Object.freeze(['lobisomem', 'fogo', 'elite']),
-        card_081: Object.freeze(['lobisomem', 'elite']),
-        card_082: Object.freeze(['lobisomem', 'elite']),
+        card_078: Object.freeze(['lobisomem', 'elite', 'humanoide']),
+        card_079: Object.freeze(['lobisomem', 'elite', 'humanoide']),
+        card_080: Object.freeze(['lobisomem', 'fogo', 'elite', 'humanoide']),
+        card_081: Object.freeze(['lobisomem', 'elite', 'humanoide']),
+        card_082: Object.freeze(['lobisomem', 'elite', 'humanoide']),
         card_083: Object.freeze(['aquatico', 'elite']),
         card_084: Object.freeze(['elite', 'robotico']),
-        card_085: Object.freeze(['lobisomem', 'elite']),
-        card_086: Object.freeze(['elite']),
-        card_087: Object.freeze(['elite', 'guerreiro', 'humanoide'])
+        card_085: Object.freeze(['humanoide', 'guerreiro', 'lobisomem', 'elite']),
+        card_086: Object.freeze(['elite', 'humanoide']),
+        card_087: Object.freeze(['elite', 'dragao'])
     });
 
     function isCreatureCard(card) {

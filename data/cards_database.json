@@ -707,7 +707,8 @@
       "id": "card_054",
       "traits": [
         "elite",
-        "vampiro"
+        "vampiro",
+        "humanoide"
       ],
       "image": "assets/cards/lorde_sanguinário.png"
     },
@@ -720,7 +721,8 @@
       "hability": "Rajada de Mana: Uma vez por turno, pode causar 5 de dano direto aos pontos de vida do oponente.",
       "id": "card_055",
       "traits": [
-        "magico"
+        "magico",
+        "humanoide"
       ],
       "image": "assets/cards/mago_arcano.png"
     },
@@ -773,7 +775,8 @@
       "hability": "Licantropia das trevas: Caso o oponente tenha somente uma criatura ele não pode ser atacado.",
       "id": "card_059",
       "traits": [
-        "lobisomem"
+        "lobisomem",
+        "humanoide"
       ],
       "image": "assets/cards/o_lica.png"
     },
@@ -799,7 +802,8 @@
       "hability": "Elixir Protetor: Uma vez por turno, pode escolher um monstro aliado. Esse monstro ganha +10 de Defesa até o final do próximo turno do oponente.",
       "id": "card_061",
       "traits": [
-        "elite"
+        "elite",
+        "humanoide"
       ],
       "image": "assets/cards/alquimista_guardião.png"
     },
@@ -812,7 +816,8 @@
       "hability": "Ressucita um aliado ao derrotar inimigos.",
       "id": "card_062",
       "traits": [
-        "vampiro"
+        "vampiro",
+        "humanoide"
       ],
       "image": "assets/cards/alucard.png"
     },
@@ -986,7 +991,10 @@
       "defense": 48,
       "hability": "Se o oponente só tem um monstro em campo, ganha mais 10 pontos de defesa",
       "id": "card_075",
-      "image": "assets/cards/turtol_maximus.png"
+      "image": "assets/cards/turtol_maximus.png",
+      "traits": [
+        "besta"
+      ]
     },
     {
       "name": "Condessa Carmilla",
@@ -998,7 +1006,8 @@
       "id": "card_076",
       "traits": [
         "elite",
-        "vampiro"
+        "vampiro",
+        "humanoide"
       ],
       "image": "assets/cards/condessa_carmilla.png"
     },
@@ -1070,7 +1079,8 @@
       "id": "card_081",
       "traits": [
         "lobisomem",
-        "elite"
+        "elite",
+        "humanoide"
       ],
       "image": "assets/cards/latex.png"
     },
@@ -1084,7 +1094,8 @@
       "id": "card_082",
       "traits": [
         "lobisomem",
-        "elite"
+        "elite",
+        "humanoide"
       ],
       "image": "assets/cards/lobo_gamma_freeze.png"
     },
@@ -1124,7 +1135,13 @@
       "defense": 59,
       "hability": "Ataca todos os monstros inimigos, mas perde toda sua defesa depois de usada a habilidade.",
       "id": "card_085",
-      "image": "assets/cards/marik_2.png"
+      "image": "assets/cards/marik_2.png",
+      "traits": [
+        "humanoide",
+        "guerreiro",
+        "lobisomem",
+        "elite"
+      ]
     },
     {
       "name": "Sentinela Solar",
@@ -1135,7 +1152,8 @@
       "hability": "Ao ser invocado, cria uma barreira de luz que impede que qualquer monstro com Ataque de 30 ou menos cause dano a ele ou ao seu controlador por um turno.",
       "id": "card_086",
       "traits": [
-        "elite"
+        "elite",
+        "humanoide"
       ],
       "image": "assets/cards/sentinela_solar.png"
     },
@@ -1149,8 +1167,7 @@
       "id": "card_087",
       "traits": [
         "elite",
-        "guerreiro",
-        "humanoide"
+        "dragao"
       ],
       "image": "assets/cards/superior.png"
     },

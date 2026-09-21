@@ -1,6 +1,92 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-21 — `humanoide` = bípede + corpo de humano + empunha arma (Superior sai)
+Critério definido pelo autor do jogo: "humanoide é quem é bípede, poderia carregar uma
+arma, corpo de humano". O caso que motivou a definição é `card_087` (Superior): a rodada
+anterior deu `humanoide` + `guerreiro` a ele, mas a arte mostra um **dragão de duas
+cabeças** e o trait correto é `dragao` — corpo de dragão, não de humano. Ajuste feito:
+
+`card_087`: `['elite','guerreiro','humanoide','dragao']` → `['elite','dragao']`.
+
+Dois invariantes novos no teste de unidade passam a sustentar o critério:
+1. **`humanoide` nunca coexiste com corpo não humano** (`dragao`, `robotico`, `aquatico`,
+   `planta`, `fantasma`) — é o que impede um dragão, uma máquina ou um peixe de receberem
+   `humanoide` só por serem bípedes que carregam arma. Robôs (`Cp-2`, `Raylaser`,
+   `K-023`, `Gamaa`, `Imperial X`, e o `Iron Dragon`, que é `dragao`+`robotico`) ficam de
+   fora: corpo mecânico ≠ corpo de humano, e `robotico` já é o trait deles.
+2. **Ofício humano implica `humanoide`** (`guerreiro`, `paladino`, `vampiro`, `lobisomem`) —
+   quem empunha arma ou veste armadura tem corpo humano por definição; nenhum desses
+   traits pode aparecer sem `humanoide`.
+
+Estado do catálogo: **31 humanoides** em 79 criaturas/evoluções (era 32 com o Superior
+incluído à força). Impacto: `card_097` (Flecha de Prata, humanoide *ou* besta) e `card_102`
+(Estaca do Caçador, guerreiro *ou* humanoide) deixam de equipar no Superior — coerente,
+já que a carta é um dragão; `card_098`/`card_207`, que aceitam `dragao` *ou* `elite`,
+continuam aceitando.
+
+Evidências: **212/212** em `node tests/unit/run-tests.js` (dois testes novos: conflito de
+corpo não humano e órfãos de ofício humano), **20 PASS / 0 FAIL** em
+`node tests/browser/run-browser-tests.js` e `py -3 tests/pvp/smoke_match.py` com todos os
+checklists OK. Vermelho comprovado: reintroduzir `humanoide` no `card_087` derruba
+"humanoide exige corpo de humano".
+
+## 2026-09-21 — Catálogo de traits das criaturas (todas com trait, humanoides marcados)
+Sintoma (relatado pelo autor do jogo): "todas as cartas criaturas devem ter traits;
+criaturas humanoides devem ter o trait humanoide aplicado na lista, validando também
+pelas imagens das cartas".
+Inventário do catálogo (`data/cards_database.json`, 110 cartas, 79 criaturas +
+evoluções): só **duas** cartas sem `traits` — `card_075` (Turtol Maximus) e
+`card_085` (Marik 2), ambas de `type: "evolução"`. O invariante de teste existente
+("toda criatura do JSON tem ao menos uma trait") filtrava `type === 'criatura'`, e
+`isCreatureCard` (`card-rules.js`) considera `evolução` criatura — a lacuna passou
+despercebida justamente por isso. Também havia **fallback desatualizado**:
+`TRAITS_BY_DEFINITION` dava `['lobisomem','elite']` a `card_085` enquanto o JSON não
+tinha nada, e `card_036` divergia (`['elite']` no mapa vs `['elite','besta']` no JSON).
+
+Regras usadas para sugerir (nome → descrição `hability` → imagem): 
+1. **`elite` é derivável**: criatura com ATK > 50. Vale para 10 cartas (Lobo Alfa/Beta/
+   Gamma/Omega, Latex, Hidra das Profundezas, Imperial X, Marik 2, Sentinela Solar,
+   Superior). `card_036` já era `elite` com ATK 25 antes desta decisão e **não** foi
+   alterado (a regra é usada no sentido ATK>50 ⇒ elite, não o inverso).
+2. **`evolução` herda os traits da forma base** (+ `elite` quando ATK > 50):
+   Turtol Maximus (`card_075`) = Turtol (`card_048`) = `['besta']`; Marik 2 (`card_085`)
+   = traits de Marik (`card_077`) + `elite`.
+3. **`humanoide` = criatura de corpo humano** (bípede, membros e cabeça humana na
+   imagem), incluindo mortos-vivos humanoides (`vampiro`) e licantropos (`lobisomem`) —
+   convenção que Marik (`['humanoide','guerreiro','lobisomem']`) já documentava. Não
+   foi aplicado a formas não humanoides do mesmo tema (golem/gárgula de pedra, Ptera/
+   Grifo, robôs, bestas, plantas) nem a `fantasma`/`demonio`, que já têm trait própria.
+   Adicionado em 12 cartas: Lorde Sanguinário, Mago Arcano, O Lica, Alquimista
+   Guardião, Alucard, Condessa Carmilla, Lobo Alfa Fly, Lobo Beta Lightning, Lobo Omega
+   Pyro, Latex, Lobo Gamma Freeze, Sentinela Solar.
+4. **Traço temático confirmado pela imagem**: `card_087` (Superior) recebeu `dragao` —
+   a arte é um dragão de duas cabeças e a habilidade é "Senhor dos céus". Não recebeu
+   `voador`, porque a carta não tem voo/ataque direto (padrão de Diabrete Alado, Ptera
+   e Grifo Real) em nome, habilidade ou arte.
+
+Decisão de implementação: **o JSON é a fonte de verdade** e `TRAITS_BY_DEFINITION`
+passa a ser fallback legado declarado como tal, sincronizado com o catálogo (um teste
+trava a sincronia). 15 cartas ajustadas no JSON (14 por script com round-trip
+`JSON.parse`/`JSON.stringify` verificado byte-idêntico antes de escrever, para não
+reformatar o arquivo, e `card_087` por edição pontual); nenhuma outra linha do catálogo
+mudou.
+
+Impacto em regras (esperado e verificado): suportes que exigem `humanoide`
+(`card_097` "Flecha de Prata" — humanoide *ou* besta; `card_102` "Estaca do Caçador" —
+guerreiro *ou* humanoide) passam a aceitar essas 12 cartas, que antes eram recusadas.
+O invariante do teste foi corrigido para cobrir `evolução` (era a lacuna que deixou
+Turtol Maximus e Marik 2 passarem).
+
+Evidências: **210/210** em `node tests/unit/run-tests.js` (novos testes: invariante
+cobrindo `evolução` com a contagem do catálogo, lista de humanoides, lista de dragões com
+Superior, Scoul reagindo ao Superior, ATK>50 ⇒ `elite`, herança das evoluções e sincronia
+mapa↔JSON) e **20 PASS / 0 FAIL** em
+`node tests/browser/run-browser-tests.js`; `py -3 tests/pvp/smoke_match.py` com todos
+os checklists OK. Vermelho comprovado: o invariante antigo (só `criatura`) deixava as
+duas cartas passarem, e o teste de sincronia acusa qualquer divergência reintroduzida
+no fallback.
+
 ## 2026-09-21 — Dado da sorte: usado em uma tela, "disponível" na outra
 Sintoma (relatado jogando, com print das duas janelas): "inconsistências nos dados
 entre os dois players, ambos usaram, deveriam estar iguais nas duas telas,

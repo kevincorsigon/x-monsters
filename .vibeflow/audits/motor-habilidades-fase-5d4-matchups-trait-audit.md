@@ -150,6 +150,28 @@ IaC/K8s/config sensível — módulo de teste client-side puro.
 
 Nenhum gap remanescente identificado.
 
+### Follow-up 2026-09-21 — completude do catálogo de traits
+
+O motor de matchups estava correto; o que faltava era **dado** no catálogo. Auditoria
+somente leitura de `data/cards_database.json` (110 cartas) contra `TRAITS_BY_DEFINITION`
+e `isCreatureCard`:
+
+| Achado | Evidência | Ação |
+| --- | --- | --- |
+| `card_075`/`card_085` (`evolução`) sem `traits` | JSON sem a chave; `isCreatureCard` trata `evolução` como criatura | preenchidos (herança da forma base; Marik 2 + `elite` por ATK>50) |
+| Fallback divergente (`card_036`, `card_085`) | mapa vs JSON | mapa sincronizado com o catálogo + teste de sincronia |
+| Invariante de teste cego para `evolução` | filtrava `type === 'criatura'` | passa a cobrir `criatura` + `evolução` |
+| 12 cartas de corpo humano sem `humanoide` | nome + `hability` + imagem | `humanoide` aplicado (ver `decisions.md`) |
+| `card_087` (Superior) sem `dragao` | arte (dragão de duas cabeças) + "Senhor dos céus" | `dragao` aplicado; `voador` recusado (sem voo/ataque direto) |
+| `card_087` recebeu `humanoide`/`guerreiro` indevidamente | arte: dragão de duas cabeças; critério do autor (corpo de humano) | removidos; invariantes novos: `humanoide` nunca com `dragao`/`robotico`/`aquatico`/`planta`/`fantasma`, e `guerreiro`/`paladino`/`vampiro`/`lobisomem` ⇒ `humanoide` |
+
+Cobertura nova: invariante de trait por carta, lista explícita de humanoides (31),
+lista de dragões (9 cartas) com Scoul reagindo ao Superior, ATK>50 ⇒ `elite`, herança
+das evoluções, sincronia `TRAITS_BY_DEFINITION` ↔ JSON e os dois invariantes de corpo
+(corpo não humano ≠ humanoide; ofício humano ⇒ humanoide).
+Veredito: **PASS** — 79/79 criaturas e evoluções com ao menos uma trait, 212/212 na
+suíte de unidade e 20 PASS / 0 FAIL na de browser.
+
 ### Orçamento
 
 2/2 arquivos declarados no contrato original; o pacote incremental tocou

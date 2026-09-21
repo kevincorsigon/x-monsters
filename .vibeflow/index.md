@@ -132,8 +132,11 @@ patterns:
 - `server.py` — HTTP + WebSocket server, rooms, ledger mirror (~875 lines).
 - `src/js/deck_system.js` — fetch JSON + seeded balanced decks.
 - `src/js/manual_abilities.js` — activated-ability panel (+ PvP ABILITY).
-- `data/cards_database.json` — 110-card catalog.
-- `tests/unit/run-tests.js` — engine/rules/PvP regression tests (204 tests).
+- `data/cards_database.json` — 110-card catalog. Toda criatura/evolução tem `traits`
+  (única fonte de verdade; `elite` quando ATK > 50 e `humanoide` = bípede de corpo humano
+  que empunha arma, 31 cartas — nunca junto de `dragao`/`robotico`/`aquatico`/`planta`/
+  `fantasma`).
+- `tests/unit/run-tests.js` — engine/rules/PvP regression tests (212 tests).
 - `tests/pvp/smoke_match.py` — server + 2 WS clients smoke test (ledger só com
   as compras esperadas; F5 não soma comando).
 - `tests/browser/test_pvp_draw.js` — regra da compra em PvP no DOM real +
