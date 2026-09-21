@@ -1,6 +1,85 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-21 — Seção E do relatório de traits aplicada (corpo por arte/efeito)
+
+O autor autorizou aplicar as sugestões pendentes de
+`docs/RELATORIO_TRAITS_VS_IMAGENS.md`. Aplicado no catálogo (fonte de verdade),
+no fallback `TRAITS_BY_DEFINITION` e travado por teste:
+
+| Carta | Antes | Depois | Evidência |
+| --- | --- | --- | --- |
+| `card_012` Natalino | `humanoide` | `planta` | arte: árvore de Natal antropomórfica |
+| `card_016` Baltz | `guerreiro, humanoide` | `besta` | arte: cão Shiba Inu quadrúpede |
+| `card_003` ETC | `humanoide` | `humanoide, voador` | arte: alienígena em disco voador |
+| `card_061` Alquimista Guardião | `elite, humanoide` | `+ magico` | Elixir Protetor |
+| `card_063` Beluga de Terracota | `besta` | `besta, aquatico` | nome (cetáceo) — arte desta carta não foi inspecionada |
+| `card_078` Lobo Alfa Fly | `lobisomem, elite` | `+ besta, + voador` | "Domínio Aéreo" + nome "Fly" |
+| `card_079`/`card_080`/`card_081`/`card_082` | `lobisomem, elite` (`080` com `fogo`) | `+ besta` | canino é `besta` (precedente `card_014` Tobinha, filhotes de cachorro) |
+
+Mantidos por decisão explícita — as sugestões previam "manter":
+
+- `card_011` Kirb e `card_013` Zol seguem `besta`: as habilidades (copiar
+  habilidade de carta barata; comprar carta extra) não declaram magia, e `besta`
+  é o fallback descritivo do catálogo.
+- `card_023` Raylaser segue `robotico`: a trait tem mecânica ativa (três
+  equipamentos com `requiredTrait: 'robotico'` — ex.: `card_106` Escudo de
+  Energia Estável — e filtros de robôs em habilidades); trocar por `besta`
+  mudaria equipamentos e imunidades, o que é decisão de balanceamento, não de
+  descrição de corpo.
+
+Consequências de jogo assumidas e cobertas por teste:
+
+- `card_012` e `card_016` deixam de ser hospedeiros de `card_097` Flecha de
+  Prata e `card_102` Estaca do Caçador (perderam `humanoide`/`besta` conforme o
+  caso).
+- `card_097` volta a equipar toda a família Lobo (`besta`), mas `card_102`
+  **continua** não equipando neles: exige `guerreiro`/`humanoide`, e lobo não é
+  guerreiro.
+- `card_063` passa a ser encontrada pela habilidade do `card_038` Tlantidu
+  ("ao morrer pode procurar um monstro aquático no deck").
+- `card_061` passa a poder equipar `card_092` Cajado da Ilusão e `card_099` Tomo
+  de Feitiços Ancestrais (ambos exigem hospedeiro `magico`).
+
+Validação: `node tests/unit/run-tests.js` → **215/215**,
+`node tests/browser/run-browser-tests.js` → **20/20** (com o servidor estático),
+`py -3 tests/pvp/smoke_match.py` → todos os checklists passaram.
+Contagem de `humanoide` no catálogo: 26 → **24**.
+
+## 2026-09-21 — Lobos não são humanoides; só lobisomens de corpo humano são
+
+Correção do autor do jogo: **"lobos não são humanoides por padrão, lobisomens
+sim"**. Isso revoga parte da decisão anterior (mesma data), que aplicou
+`humanoide` à família Lobo tratando licantropo como sempre humanoide.
+
+Ajuste (opção escolhida pelo autor: só `humanoide` sai, `lobisomem` fica):
+
+| Carta | Antes | Depois |
+| --- | --- | --- |
+| `card_078` Lobo Alfa Fly | `lobisomem, elite, humanoide` | `lobisomem, elite` |
+| `card_079` Lobo Beta Lightning | `lobisomem, elite, humanoide` | `lobisomem, elite` |
+| `card_080` Lobo Omega Pyro | `lobisomem, fogo, elite, humanoide` | `lobisomem, fogo, elite` |
+| `card_081` Latex | `lobisomem, elite, humanoide` | `lobisomem, elite` |
+| `card_082` Lobo Gamma Freeze | `lobisomem, elite, humanoide` | `lobisomem, elite` |
+
+`card_059` O Lica, `card_077` Marik e `card_085` Marik 2 **mantêm**
+`humanoide` + `lobisomem`: são licantropos de corpo humano.
+
+Consequência semântica: na família Lobo, `lobisomem` passa a ser **trait
+temática de grupo** (alvo de matchups de caça), não declaração de corpo humano.
+Por isso o invariante "ofício humano ⇒ humanoide" foi restrito a
+`guerreiro`/`paladino`/`vampiro`, e um teste novo trava os dois lados da regra
+(licantropos humanos com `humanoide`; família Lobo com `lobisomem` e nunca
+`humanoide`). Sincronizado em `data/cards_database.json` (fonte de verdade) e
+no fallback `TRAITS_BY_DEFINITION` (`src/js/card-rules.js`).
+
+Matchups de caça **não** mudam: `card_107` Lâmina Sagrada, `card_102` Estaca do
+Caçador e `card_095` Manto da Luz Solar continuam lendo `lobisomem`, que os
+lobos conservam. Efeito colateral real: `card_097` Flecha de Prata
+(`requiredTraitsAny: ['humanoide','besta']`) e `card_102`
+(`['guerreiro','humanoide']`) deixam de aceitar os lobos como hospedeiros —
+corrigível dando `besta` à família Lobo, decisão ainda em aberto.
+
 ## 2026-09-21 — `humanoide` = bípede + corpo de humano + empunha arma (Superior sai)
 Critério definido pelo autor do jogo: "humanoide é quem é bípede, poderia carregar uma
 arma, corpo de humano". O caso que motivou a definição é `card_087` (Superior): a rodada

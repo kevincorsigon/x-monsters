@@ -77,3 +77,6 @@ backup_*/
 
 # PvP server match ledger (runtime mirror, not a source of truth)
 matches/
+
+# Relatórios locais gerados por scripts (derivados, não são fonte de verdade)
+reports/

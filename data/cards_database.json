@@ -29,7 +29,8 @@
       "hability": "Remove monstros com custo abaixo de 3 do campo inimigo para sua mão.",
       "id": "card_003",
       "traits": [
-        "humanoide"
+        "humanoide",
+        "voador"
       ],
       "image": "assets/cards/etc.png"
     },
@@ -157,7 +158,7 @@
       "hability": "Cura aliados em +10 de defesa ao ser invocado.",
       "id": "card_012",
       "traits": [
-        "humanoide"
+        "planta"
       ],
       "image": "assets/cards/natalino.png"
     },
@@ -206,8 +207,7 @@
       "hability": "Remove cartas de suporte do oponente.",
       "id": "card_016",
       "traits": [
-        "guerreiro",
-        "humanoide"
+        "besta"
       ],
       "image": "assets/cards/baltz.png"
     },
@@ -803,7 +803,8 @@
       "id": "card_061",
       "traits": [
         "elite",
-        "humanoide"
+        "humanoide",
+        "magico"
       ],
       "image": "assets/cards/alquimista_guardião.png"
     },
@@ -830,7 +831,8 @@
       "hability": "Uma vez por turno, pode atacar diretamente os pontos de vida do seu oponente, mas causando apenas metade do seu dano de Ataque.",
       "id": "card_063",
       "traits": [
-        "besta"
+        "besta",
+        "aquatico"
       ],
       "image": "assets/cards/beluga_de_terracota.png"
     },
@@ -1036,7 +1038,9 @@
       "id": "card_078",
       "traits": [
         "lobisomem",
-        "elite"
+        "elite",
+        "besta",
+        "voador"
       ],
       "image": "assets/cards/lobo_alfa_fly.png"
     },
@@ -1050,7 +1054,8 @@
       "id": "card_079",
       "traits": [
         "lobisomem",
-        "elite"
+        "elite",
+        "besta"
       ],
       "image": "assets/cards/lobo_beta_lightning.png"
     },
@@ -1065,7 +1070,8 @@
       "traits": [
         "lobisomem",
         "fogo",
-        "elite"
+        "elite",
+        "besta"
       ],
       "image": "assets/cards/lobo_omega_pyro.png"
     },
@@ -1080,7 +1086,7 @@
       "traits": [
         "lobisomem",
         "elite",
-        "humanoide"
+        "besta"
       ],
       "image": "assets/cards/latex.png"
     },
@@ -1095,7 +1101,7 @@
       "traits": [
         "lobisomem",
         "elite",
-        "humanoide"
+        "besta"
       ],
       "image": "assets/cards/lobo_gamma_freeze.png"
     },

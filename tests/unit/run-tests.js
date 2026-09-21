@@ -1390,11 +1390,10 @@ test('criaturas de corpo humano trazem a trait humanoide', () => {
     // Critério (decision.md): humanoide = bípede + corpo de humano + capaz de
     // empunhar arma. Aplicado por nome + hability + imagem da carta.
     const humanoides = [
-        'card_003', 'card_012', 'card_016', 'card_025', 'card_026', 'card_031', 'card_040',
+        'card_003', 'card_025', 'card_026', 'card_031', 'card_040',
         'card_043', 'card_045', 'card_046', 'card_047', 'card_054', 'card_055', 'card_056',
         'card_058', 'card_059', 'card_061', 'card_062', 'card_066', 'card_067', 'card_068',
-        'card_072', 'card_076', 'card_077', 'card_078', 'card_079', 'card_080', 'card_081',
-        'card_082', 'card_085', 'card_086'
+        'card_072', 'card_076', 'card_077', 'card_085', 'card_086'
     ];
     const faltando = humanoides.filter(id => {
         const carta = cardsDatabase.cards.find(c => c.id === id);
@@ -1420,10 +1419,11 @@ test('humanoide exige corpo de humano: nunca junto de corpo não humano', () => 
     assert.deepEqual(cardsDatabase.cards.find(c => c.id === 'card_087').traits, ['elite', 'dragao']);
 });
 
-test('traits de ofício humano (guerreiro/paladino/vampiro/lobisomem) implicam humanoide', () => {
+test('traits de ofício humano (guerreiro/paladino/vampiro) implicam humanoide', () => {
     // Quem empunha arma ou veste armadura tem corpo de humano por definição:
     // o ofício nunca aparece sem o trait humanoide.
-    const oficios = ['guerreiro', 'paladino', 'vampiro', 'lobisomem'];
+    // `lobisomem` NÃO entra aqui: a família Lobo é canina (ver teste seguinte).
+    const oficios = ['guerreiro', 'paladino', 'vampiro'];
     const orfaos = [];
     cardsDatabase.cards
         .filter(c => c.type === 'criatura' || c.type === 'evolução')
@@ -1434,6 +1434,83 @@ test('traits de ofício humano (guerreiro/paladino/vampiro/lobisomem) implicam h
             }
         });
     assert.deepEqual(orfaos, []);
+});
+
+test('lobisomens de corpo humano são humanoides; a família Lobo não é', () => {
+    // Critério do autor: "lobos não são humanoides por padrão, lobisomens sim".
+    // Licantropos com corpo de humano (O Lica, Marik, Marik 2) mantêm humanoide;
+    // a família Lobo (Alfa/Beta/Omega/Latex/Gamma) é canina e fica apenas com
+    // `lobisomem`, que ali é trait temática de grupo — não corpo de humano.
+    const licantroposHumanos = ['card_059', 'card_077', 'card_085'];
+    const familiaLobo = ['card_078', 'card_079', 'card_080', 'card_081', 'card_082'];
+    const licantroposSemHumanoide = licantroposHumanos.filter(id => {
+        const carta = cardsDatabase.cards.find(c => c.id === id);
+        return !carta || !carta.traits.includes('humanoide');
+    });
+    assert.deepEqual(
+        licantroposSemHumanoide,
+        [],
+        'licantropos de corpo humano deveriam ter humanoide'
+    );
+    const lobosInvalidos = familiaLobo.filter(id => {
+        const carta = cardsDatabase.cards.find(c => c.id === id);
+        return !carta ||
+            !carta.traits.includes('lobisomem') ||
+            carta.traits.includes('humanoide');
+    });
+    assert.deepEqual(
+        lobosInvalidos,
+        [],
+        'a família Lobo deve ter lobisomem e nunca humanoide'
+    );
+});
+
+test('traits aplicados por arte/efeito: planta, voador, magico e aquatico', () => {
+    // Decisão do autor (2026-09-21) sobre a seção E do relatório de traits:
+    // cada carta recebeu a trait que a arte ou o efeito declara.
+    const esperados = {
+        card_012: 'planta',    // árvore de Natal antropomórfica (era humanoide)
+        card_003: 'voador',    // disco voador na arte (abdução)
+        card_078: 'voador',    // "Domínio Aéreo" + nome "Fly"
+        card_061: 'magico',    // Alquimista Guardião / Elixir Protetor
+        card_063: 'aquatico'   // Beluga de Terracota (cetáceo)
+    };
+    const divergentes = Object.entries(esperados)
+        .filter(([id, trait]) => {
+            const carta = cardsDatabase.cards.find(c => c.id === id);
+            return !carta || !carta.traits.includes(trait);
+        })
+        .map(([id, trait]) => `${id} sem ${trait}`);
+    assert.deepEqual(divergentes, []);
+
+    const natalino = cardsDatabase.cards.find(c => c.id === 'card_012');
+    assert.deepEqual(natalino.traits, ['planta'], 'Natalino é árvore, não humanoide');
+    const baltz = cardsDatabase.cards.find(c => c.id === 'card_016');
+    assert.deepEqual(baltz.traits, ['besta'], 'Baltz é um cão quadrúpede');
+    const alquimista = cardsDatabase.cards.find(c => c.id === 'card_061');
+    assert.ok(alquimista.traits.includes('humanoide'), 'Alquimista continua humanoide');
+});
+
+test('a família Lobo é besta e volta a ser hospedeira da Flecha de Prata', () => {
+    const familiaLobo = ['card_078', 'card_079', 'card_080', 'card_081', 'card_082'];
+    const semBesta = familiaLobo.filter(id => {
+        const carta = cardsDatabase.cards.find(c => c.id === id);
+        return !carta || !carta.traits.includes('besta');
+    });
+    assert.deepEqual(semBesta, [], 'cão é besta: a família Lobo deveria ter besta');
+
+    const state = GameStateModel.createInitialGameState();
+    const lobo = GameStateModel.createCardInstance({
+        id: 'card_079', name: 'Lobo Beta Lightning', type: 'criatura', cost: 10,
+        attack: 55, defense: 47
+    }, 'p1', { instanceId: 'lobo_host' });
+    lobo.data.traits = [...cardsDatabase.cards.find(c => c.id === 'card_079').traits];
+    GameStateModel.registerCard(state, lobo, 'field', 'p1');
+    const flecha = GameStateModel.createCardInstance({
+        id: 'card_097', name: 'Flecha de Prata', type: 'suporte', cost: 3, attack: 8,
+        defense: 0
+    }, 'p1', { instanceId: 'flecha_lobo' });
+    assert.equal(CardRules.validateEquipmentTarget(flecha, lobo).valid, true);
 });
 
 test('dragões do catálogo estão marcados com a trait dragao', () => {

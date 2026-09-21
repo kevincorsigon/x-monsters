@@ -154,7 +154,36 @@ async function openNewTab() {
     return target.webSocketDebuggerUrl;
 }
 
+function fetchStatus(url) {
+    return new Promise((resolve, reject) => {
+        const req = http.get(url, res => {
+            res.resume();
+            resolve(res.statusCode);
+        });
+        req.on('error', reject);
+        req.setTimeout(5000, () => req.destroy(new Error('timeout')));
+    });
+}
+
+// Sem o servidor estático toda página vira erro do Chrome: os globals não
+// existem, o DOM fica vazio e os testes falham em massa por motivo falso.
+// Falhar antes de subir o Chrome deixa o diagnóstico explícito.
+async function ensureServer() {
+    try {
+        const status = await fetchStatus(`${BASE}/game.html`);
+        if (status !== 200) throw new Error(`HTTP ${status}`);
+    } catch (e) {
+        const detail = e.code || e.message ||
+            (e.errors || []).map(x => x.code || x.message).join(', ') || 'sem resposta';
+        console.error(`Servidor HTTP indisponível em ${BASE} (${detail}).`);
+        console.error('Suba a raiz do projeto antes: py -3 -m http.server 8080');
+        console.error('Sem ele os testes de browser falham em massa sem motivo real.');
+        process.exit(1);
+    }
+}
+
 async function main() {
+    await ensureServer();
     console.log('Iniciando Chrome headless...');
     const chrome = spawn(CHROME, [
         `--remote-debugging-port=${DEBUG_PORT}`,

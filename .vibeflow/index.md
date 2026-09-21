@@ -134,9 +134,10 @@ patterns:
 - `src/js/manual_abilities.js` — activated-ability panel (+ PvP ABILITY).
 - `data/cards_database.json` — 110-card catalog. Toda criatura/evolução tem `traits`
   (única fonte de verdade; `elite` quando ATK > 50 e `humanoide` = bípede de corpo humano
-  que empunha arma, 31 cartas — nunca junto de `dragao`/`robotico`/`aquatico`/`planta`/
-  `fantasma`).
-- `tests/unit/run-tests.js` — engine/rules/PvP regression tests (212 tests).
+  que empunha arma, 24 cartas — nunca junto de `dragao`/`robotico`/`aquatico`/`planta`/
+  `fantasma`. A família Lobo `card_078`–`card_082` tem `lobisomem` **sem** `humanoide`:
+  são caninos (`besta`), e ali `lobisomem` é trait temática de grupo).
+- `tests/unit/run-tests.js` — engine/rules/PvP regression tests (215 tests).
 - `tests/pvp/smoke_match.py` — server + 2 WS clients smoke test (ledger só com
   as compras esperadas; F5 não soma comando).
 - `tests/browser/test_pvp_draw.js` — regra da compra em PvP no DOM real +
