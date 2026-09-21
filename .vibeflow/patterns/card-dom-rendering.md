@@ -122,7 +122,12 @@ function dropCard(e) {
   is fully muted by CSS (`:disabled` → `grayscale(1) brightness(0.7)`,
   `opacity: .35`, `cursor: not-allowed`) and the hover rule is scoped to
   `.mini-button:not(:disabled):hover`: a raw `:hover` painted the used dice gold
-  and larger, i.e. "available", under the pointer.
+  and larger, i.e. "available", under the pointer. Who is "used" is state
+  (`gameState.diceUsed`), decided in one place (`marcarDadoComoUsado`) and
+  repainted by `rollDice` when the ledger replays the same command — the energy
+  is paid once, the repaint is idempotent. Nothing else may re-enable the button:
+  in PvP a blanket `disabled = !interagindo` was bringing the used dice back to
+  life on the owner's turn.
 - Engine effects that move cards into a hand (`MOVE_CARD` from a death reaction:
   Tlantidu `card_038`, Roller `card_069`, Zol, ETC) bypass the
   `returnedToHand` block of the UI, so the UI takes an `instantaneoDasMaos()`

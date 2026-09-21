@@ -133,7 +133,7 @@ patterns:
 - `src/js/deck_system.js` — fetch JSON + seeded balanced decks.
 - `src/js/manual_abilities.js` — activated-ability panel (+ PvP ABILITY).
 - `data/cards_database.json` — 110-card catalog.
-- `tests/unit/run-tests.js` — engine/rules/PvP regression tests (203 tests).
+- `tests/unit/run-tests.js` — engine/rules/PvP regression tests (204 tests).
 - `tests/pvp/smoke_match.py` — server + 2 WS clients smoke test (ledger só com
   as compras esperadas; F5 não soma comando).
 - `tests/browser/test_pvp_draw.js` — regra da compra em PvP no DOM real +
@@ -153,6 +153,9 @@ patterns:
   tamanho do slot (regressão do `.card.selected` com `scale`).
 - `tests/browser/test_pvp_game_over.js` — overlay de fim de partida visível,
   com o vencedor e o botão de volta ao lobby.
+- `tests/browser/test_pvp_dice_state.js` — o dado da sorte é igual nas duas telas:
+  "já usado" é `diceUsed` (repaint do bloqueio por turno não reabilita, clique
+  inerte, replay idempotente, remount limpando o dado antes do ledger).
 - `tests/browser/test_pvp_lobby_rules.js` — botão "Regras do Jogo" no lobby abre
   o modal (mesmas 5 seções do `index.html`), fecha no ×/fundo/Esc e o conteúdo
   cabe na viewport com rolagem interna (`LOBBY_CONSOLE_SCRIPTS` no runner).

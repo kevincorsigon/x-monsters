@@ -1,6 +1,53 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-21 — Dado da sorte: usado em uma tela, "disponível" na outra
+Sintoma (relatado jogando, com print das duas janelas): "inconsistências nos dados
+entre os dois players, ambos usaram, deveriam estar iguais nas duas telas,
+desativados". A tela de quem tinha o turno mostrava os **dois** dados com anel
+dourado (disponíveis); a outra mostrava os dois apagados, com as faces sorteadas.
+
+Causa (medida com dois assentos reais via CDP, servidor + duas abas):
+`atualizarBloqueioPorTurno` (`src/js/pvp-game.js`) fazia
+`document.querySelectorAll('.phase-button, .dice-button, .action-button').forEach(b => b.disabled = !interagindo)`
+— um `disabled` **blanket** que ignorava `gameState.diceUsed` e a posse do botão.
+Resultado: a cada `SYNCED`/`END_TURN` o dado já jogado **reacendia** quando o turno
+voltava ao dono e o dado do oponente ficava clicável. O clique num dado já usado
+não fazia nada (a guarda de `diceUsed` só mostrava o aviso), então era puramente
+visual — mas com a energia do lado, o botão dourado chamava atenção.
+Ao mesmo tempo, o `montarPartida` (F5/MATCH_START repetido) não devolvia o dado ao
+estado de partida nova: `dataset.diceRolled`/face sobreviviam no DOM e engoliam o
+`ROLL_DICE` do replay do ledger, que é justamente quem recontabiliza a energia no
+remount (risco de energia divergente entre as telas).
+
+Decisão: o dado passa a ser **estado do jogador**, num só lugar, e todo repaint
+respeita esse estado.
+- **`src/js/game.js`**: `marcarDadoComoUsado(diceButton, player, valor)` concentra
+  o "já jogado" (face pelo ícone, `disabled`, `diceUsed`, `dataset.diceRolled`,
+  title). `resetDiceUI()` (exportado como `window.resetDiceUI`) devolve os dois
+  dados ao estado de partida nova — o `resetGame` e o remount do PvP passam por ele
+  antes de qualquer replay. `rollDice(player, forcedValue)`, quando o valor vem do
+  ledger e o dado já está contabilizado, **só repinta** (não paga a energia de novo
+  nem aplica outro resultado); sem valor (clique local) mantém o aviso.
+- **`src/js/pvp-game.js`**: o blanket ficou só com `.phase-button`/`.action-button`;
+  o dado ganhou regra própria — `botao.disabled = usado || !interagindo || dono !==
+  seatLocal` (o meu, no meu turno e ainda não usado). `montarPartida` chama
+  `window.resetDiceUI?.()` junto da limpeza do DOM, antes do reset canônico.
+
+Evidências: **204/204** em `node tests/unit/run-tests.js` (rollDice/resetDiceUI
+dirigidos pelo estado + teste novo do bloqueio por turno, que proíbe o seletor
+blanket com `.dice-button` e exige a chamada de `resetDiceUI` antes do
+`resetMatchState`) e **20 PASS / 0 FAIL** em `node tests/browser/run-browser-tests.js`
+com o novo `tests/browser/test_pvp_dice_state.js` (23 checks: dado do oponente
+bloqueado, ROLL_DICE do ledger aplica energia e face nos dois lados, repaint não
+reabilita o usado, clique inerte, replay idempotente e remount limpando o dado).
+Comprovadamente vermelho: revertendo o `disabled` blanket, 6 checks do teste novo
+falham — incluindo "o meu dado usado não reabilita quando o turno volta" — e o
+teste de unidade acusa o seletor antigo. Antes/depois com dois assentos no CDP:
+`disabled` dos dois dados era `false/true` invertido por assento no bug e passou a
+ser idêntico nas duas telas (`off/off` com faces 5 e 6) em todos os passos,
+inclusive depois do F5. `py -3 tests/pvp/smoke_match.py` segue OK.
+
 ## 2026-09-21 — Regras do jogo no lobby PvP (botão + modal, igual ao index.html)
 Pedido: "na tela do lobby do pvp, temos que ter um botão com modal das regras do
 jogo, assim como temos em index.html".

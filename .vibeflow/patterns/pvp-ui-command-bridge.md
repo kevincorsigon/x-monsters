@@ -153,6 +153,15 @@ body[data-seat] .peek-hand-btn { display: none !important; }
   `resetGame` are neutralized until `MATCH_START`; editing the opponent's
   name/PV/energy, peeking the opponent hand and the deck-info button are
   disabled; interaction is enabled only on the local turn.
+- Per-player controls are never disabled by a blanket selector: the "used" state
+  is the state's own (`atualizarBloqueioPorTurno` skips `.dice-button` in its
+  blanket pass and decides the dice with `usado || !interagindo || dono !==
+  seatLocal`). A blanket `disabled` re-enabled the already-used Dice of Luck the
+  moment the turn came back to the owner — the button glowed again while the
+  other seat showed it greyed out. Local reset of that control lives in
+  `window.resetDiceUI` and `montarPartida` calls it before the ledger replay, so
+  `dataset.diceRolled` from the previous mount cannot swallow `ROLL_DICE` (the
+  command is what re-accounts the energy on a remount).
 - The local player's own animations keep running, but remote application is
   synchronous (no `setTimeout` choreography) so both clients land on the same
   state.

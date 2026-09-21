@@ -95,10 +95,17 @@
     assert('o "+N" não gera rolagem horizontal na página',
         document.documentElement.scrollWidth <= window.innerWidth + 1);
 
-    // 4. Dado já usado: nem custo, nem segundo resultado.
+    // 4. Dado já usado: o mesmo comando vindo do ledger (replay/F5/resync) não
+    // cobra a energia de novo — o valor do servidor é a verdade da face.
     const energiaComDadoUsado = valorEnergia('p2');
     window.rollDice('p2', 6);
-    assert('o dado já usado não cobra energia nem aplica outro resultado',
+    assert('o dado já usado não cobra energia (o ledger só repinta a face)',
+        valorEnergia('p2') === energiaComDadoUsado && botao('p2').dataset.face === '6');
+    assert('o dado já usado segue desabilitado depois do repaint',
+        botao('p2').disabled === true);
+    // Volta para o valor da partida para as checagens de estado usadas adiante.
+    window.rollDice('p2', 5);
+    assert('o repaint do ledger mantém a energia intacta',
         valorEnergia('p2') === energiaComDadoUsado && botao('p2').dataset.face === '5');
 
     // 5. Rolagem local: a classe de rolagem entra no clique, as faces trocam (o

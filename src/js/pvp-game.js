@@ -65,9 +65,11 @@
         setSeat,
         setSession,
         atualizarContadoresDeMao,
-        // Expostos para o teste headless do fim de partida (overlay do vencedor).
+        // Expostos para o teste headless do fim de partida (overlay do vencedor)
+        // e do dado da sorte (bloqueio por turno + "já jogado").
         montarPartida,
         tratarFimDePartida,
+        atualizarBloqueioPorTurno,
         handSizeOf: player => session?.handSizeOf?.(player) ?? null,
         getSeat: () => seatLocal,
         getRoomId: () => roomIdLocal,
@@ -396,6 +398,10 @@
         // empilhava placeholders (mão do oponente crescendo a cada reload).
         // Zera o DOM das mãos/campos antes do reset canônico.
         document.querySelectorAll('[id^="hand-"] .card, [id^="field-"] .card').forEach(el => el.remove());
+        // O dado volta ao estado de partida nova antes do replay: o
+        // `dataset.diceRolled`/face do mount anterior sobreviviam no DOM e
+        // engoliam o ROLL_DICE do ledger (energia divergente entre as telas).
+        window.resetDiceUI?.();
 
         // RNG com seed da sala: Tlantidu sorteia a aquática e os dois
         // clientes precisam sortear a mesma.
@@ -533,8 +539,18 @@
         const ehMeuTurno = state.currentPlayer === seatLocal;
         const interagindo = ehMeuTurno && !window.gameOver;
 
-        document.querySelectorAll('.phase-button, .dice-button, .action-button').forEach(botao => {
+        document.querySelectorAll('.phase-button, .action-button').forEach(botao => {
             botao.disabled = !interagindo;
+        });
+
+        // O dado é por jogador: só o do assento local, no próprio turno e ainda
+        // não usado, fica disponível. O `disabled` acima é blanket e reabilitava
+        // o dado já jogado quando o turno voltava ao dono (o botão acendia e o
+        // clique só mostrava o aviso) e deixava o dado do oponente clicável.
+        document.querySelectorAll('.dice-button').forEach(botao => {
+            const dono = botao.id.replace('dice-', '');
+            const usado = Boolean(state.diceUsed && state.diceUsed[dono]);
+            botao.disabled = usado || !interagindo || dono !== seatLocal;
         });
 
         const aviso = document.getElementById('pvp-turno');

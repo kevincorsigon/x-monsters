@@ -1839,7 +1839,7 @@ test('rollDice mostra a face sorteada sem overlay e o reset devolve o dado', () 
     const roll = fonte.slice(fonte.indexOf('function rollDice', inicio), fonte.indexOf('function playSound'));
     assert.match(roll, /diceButton\.classList\.add\('dice-rolling'\);/);
     assert.match(roll, /iniciarGiroDeFaces\(diceButton\);/);
-    assert.match(roll, /pararGiroDeFaces\(diceButton\);\s*diceButton\.classList\.remove\('dice-rolling'\);\s*diceButton\.classList\.add\('dice-settled'\);\s*marcarFaceDoDado\(diceButton, diceResult\);/);
+    assert.match(roll, /pararGiroDeFaces\(diceButton\);\s*diceButton\.classList\.remove\('dice-rolling'\);\s*diceButton\.classList\.add\('dice-settled'\);\s*marcarDadoComoUsado\(diceButton, player, diceResult\);/);
     assert.match(roll, /animarResultadoDoDado\(diceButton, player, diceResult\);/);
     // O estado "já jogado" é o `:disabled`: a classe do quique sai depois.
     assert.match(roll, /setTimeout\(\(\) => diceButton\.classList\.remove\('dice-settled'\), 500\);/);
@@ -1849,13 +1849,56 @@ test('rollDice mostra a face sorteada sem overlay e o reset devolve o dado', () 
     // O feedback saiu do centro da tela para o próprio dado.
     assert.doesNotMatch(roll, /showMessage\(`🎲 Dado da Sorte/);
 
+    // O visual do "já jogado" é idempotente e dirigido pelo estado: replay/F5 que
+    // reaplicam o mesmo ROLL_DICE repintam a face e o `disabled` sem pagar de novo.
+    const usado = fonte.slice(fonte.indexOf('function marcarDadoComoUsado'), fonte.indexOf('function animarResultadoDoDado'));
+    assert.match(usado, /diceButton\.dataset\.diceRolled = '1';/);
+    assert.match(usado, /diceButton\.disabled = true;/);
+    assert.match(usado, /gameState\.diceUsed\[player\] = true;/);
+    assert.match(usado, /if \(face !== null\) marcarFaceDoDado\(diceButton, face\);/);
+    assert.match(roll, /if \(forcedValue !== null\) \{\s*marcarDadoComoUsado\(diceButton, player, Number\(forcedValue\)\);/);
+    // A checagem de "já usado" é a primeira coisa depois da guarda de PvP: sem o
+    // botão no DOM o resto do corpo não pode nem começar.
+    assert.match(roll, /const diceButton = document\.getElementById\(`dice-\$\{player\}`\);\s*if \(!diceButton\) return;/);
+
     // Reset de partida: face, classes e os guards (o `dataset.diceRolled` e o
-    // giro de faces sobreviviam ao reset).
+    // giro de faces sobreviviam ao reset). `resetGame` e o remount do PvP
+    // (`montarPartida`) passam pelo mesmo `resetDiceUI`.
+    const resetDice = fonte.slice(fonte.indexOf('function resetDiceUI'), fonte.indexOf('function animarResultadoDoDado'));
+    assert.match(resetDice, /pararGiroDeFaces\(diceButton\);/);
+    assert.match(resetDice, /delete diceButton\.dataset\.diceRolled;/);
+    assert.match(resetDice, /diceButton\.classList\.remove\('dice-rolling', 'dice-settled'\);/);
+    assert.match(resetDice, /limparFaceDoDado\(diceButton\);/);
+    assert.match(resetDice, /diceButton\.disabled = false;/);
+    assert.match(fonte, /window\.resetDiceUI = resetDiceUI;/);
+
     const reset = fonte.slice(fonte.indexOf('function resetGame'), fonte.indexOf('function renderHandsFromState'));
-    assert.match(reset, /pararGiroDeFaces\(diceButton\);/);
-    assert.match(reset, /delete diceButton\.dataset\.diceRolled;/);
-    assert.match(reset, /diceButton\.classList\.remove\('dice-rolling', 'dice-settled'\);/);
-    assert.match(reset, /limparFaceDoDado\(diceButton\);/);
+    assert.match(reset, /resetDiceUI\(\);/);
+});
+
+test('o bloqueio por turno do PvP não reabilita o dado já usado', () => {
+    const pvp = fs.readFileSync(path.join(__dirname, '../../src/js/pvp-game.js'), 'utf8');
+    const bloqueio = pvp.slice(pvp.indexOf('function atualizarBloqueioPorTurno'), pvp.indexOf('function mulberrySala'));
+
+    // O `disabled` blanket não pode mais passar pelo dado: ele reacendia o dado
+    // já jogado quando o turno voltava ao dono (o clique só mostrava o aviso).
+    assert.doesNotMatch(bloqueio, /querySelectorAll\('\.phase-button, \.dice-button, \.action-button'\)/);
+    assert.match(bloqueio, /document\.querySelectorAll\('\.phase-button, \.action-button'\)/);
+    // O dado é decidido por assento + `diceUsed` do estado (a mesma verdade das
+    // duas telas): oponente nunca clicável, "já usado" nunca reabilitado.
+    assert.match(bloqueio, /const dono = botao\.id\.replace\('dice-', ''\);/);
+    assert.match(bloqueio, /const usado = Boolean\(state\.diceUsed && state\.diceUsed\[dono\]\);/);
+    assert.match(bloqueio, /botao\.disabled = usado \|\| !interagindo \|\| dono !== seatLocal;/);
+
+    // Remount (MATCH_START repetido/F5) devolve o dado ao estado de partida nova
+    // antes do replay do ledger: a face/`dataset.diceRolled` antigos engoliam o
+    // ROLL_DICE e a energia divergia entre as telas.
+    const montar = pvp.slice(pvp.indexOf('function montarPartida'), pvp.indexOf('function gerarDeckLocal'));
+    assert.match(montar, /window\.resetDiceUI\?\.\(\);/);
+    assert.ok(
+        montar.indexOf('window.resetDiceUI?.();') < montar.indexOf('window.GameStateModel.resetMatchState'),
+        'o reset do dado deve vir antes do reset canônico do estado'
+    );
 });
 
 test('Núcleo de Energia Pura aceita dragão ou elite e aplica somente +5/+5', () => {

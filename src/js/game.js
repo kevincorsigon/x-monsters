@@ -263,6 +263,21 @@
             delete diceButton.dataset.face;
         }
 
+        // Um só lugar decide o "já jogado": face conhecida (quando houver) e botão
+        // desabilitado a partir do estado (`gameState.diceUsed`). No PvP o mesmo
+        // comando do ledger é aplicado nos dois navegadores, então o visual precisa
+        // ser idempotente: replay/F5 repinta sem recontabilizar a energia.
+        function marcarDadoComoUsado(diceButton, player, valor) {
+            const face = Number.isFinite(valor) ? Number(valor) : null;
+            if (face !== null) marcarFaceDoDado(diceButton, face);
+            diceButton.dataset.diceRolled = '1';
+            diceButton.disabled = true;
+            gameState.diceUsed[player] = true;
+            diceButton.title = face !== null
+                ? `Dado da sorte: ${face} (já usado nesta partida)`
+                : 'Dado da sorte já usado nesta partida';
+        }
+
         // O dado "sorteia" na tela: as faces trocam até o resultado oficial chegar.
         // Um timer por botão (WeakMap), porque os dois lados podem rolar em PvP.
         const girosDeFace = new WeakMap();
@@ -286,6 +301,24 @@
             clearInterval(timer);
             girosDeFace.delete(diceButton);
         }
+
+        // Dado de volta ao estado de partida nova: emoji, habilitado e sem giro.
+        // `resetGame` e o remount do PvP (`montarPartida`) passam por aqui: o
+        // `dataset.diceRolled` sobrevive no DOM e engoliria o dado da partida
+        // seguinte (o botão ficava "usado" numa partida que ainda não usou).
+        function resetDiceUI() {
+            ['p1', 'p2'].forEach(player => {
+                const diceButton = document.getElementById(`dice-${player}`);
+                if (!diceButton) return;
+                pararGiroDeFaces(diceButton);
+                delete diceButton.dataset.diceRolled;
+                diceButton.classList.remove('dice-rolling', 'dice-settled');
+                limparFaceDoDado(diceButton);
+                diceButton.disabled = false;
+                diceButton.title = 'Dado da Sorte (2 energia)';
+            });
+        }
+        window.resetDiceUI = resetDiceUI;
 
         // Feedback do resultado do dado: pulso dourado na energia + o "+N" subindo
         // do botão. Tudo local e fora do fluxo — o overlay central (`showMessage`)
@@ -314,7 +347,18 @@
             if (forcedValue === null && pvpGuard({ cmd: 'ROLL_DICE', args: { player } })) {
                 return;
             }
+
+            const diceButton = document.getElementById(`dice-${player}`);
+            if (!diceButton) return;
+
             if (gameState.diceUsed[player]) {
+                // Valor vindo do ledger de um dado já contabilizado neste cliente
+                // (F5/replay, MATCH_START repetido): a energia não se paga duas
+                // vezes — só o visual volta ao "já jogado" com a face sorteada.
+                if (forcedValue !== null) {
+                    marcarDadoComoUsado(diceButton, player, Number(forcedValue));
+                    return;
+                }
                 showMessage('Você já usou o dado da sorte nesta partida!', 'warning');
                 return;
             }
@@ -327,7 +371,6 @@
 
             changeStat('energy', player, -2);
 
-            const diceButton = document.getElementById(`dice-${player}`);
             diceButton.classList.remove('dice-settled');
             diceButton.classList.add('dice-rolling');
             diceButton.title = 'Rolando o dado da sorte…';
@@ -352,15 +395,11 @@
                 pararGiroDeFaces(diceButton);
                 diceButton.classList.remove('dice-rolling');
                 diceButton.classList.add('dice-settled');
-                marcarFaceDoDado(diceButton, diceResult);
+                marcarDadoComoUsado(diceButton, player, diceResult);
                 animarResultadoDoDado(diceButton, player, diceResult);
                 // O estado "já jogado" é o `:disabled` do CSS: a classe do quique
                 // sai depois da animação para não manter destaque no botão.
                 setTimeout(() => diceButton.classList.remove('dice-settled'), 500);
-
-                gameState.diceUsed[player] = true;
-                diceButton.disabled = true;
-                diceButton.title = `Dado da sorte: ${diceResult} (já usado nesta partida)`;
             };
 
             // Valor do servidor (PvP) aplica na hora; no modo local anima 800ms.
@@ -1254,20 +1293,10 @@
             }
             initFirstTurn();
 
+            // Dado da sorte volta ao estado de partida nova (emoji + habilitado).
+            resetDiceUI();
+
             ['p1', 'p2'].forEach(player => {
-                const diceButton = document.getElementById(`dice-${player}`);
-                if (diceButton) {
-                    // Nova partida: o dado volta a rolar. O `dataset.diceRolled`
-                    // sobrevivia ao reset e engolia o resultado da partida seguinte
-                    // (a guarda de aplicação dupla retornava cedo).
-                    pararGiroDeFaces(diceButton);
-                    delete diceButton.dataset.diceRolled;
-                    diceButton.classList.remove('dice-rolling', 'dice-settled');
-                    limparFaceDoDado(diceButton);
-                    diceButton.disabled = false;
-                    diceButton.title = 'Dado da Sorte (2 energia)';
-                }
-                
                 // Reset names
                 const nameElement = document.querySelector(`.player${player === 'p1' ? '1' : '2'}-stats .player-name`);
                 if (nameElement) {

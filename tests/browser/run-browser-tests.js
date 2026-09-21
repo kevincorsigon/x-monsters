@@ -36,6 +36,7 @@ const PVP_CONSOLE_SCRIPTS = [
     'tests/browser/test_field_card_size.js',
     'tests/browser/test_pvp_game_over.js',
     'tests/browser/test_pvp_deck_count.js',
+    'tests/browser/test_pvp_dice_state.js',
 ];
 
 // Scripts de console do lobby (precisam de pvp-lobby.html carregado)
