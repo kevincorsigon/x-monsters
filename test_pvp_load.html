@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test PVP Modules</title>
+</head>
+<body>
+    <h1>Teste de Módulos PVP</h1>
+    <div id="log"></div>
+    <script>
+        function log(msg) {
+            console.log(msg);
+            document.getElementById('log').innerHTML += msg + '<br>';
+        }
+    </script>
+    <script src="src/js/pvp-protocol.js"></script>
+    <script>log('PvpProtocol: ' + typeof window.PvpProtocol);</script>
+    <script src="src/js/pvp-session.js"></script>
+    <script>log('PvpSession: ' + typeof window.PvpSession);</script>
+    <script src="src/js/pvp-state.js"></script>
+    <script>log('PvpState: ' + typeof window.PvpState);</script>
+    <script src="src/js/pvp-game.js"></script>
+    <script>log('PvpGame: ' + typeof window.PvpGame);</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+Sim, spec pronta. Status real, verificado agora:
+
+DoD item 7 (gate final): node tests/unit/run-tests.js → 141/141 ✅ e py -3 scripts/check_cards.py → exit code 0 ✅.
+Cobertura real de implementação: 109/110 cartas têm regra própria em card-rules.js. Achei e corrigi de quebra um bug no check_cards.py que eu mesmo tinha introduzido — ele usava CardRules.isMigrated(), que subestima a cobertura porque várias cartas (038, 041, 062, 069, 083...) são resolvidas por checagens definitionId === 'card_XXX' dentro de handlers de evento compartilhados, não pelas tabelas declarativas. Troquei para uma varredura direta do texto de card-rules.js, que é o sinal correto.
+Pendência única: card_090 (Bilugação Astral) segue de fora — não é bug, é a questão de produto #13 já documentada na spec ("o que significa 'intransponível' exatamente: bloqueia alvo, dano, destruição e/ou ataque direto?"). Todas as outras 23 questões bloqueadoras da spec já foram respondidas durante a implementação (registrado em decisions.md).
+Atualizei o cabeçalho "Status" da spec para refletir isso em vez do texto obsoleto ("implementação não iniciada").
+Se quiser, posso levar essa questão #13 para decisão agora e fechar os 110/110.

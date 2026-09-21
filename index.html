@@ -399,11 +399,10 @@
                 <div class="stat-box">
                     <span class="stat-label">Energia</span>
                     <span id="energy-p1" class="stat-value">6</span>
-                    <div class="plus-minus-row">
+                <div class="plus-minus-row">
                         <button class="plus-minus-button" onclick="changeStat('energy', 'p1', -1)">-</button>
                         <button class="plus-minus-button" onclick="changeStat('energy', 'p1', 1)">+</button>
-                    </div>
-                </div>
+                    </div>                </div>
             </div>
         </div>
 
@@ -428,7 +427,7 @@
                 <div class="stat-box">
                     <span class="stat-label">Energia</span>
                     <span id="energy-p2" class="stat-value">6</span>
-                    <div class="plus-minus-row">
+                   <div class="plus-minus-row">
                         <button class="plus-minus-button" onclick="changeStat('energy', 'p2', -1)">-</button>
                         <button class="plus-minus-button" onclick="changeStat('energy', 'p2', 1)">+</button>
                     </div>
@@ -438,9 +437,10 @@
     </div>
 
     <div class="main-controls-container">
-        <button class="action-button energy-button" onclick="increaseEnergyForBoth()">Fase de Energia</button>
+            <!-- Botão Fase de Energia removido – função reimplementada como Próximo Turno -->
+        <button class="action-button" onclick="nextTurn()">Próximo Turno</button>
         <div class="secondary-controls">
-            <button class="action-button reset-button" onclick="resetGame()">Reiniciar Jogo</button>
+              <button class="action-button reset-button" onclick="resetGame()">Reiniciar Jogo</button>
             <button class="action-button rules-button" onclick="showRulesModal()">Regras do Jogo</button>
         </div>
     </div>
@@ -487,19 +487,19 @@
 
     <!-- Elementos de áudio -->
     <audio id="punchSound" preload="auto">
-        <source src="punch.mp3" type="audio/mpeg">
+        <source src="assets/audio/punch.mp3" type="audio/mpeg">
     </audio>
     <audio id="victorySound" preload="auto">
-        <source src="victory.mp3" type="audio/mpeg">
+        <source src="assets/audio/victory.mp3" type="audio/mpeg">
     </audio>
     <audio id="energySound" preload="auto">
-        <source src="energy.mp3" type="audio/mpeg">
+        <source src="assets/audio/energy.mp3" type="audio/mpeg">
     </audio>
     <audio id="healingSound" preload="auto">
-        <source src="healing.mp3" type="audio/mpeg">
+        <source src="assets/audio/healing.mp3" type="audio/mpeg">
     </audio>
     <audio id="wasteSound" preload="auto">
-        <source src="waste.mp3" type="audio/mpeg">
+        <source src="assets/audio/waste.mp3" type="audio/mpeg">
     </audio>
 
     <script>
@@ -523,6 +523,28 @@
             p1: INITIAL_ENERGY,
             p2: INITIAL_ENERGY
         };
+
+        // --- Controle de turno -------------------------------------------
+        let currentPlayer = 'p1';
+        let turnNumber = 1;
+
+        function nextTurn() {
+            // alterna jogador
+            currentPlayer = currentPlayer === 'p1' ? 'p2' : 'p1';
+            turnNumber++;
+
+            // aumenta energia (máximo) do jogador atual
+            if (maxEnergy[currentPlayer] < MAX_ENERGY) {
+                maxEnergy[currentPlayer]++;
+            }
+
+            // atualiza o valor exibido
+            document.getElementById(`energy-${currentPlayer}`).innerText = maxEnergy[currentPlayer];
+
+            // notificação simples – pode ser customizada mais tarde
+            const playerName = currentPlayer === 'p1' ? 'Jogador 1' : 'Jogador 2';
+            showTurnNotification(`⚡ ${playerName}<br/>Energia: ${maxEnergy[currentPlayer]}`, 1000);
+        }
 
         function startAutoDecrement(stat, player, event) {
             // Previne comportamento padrão em dispositivos touch para evitar conflitos
@@ -641,32 +663,12 @@
             }
         }
 
-        function increaseEnergyForBoth() {
-            // Aumenta o máximo de energia de cada jogador em 1 (até o limite)
-            if (maxEnergy.p1 < MAX_ENERGY) {
-                maxEnergy.p1++;
-            }
-            if (maxEnergy.p2 < MAX_ENERGY) {
-                maxEnergy.p2++;
-            }
-            
-            // Restaura a energia atual para o novo máximo
-            const energy1Element = document.getElementById('energy-p1');
-            const energy2Element = document.getElementById('energy-p2');
-            
-            energy1Element.innerText = maxEnergy.p1;
-            energy2Element.innerText = maxEnergy.p2;
-            
-            // Toca o som de energia
-            const energySound = document.getElementById('energySound');
-            energySound.currentTime = 0;
-            energySound.play().catch(error => console.log('Erro ao tocar o som de energia:', error));
-        }
+        // Função removida – energia agora atualizada automaticamente em nextTurn()
 
         function rollDice(player) {
             // Verifica se o jogador já usou o dado
-            if (diceUsed[player]) {
-                alert('Você já usou o dado da sorte nesta partida!');
+                if (diceUsed[player]) {
+                    showMessage('Você já usou o dado da sorte nesta partida!');
                 return;
             }
 
@@ -675,7 +677,7 @@
             const currentEnergy = parseInt(energyElement.innerText);
             
             if (currentEnergy < 2) {
-                alert('Você precisa de pelo menos 2 pontos de energia para usar o dado da sorte!');
+                showMessage('Você precisa de pelo menos 2 pontos de energia para usar o dado da sorte!');
                 return;
             }
 
@@ -699,7 +701,7 @@
                     changeStat('energy', player, actualGain);
                 }
                 
-                alert(`🎲 Dado da Sorte! Você ganhou ${diceResult} pontos de energia!`);
+            showMessage(`🎲 Dado da Sorte! Você ganhou ${diceResult} pontos de energia!`);
 
                 // Marca que o jogador já usou o dado e desabilita o botão
                 diceUsed[player] = true;

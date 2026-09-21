@@ -1,0 +1,333 @@
+<!-- Lobby PvP Online (spec pvp-online-websocket-part-1). O bloco <style> reusa
+     a paleta (:root) de src/css/game.css para manter a identidade visual. -->
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X Monsters - Lobby PvP Online</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f1115;
+            --card-bg-color: #1a1e28;
+            --text-color: #f1f5f9;
+            --primary-color: #d4af37;
+            --secondary-color: #334155;
+            --pv-color: #4ade80;
+            --energy-color: #fbbf24;
+            --pv-zero-color: #ef4444;
+            --border-radius: 8px;
+            --spacing: 15px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Cinzel', serif;
+            background: linear-gradient(135deg, var(--bg-color) 0%, #2d3748 100%);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--spacing);
+        }
+
+        .lobby {
+            width: min(760px, 100%);
+            background: var(--card-bg-color);
+            border: 2px solid var(--primary-color);
+            border-radius: var(--border-radius);
+            padding: calc(var(--spacing) * 2);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        h1 { color: var(--primary-color); font-size: 1.8rem; margin-bottom: 6px; text-align: center; }
+        .subtitle { text-align: center; color: var(--text-color); opacity: 0.75; font-size: 0.85rem; margin-bottom: var(--spacing); }
+
+        .action-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+        button {
+            font-family: 'Cinzel', serif;
+            font-size: 0.95rem;
+            padding: 10px 18px;
+            border-radius: var(--border-radius);
+            border: 1px solid var(--primary-color);
+            background: var(--primary-color);
+            color: #10131a;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        button.secondary { background: transparent; color: var(--primary-color); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .panel { margin-top: var(--spacing); border-top: 1px solid var(--secondary-color); padding-top: var(--spacing); display: none; }
+        .panel.visible { display: block; }
+
+        .status-line { font-size: 0.9rem; margin-bottom: 10px; }
+        .status-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            background: var(--secondary-color);
+        }
+        .status-badge.waiting { background: var(--energy-color); color: #10131a; }
+        .status-badge.playing { background: var(--pv-color); color: #10131a; }
+        .status-badge.finished { background: var(--pv-zero-color); color: #fff; }
+
+        .link-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            background: rgba(0, 0, 0, 0.25);
+            border: 1px solid var(--secondary-color);
+            border-radius: var(--border-radius);
+            padding: 8px 10px;
+        }
+
+        .link-row .seat { color: var(--primary-color); font-weight: 700; min-width: 28px; }
+        .link-row code { flex: 1; font-size: 0.8rem; word-break: break-all; font-family: Consolas, monospace; }
+        .hint { font-size: 0.8rem; opacity: 0.75; margin-top: 10px; line-height: 1.5; }
+        .error { color: var(--pv-zero-color); font-size: 0.85rem; margin-top: 10px; }
+
+        /* --- Regras do jogo (modal) --- */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            padding: var(--spacing);
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            visibility: hidden;
+            opacity: 0;
+            transition: visibility 0s, opacity 0.3s ease;
+            z-index: 1000;
+        }
+
+        .modal-overlay.visible { visibility: visible; opacity: 1; }
+
+        .modal-content {
+            background-color: var(--card-bg-color);
+            padding: var(--spacing);
+            border-radius: var(--border-radius);
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+            border: 2px solid var(--primary-color);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 2em;
+            line-height: 1;
+            color: var(--primary-color);
+            cursor: pointer;
+        }
+        .modal-close:hover { color: var(--energy-color); }
+
+        .rules-text h2 { color: var(--primary-color); text-align: center; font-size: 1.2rem; margin-bottom: 12px; }
+        .rules-text h3 {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 5px;
+            margin-top: 20px;
+            font-size: 1rem;
+        }
+        .rules-text h3:first-of-type { margin-top: 0; }
+        .rules-text p, .rules-text li { line-height: 1.6; margin-bottom: 10px; font-size: 0.85rem; text-align: left; }
+        .rules-text ul { margin: 0 0 10px 18px; }
+    </style>
+</head>
+<body>
+    <div class="lobby">
+        <h1>X Monsters</h1>
+        <div class="subtitle">Partida PvP online &mdash; cada jogador no seu navegador</div>
+
+        <div class="action-row">
+            <button id="create-button" onclick="criarPartida()">Criar partida</button>
+            <button id="refresh-button" class="secondary" onclick="atualizarStatus()" disabled>Atualizar status</button>
+            <button id="new-button" class="secondary" onclick="criarPartida()" disabled>Nova partida</button>
+            <button id="rules-button" class="secondary" onclick="showRulesModal()">Regras do Jogo</button>
+        </div>
+
+        <div class="panel" id="panel">
+            <div class="status-line">
+                Sala <code id="room-id">&mdash;</code> &middot;
+                <span class="status-badge waiting" id="status-badge">aguardando</span>
+                &middot; <span id="status-detail">0/2 jogadores conectados</span>
+            </div>
+            <div class="link-row">
+                <span class="seat">P1</span>
+                <code id="link-p1">&mdash;</code>
+                <button class="secondary" onclick="copiarLink('p1')">Copiar</button>
+            </div>
+            <div class="link-row">
+                <span class="seat">P2</span>
+                <code id="link-p2">&mdash;</code>
+                <button class="secondary" onclick="copiarLink('p2')">Copiar</button>
+            </div>
+            <div class="hint">
+                Envie o link do P1 para um jogador e o do P2 para o outro. Cada link abre o
+                tabuleiro no assento correto. Abrir pelo mesmo Wi-Fi funciona se o servidor
+                tiver sido iniciado com <code>--host 0.0.0.0</code> (use o IP da sua maquina
+                no lugar de localhost).
+            </div>
+            <div class="error" id="error-line"></div>
+        </div>
+
+        <div class="hint">
+            Servidor: <code>py -3 server.py</code> &middot; esta pagina em <code>/pvp</code>.
+        </div>
+    </div>
+
+    <!-- Regras do jogo: mesmo conteudo do modal do index.html. -->
+    <div id="rules-modal" class="modal-overlay">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeRulesModal()">&times;</span>
+            <div class="rules-text">
+                <h2>Regras do Jogo X Monsters</h2>
+
+                <h3>1. Objetivo e Condição de Vitória</h3>
+                <p>O objetivo principal do jogo é ser o único jogador com monstros em campo e/ou reduzir os pontos de vida do seu oponente a zero.</p>
+                <p><strong>Pontos de Vida (PV):</strong> Cada jogador começa com 200 pontos de vida. Se o seu PV chegar a zero ou menos, você perde a partida.</p>
+
+                <h3>2. Sistema de Energia</h3>
+                <p>A energia é o recurso principal do jogo, usado para invocar monstros e equipar cartas de suporte.</p>
+                <p><strong>Energia Inicial:</strong> Cada jogador começa o jogo com 6 pontos de energia.</p>
+                <p><strong>Aumento de Energia:</strong> A cada virada de turno, quando volta para o seu turno na Fase de Energia, você ganha 1 ponto de energia adicional.</p>
+                <p><strong>Mecânica de Gasto:</strong> Dentro do seu turno, você pode gastar toda a sua energia disponível. No turno seguinte, você volta com o total máximo que tinha no turno anterior mais 1 ponto.</p>
+                <p><strong>Progressão:</strong> Por exemplo: turno 1 (6 energia), turno 2 (7 energia), turno 3 (8 energia), e assim por diante até o limite máximo.</p>
+                <p><strong>Limite Máximo:</strong> A energia máxima que você pode acumular é de 20 pontos.</p>
+                <p><strong>Dado da Sorte:</strong> Uma vez por jogo, cada jogador pode gastar 2 pontos de energia para rolar um dado da sorte e ganhar de 1 a 6 pontos de energia adicionais (sem ultrapassar o limite de 20).</p>
+
+                <h3>3. Fases do Turno</h3>
+                <p>Cada turno de um jogador é dividido em três fases obrigatórias, que devem ser seguidas em sequência:</p>
+                <ul>
+                    <li><strong>Fase de Energia:</strong> Sua energia total aumenta em 1 ponto (até o limite de 20). Seu novo máximo de energia será o máximo do turno anterior + 1.</li>
+                    <li><strong>Fase de Invocação:</strong> Nesta fase, você pode gastar sua energia para jogar cartas da sua mão. Você pode invocar qualquer número de monstros e equipar cartas de suporte, desde que tenha energia suficiente para pagar o custo de cada carta.</li>
+                    <li><strong>Fase de Combate:</strong> Você pode declarar ataques com seus monstros contra os monstros do oponente. Cada um dos seus monstros pode atacar uma vez por turno, a menos que sua habilidade especial diga o contrário.</li>
+                </ul>
+
+                <h3>4. Combate e Dano</h3>
+                <p><strong>Ataque:</strong> Para atacar, escolha um de seus monstros e declare-o como atacante, escolhendo um monstro do oponente como alvo.</p>
+                <p><strong>Cálculo de Dano:</strong> O dano de um ataque é calculado subtraindo a Defesa do monstro do oponente do Ataque do seu monstro.</p>
+                <p><strong>Derrota:</strong> Se a Defesa de um monstro chegar a 0 ou menos, ele é considerado derrotado e é removido do campo.</p>
+                <p><strong>Dano aos Pontos de Vida:</strong> Se o Ataque de um monstro for maior que a Defesa do monstro alvo, o dano restante é aplicado diretamente aos pontos de vida do oponente.</p>
+
+                <h3>5. Mecânicas Adicionais</h3>
+                <p><strong>Evolução:</strong> Alguns monstros têm uma forma evoluída. O custo para evoluir é a diferença de energia entre a criatura básica e sua versão evoluída. A carta evoluída substitui a criatura básica no campo.</p>
+                <p><strong>Cartas de Suporte:</strong> Essas cartas são itens equipáveis que fornecem bônus de Ataque e Defesa, além de habilidades especiais. Cada carta de suporte tem seu próprio custo de energia para ser equipada em um monstro.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Estado local do lobby: apenas a sala atual e o polling de status.
+        let salaAtual = null;
+        let timerStatus = null;
+
+        const ROTULOS_STATUS = {
+            waiting: 'aguardando',
+            playing: 'em partida',
+            finished: 'finalizada'
+        };
+
+        function mostrarErro(mensagem) {
+            document.getElementById('error-line').textContent = mensagem || '';
+        }
+
+        async function criarPartida() {
+            mostrarErro('');
+            try {
+                const resposta = await fetch('/api/matches', { method: 'POST' });
+                if (!resposta.ok) {
+                    throw new Error('O servidor respondeu ' + resposta.status);
+                }
+                const sala = await resposta.json();
+                salaAtual = sala;
+                renderizarSala(sala);
+                agendarStatus();
+            } catch (erro) {
+                mostrarErro('Nao foi possivel criar a partida: ' + erro.message);
+            }
+        }
+
+        function renderizarSala(sala) {
+            document.getElementById('panel').classList.add('visible');
+            document.getElementById('room-id').textContent = sala.roomId;
+            document.getElementById('link-p1').textContent = sala.links.p1;
+            document.getElementById('link-p2').textContent = sala.links.p2;
+            document.getElementById('new-button').disabled = false;
+            document.getElementById('refresh-button').disabled = false;
+            renderizarStatus(sala);
+        }
+
+        function renderizarStatus(sala) {
+            const conectados = ['p1', 'p2']
+                .filter(assento => sala.assentos && sala.assentos[assento] && sala.assentos[assento].conectado)
+                .length;
+            const badge = document.getElementById('status-badge');
+            badge.textContent = ROTULOS_STATUS[sala.status] || sala.status;
+            badge.className = 'status-badge ' + (sala.status || 'waiting');
+            document.getElementById('status-detail').textContent =
+                conectados + '/2 jogadores conectados';
+        }
+
+        async function atualizarStatus() {
+            if (!salaAtual) return;
+            try {
+                const resposta = await fetch('/api/matches/' + salaAtual.roomId);
+                if (!resposta.ok) return;  // sala removida por TTL: o polling segue tentando
+                const sala = await resposta.json();
+                renderizarSala(sala);
+            } catch (erro) {
+                // Falha de rede momentanea nao deve poluir a tela do lobby.
+            }
+        }
+
+        function agendarStatus() {
+            if (timerStatus) clearInterval(timerStatus);
+            timerStatus = setInterval(atualizarStatus, 2000);
+        }
+
+        async function copiarLink(assento) {
+            const texto = document.getElementById('link-' + assento).textContent;
+            if (!texto || texto === '\u2014') return;
+            try {
+                await navigator.clipboard.writeText(texto);
+                mostrarErro('Link do ' + assento.toUpperCase() + ' copiado.');
+            } catch (erro) {
+                mostrarErro('Copie manualmente: ' + texto);
+            }
+        }
+
+        // --- Regras do jogo (modal) ------------------------------------------
+        function showRulesModal() {
+            document.getElementById('rules-modal').classList.add('visible');
+        }
+
+        function closeRulesModal() {
+            document.getElementById('rules-modal').classList.remove('visible');
+        }
+
+        // Fechar é mais do que o × : clique no fundo escuro e Esc também saem.
+        const modalDeRegras = document.getElementById('rules-modal');
+        modalDeRegras.addEventListener('click', evento => {
+            if (evento.target === modalDeRegras) closeRulesModal();
+        });
+        document.addEventListener('keydown', evento => {
+            if (evento.key === 'Escape') closeRulesModal();
+        });
+    </script>
+</body>
+</html>

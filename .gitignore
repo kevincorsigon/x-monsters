@@ -73,8 +73,10 @@ debug_*.jpg
 cards_kevin-*.png
 cards_kevin-*.jpg
 backup_*/
-# Vibeflow — installed + generated (remove to track in git)
-.vibeflow/
-.github/prompts/vibeflow-*.prompt.md
-.github/agents/vibeflow-architect.agent.md
-.github/instructions/vibeflow/
+.aider*
+
+# PvP server match ledger (runtime mirror, not a source of truth)
+matches/
+
+# Relatórios locais gerados por scripts (derivados, não são fonte de verdade)
+reports/

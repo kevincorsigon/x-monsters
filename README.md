@@ -1,65 +1,200 @@
-# X Monsters: Contador de PV e Energia
+# X Monsters
 
-Um contador de pontos de vida (PV) e energia para o jogo de cartas de mesa "X Monsters". Esta é uma aplicação web simples e offline, ideal para ser usada em qualquer dispositivo móvel ou computador durante uma partida.
+Jogo de cartas PVP local para dois jogadores, desenvolvido com HTML, CSS e
+JavaScript puros. O repositório também inclui um contador simplificado e
+ferramentas Python para manutenção das cartas.
 
-![Screenshot da aplicação](https://i.imgur.com/example.png) ---
+## Como executar
 
-### Funcionalidades
+Na raiz do projeto, inicie um servidor HTTP local:
 
-* **Contadores de PV e Energia:** Acompanhe os pontos de vida (PV) e a energia de dois jogadores.
-* **Controles Simples:** Botões de `+` e `-` para ajustes rápidos de PV e energia.
-* **Edição Direta:** Clique nos valores de PV, energia ou nos nomes dos jogadores para editá-los manualmente.
-* **Animações:** Efeitos visuais para indicar o vencedor e o perdedor da partida.
-* **Fase de Energia:** Um botão único que aumenta a energia de ambos os jogadores simultaneamente.
-* **Dado da Sorte:** Cada jogador pode usar uma vez por jogo para gastar 2 energia e ganhar de 1 a 6 energia extra.
-* **Reiniciar Jogo:** Reseta todos os contadores para os valores iniciais.
-* **Regras do Jogo:** Um modal pop-up com todas as regras do jogo "X Monsters" para consulta rápida.
-* **Efeitos Sonoros:** Sons para todas as ações (punch.mp3, healing.mp3, energy.mp3, waste.mp3, victory.mp3).
+```powershell
+py -3 -m http.server 8080
+```
 
----
+Acesse:
 
-### Regras do Jogo X Monsters
+- Jogo completo: http://localhost:8080/game.html
+- Contador simplificado: http://localhost:8080/index.html
+- Testes manuais: http://localhost:8080/tests/browser/test_abilities.html
 
-Este aplicativo foi feito para acompanhar uma partida do jogo de cartas "X Monsters". Aqui estão as regras para sua referência:
+O servidor é necessário para que `game.html` carregue as 110 cartas de
+`data/cards_database.json`. Abrir o arquivo diretamente por `file://` ativa
+o fallback limitado do navegador.
 
-#### 1. Objetivo e Condição de Vitória
+### Partidas PvP online (1v1 em navegadores separados)
 
-O objetivo principal é ser o único jogador com monstros em campo e/ou reduzir os pontos de vida do seu oponente a zero. Cada jogador começa com **200 pontos de vida**.
+O `server.py` é um processo Python que substitui o `http.server` e soma
+suporte a WebSocket para partidas PvP em tempo real. Ele serve os arquivos
+estáticos na mesma porta (8080) e atua como intermediário de execução
+lockstep: cria salas, ordena os comandos via WebSocket, é a única autoridade
+de aleatoriedade (dado e decks) e grava um espelho da partida em
+`matches/<roomId>.json`.
 
-#### 2. Sistema de Energia
+> **Nota de segurança:** o `server.py` não conhece as regras das 110 cartas
+> — valida apenas assento, ordem, turno e fase. O conteúdo das ações é
+> declarado pelos clientes. Não exponha na internet sem refletir sobre
+> anti-cheat.
 
-A energia é o recurso principal, usado para invocar monstros e usar habilidades.
+> **Pré-requisitos locais:** Python 3 (com o módulo `websockets`) e Node.js.
+> O `deck_factory.js` (Node) é o balanceador oficial dos decks; sem ele o
+> servidor fallback para "cada cliente monta o próprio deck a partir da seed"
+> (resultado idêntico, já que o RNG é o mesmo).
 
-* **Energia Inicial:** Cada jogador começa com **6 pontos de energia**.
-* **Aumento:** A cada virada de turno, quando volta para o seu turno na Fase de Energia, você ganha **1 ponto** adicional.
-* **Mecânica de Gasto:** Dentro do seu turno, você pode gastar toda a sua energia disponível. No turno seguinte, você volta com o total máximo que tinha no turno anterior mais 1.
-* **Progressão:** Por exemplo: turno 1 (6 energia), turno 2 (7 energia), turno 3 (8 energia), e assim por diante.
-* **Limite Máximo:** A energia máxima é de **20 pontos**.
-* **Dado da Sorte:** Uma vez por jogo, cada jogador pode gastar **2 pontos de energia** para rolar um dado da sorte e ganhar de **1 a 6 pontos de energia** adicionais (sem ultrapassar o limite de 20).
+### Via local
 
-#### 3. Fases do Turno
+Instale a dependência Python do servidor (um vez por máquina):
 
-Cada turno é dividido em três fases:
+```powershell
+py -3 -m pip install websockets
+```
 
-* **Fase de Energia:** Sua energia aumenta em 1 ponto (seu novo máximo será o máximo do turno anterior + 1).
-* **Fase de Invocação:** Gaste sua energia para jogar cartas da mão (monstros e suportes).
-* **Fase de Combate:** Declare ataques com seus monstros contra os monstros do oponente.
+Inicie o servidor:
 
-#### 4. Combate e Dano
+```powershell
+py -3 server.py              # escuta em 127.0.0.1:8080
+py -3 server.py --host 0.0.0.0   # acessível na rede local
+```
 
-O dano é calculado subtraindo a Defesa do monstro do oponente do Ataque do seu monstro. O dano restante é aplicado aos pontos de vida do oponente.
+Fluxo:
 
----
+1. Abra o **lobby** em `http://localhost:8080/pvp` e clique em *"Criar partida"*.
+2. Copie os dois links (`…/pvp/<roomId>/p1` e `…/pvp/<roomId>/p2`) e abra em
+   navegadores separados — um para cada jogador.
+3. Cada jogador vê o **seu** campo embaixo; a mão do oponente aparece como
+   versos com apenas a contagem de cartas visível.
+4. Ao final da partida, a página exibe um link para gerar uma nova partida.
 
-### Como Rodar Localmente
+Smoke test automatizado (server + 2 clientes WebSocket):
 
-Para usar o contador de PV e energia no seu próprio computador ou dispositivo, siga estes passos:
+```powershell
+py -3 tests/pvp/smoke_match.py
+```
 
-1.  Clone este repositório para sua máquina local.
-    ```bash
-    git clone [https://github.com/SEU-USUARIO/SEU-REPOSITORIO.git](https://github.com/SEU-USUARIO/SEU-REPOSITORIO.git)
-    ```
-2.  Abra a pasta do projeto.
-3.  Abra o arquivo `index.html` em seu navegador web preferido (como Chrome, Firefox ou Edge).
+### Via Docker Compose (recomendado)
 
-Você não precisa de um servidor local ou de uma conexão com a internet para usá-lo!
+O `docker-compose.yml` empacota o servidor (Python 3 + Node + `websockets`) e
+prexa a porta `8000`. O diretório `matches/` é persistido em um **volume
+gerenciado pelo Docker**, de modo que os JSON das partidas sobrevivem a
+paradas e reinicializações do container.
+
+Build e início (uma vez por máquina):
+
+```powershell
+docker compose up -d
+```
+
+Acesso:
+
+- Lobby: `http://localhost:8080/pvp`
+- Jogo completo (local): `http://localhost:8080/game.html`
+- Partida PvP: abra `…/pvp/<roomId>/p1` e `…/pvp/<roomId>/p2` em navegadores separados
+
+Parar o serviço:
+
+```powershell
+docker compose down
+```
+
+Parar e remover o volume de matches (apaga todos os JSON das partidas):
+
+```powershell
+docker compose down -v
+```
+
+Variantes úteis:
+
+```powershell
+# Alterar porta (ex: 9000 no host):
+HOST_PORT=9000 docker compose up -d
+
+# Acompanhar logs em tempo real:
+docker compose logs -f
+
+# Inspecionar os JSON das partidas sem parar o container:
+docker run --rm -v xmonsters_matches:/matches -w /matches busybox ls -lh
+
+# Executar testes dentro do container (usa os arquivos locais via bind mount):
+docker compose run --rm --no-deps -v ${PWD}:/app -w /app x-monsters python3 tests/pvp/smoke_match.py
+docker compose run --rm --no-deps -v ${PWD}:/app -w /app x-monsters node tests/unit/run-tests.js
+```
+
+> Nota: o volume `xmonsters_matches` é criado automaticamente pelo Docker Compose
+> na primeira execução. Ele persiste independentemente do ciclo de vida do
+> container — parar/remover o container **não** apaga os dados. Use `down -v`
+> explicitamente apenas quando quiser limpar todas as partidas salvas.
+
+### Via Docker (imagem standalone)
+
+Se preferir rodar sem Docker Compose, a mesma imagem pode ser usada com
+`docker run`. Porém, sem volume mapeado, os JSON das partidas serão perdidos
+a cada reinicialização:
+
+```powershell
+docker build -t x-monsters .
+docker run --rm -p 8000:8000 x-monsters
+```
+
+Para persistência via `docker run`, monte um diretório host em `/app/matches`:
+
+```powershell
+docker run --rm -p 8000:8000 -v ${PWD}/matches:/app/matches x-monsters
+```
+
+### Gerar decks determinísticos
+
+O `scripts/deck_factory.js` (Node, RNG mulberry32) gera dois decks idênticos a
+partir de uma seed — usado pelo servidor ao criar a sala e útil para
+auditoria/rastreabilidade:
+
+```powershell
+node scripts/deck_factory.js --seed=123 --size=50
+# {"p1":[...50 defs...],"p2":[...50 defs...]}
+```
+
+## Estrutura
+
+```text
+x-monsters/
+├── assets/
+│   ├── audio/          # Efeitos sonoros
+│   └── cards/          # Imagens das 110 cartas
+├── data/               # Base de dados JSON
+├── docs/               # Guias e relatórios
+├── scripts/            # Ferramentas Python executadas a partir da raiz
+├── src/js/             # JavaScript de runtime
+├── tests/browser/      # Testes e diagnósticos manuais
+├── tests/pvp/          # Testes do servidor PvP (smoke)
+├── matches/            # Espelho de partidas (gitignore, runtime apenas)
+├── game.html           # Jogo completo
+├── index.html          # Contador simplificado
+├── pvp-lobby.html      # Lobby PvP online
+├── pvp.html            # Tabuleiro PvP (fork de game.html)
+├── server.py           # Servidor HTTP + WebSocket (PvP)
+└── requirements_ocr.txt
+```
+
+## Ferramentas Python
+
+Instale as dependências quando precisar executar os utilitários de OCR e
+impressão:
+
+```powershell
+py -3 -m pip install -r requirements_ocr.txt
+```
+
+Execute os scripts sempre a partir da raiz do repositório, por exemplo:
+
+```powershell
+py -3 scripts/check_cards.py
+py -3 scripts/final_check.py
+```
+
+## Documentação
+
+- [Visão detalhada do jogo](docs/README_NEW.md)
+- [Sistema de habilidades](docs/SISTEMA_HABILIDADES_README.md)
+- [Guia de impressão](docs/GUIA_IMPRESSAO.md)
+- [Guia de impressão frente e verso](docs/GUIA_IMPRESSAO_FRENTE_VERSO.md)
+- [Progresso das habilidades](docs/PROGRESSO_HABILIDADES.md)
+- [Relatório final das habilidades](docs/RELATORIO_FINAL_HABILIDADES.md)
