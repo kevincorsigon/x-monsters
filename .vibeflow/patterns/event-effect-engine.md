@@ -14,8 +14,9 @@ into typed effects applied inside a rollback transaction.
 
 ## Where
 `src/js/game-state.js` (zones, instances, PV/energy), `src/js/game-engine.js`
-(`createEngine`, `resolveAction`, `resolveCombat`). Loaded first in
-`game.html`; required as CommonJS from `tests/unit/run-tests.js`.
+(`createEngine`, `resolveAction`, `resolveCombat`). Loaded first in the
+script list of `game.html` / `pvp.html`; required as CommonJS from
+`tests/unit/run-tests.js`.
 
 ## The Pattern
 Engine modules are UMD IIFEs so the same file runs in the browser and in Node:
@@ -32,7 +33,7 @@ Engine modules are UMD IIFEs so the same file runs in the browser and in Node:
 });
 ```
 
-`game.html` wires one shared state into the engine:
+`src/js/game.js` wires one shared state into the engine:
 
 ```javascript
 let gameState = window.GameStateModel.createInitialGameState(window.gameConfig);
@@ -68,7 +69,7 @@ death). CardRules registers handlers via `engine.registerEventHandler`.
 
 ## Rules
 - Add game logic as `EFFECT_KINDS` / `EVENT_TYPES` consumed by
-  `resolveAction`/`resolveCombat`, not as ad-hoc mutations in `game.html`.
+  `resolveAction`/`resolveCombat`, not as ad-hoc mutations in `src/js/game.js`.
 - Instance identity is `instanceId` (`card_012_p1_1`), distinct from catalog
   `definitionId` (`card_012`). Lookups use `state.cardInstances[instanceId]`.
 - Zones are `players[id].zones.{deck,hand,field,equipment,discard}`. Legacy
@@ -87,8 +88,9 @@ File: `src/js/game-state.js`
 File: `src/js/game-engine.js`
 `EVENT_TYPES` / `EFFECT_KINDS` frozen enums, `resolveAction`, `resolveCombat`.
 
-File: `game.html`
-Boot sequence and `SUMMON_CARD` / `resolveCombat` call sites.
+File: `src/js/game.js`
+Boot sequence and `SUMMON_CARD` / `resolveCombat` call sites (the inline
+script was extracted from `game.html`, which is now a shell).
 <!-- vibeflow:auto:end -->
 
 ## Anti-patterns

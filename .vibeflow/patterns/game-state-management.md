@@ -1,6 +1,6 @@
 ---
 tags: [state-management, game-loop, phases, zones]
-modules: [src/js/game-state.js, game.html]
+modules: [src/js/game-state.js, src/js/game.js]
 applies_to: [models, handlers, controllers]
 confidence: inferred
 ---
@@ -15,9 +15,10 @@ PV/energy live on `state.players[id]`, not in the DOM.
 
 ## Where
 `src/js/game-state.js` (factory, zones, instance ids, player stats).
-`game.html` holds the live `gameState` reference, calls
+`src/js/game.js` holds the live `gameState` reference, calls
 `gameEngine.resolveAction` for turn/phase, and mirrors stats to the DOM
-through `changeStat` / `renderPlayerStat`.
+through `changeStat` / `renderPlayerStat`. Re/mounting a match goes through
+`resetMatchState`, which is how PvP installs opaque ids and hidden zones.
 
 ## The Pattern
 ```javascript
@@ -60,8 +61,15 @@ array as `state.players[player].zones.field` so older UI loops keep working.
 File: `src/js/game-state.js`
 `createInitialGameState`, `attachLegacyAliases`, `resetMatchState`.
 
-File: `game.html`
-Boot of `gameState` / `gameEngine`, `changeStat`, `renderPlayerStat`.
+File: `src/js/game.js`
+Boot of `gameState` / `gameEngine`, `changeStat`, `renderPlayerStat`
+(top of the file, before any handler).
+
+File: `src/js/game-state.js`
+`resetMatchState(state, decks, { idFactory, initialPv, initialEnergy })` —
+the supported way to (re)mount a match; PvP passes
+`PvpState.createPvpIdFactory(seed)` and then `PvpState.installHiddenZones`
+(pattern: `pvp-hidden-state.md`).
 <!-- vibeflow:auto:end -->
 
 ## Anti-patterns

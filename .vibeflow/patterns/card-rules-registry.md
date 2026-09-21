@@ -17,7 +17,7 @@ check inside `install()`, never a new method on `CardAbilitiesSystem`.
 `src/js/card-rules.js` (`SUMMON_RULES`, `EQUIPMENT_RULES`, `COMBAT_RULES`,
 `ACTIVATED_RULES`, `TARGET_RULES`, `STATE_RULES`, `PROTECTION_RULES`,
 `install`). Consumed by `card-abilities.js` (`attachEngine` →
-`CardRules.install`), `game.html` (validation, cost, combat), and
+`CardRules.install`), `src/js/game.js` (validation, cost, combat), and
 `manual_abilities.js` (`getActivatedRule` / `activateAbility`).
 
 ## The Pattern
@@ -81,14 +81,20 @@ calls `CardRules.activateAbility(engine, cardId, targetIds)`.
   handlers with `definitionId === 'card_XXX'` (this is valid coverage;
   `check_cards.py` scans the file text, not `isMigrated()`).
 - Traits live in `TRAITS_BY_DEFINITION`. Do not invent a parallel trait
-  map in `game.html`.
+  map in `src/js/game.js`.
+- `DIRECT_ATTACK_DEFINITION_IDS` is checked as a **fallback**, after the
+  card-specific branch. A card listed there (e.g. `card_063` Beluga) that
+  also has a per-turn rule must be evaluated before the generic `return
+  true`, otherwise the specific rule is unreachable.
 - `isMigrated()` only lists table keys + direct-attack ids; it undercounts
   handler-only cards. Do not use it as the coverage gate.
 
 ## Examples from this codebase
 File: `src/js/card-rules.js`
 `SUMMON_RULES.card_012`, `EQUIPMENT_RULES.card_001`, `ACTIVATED_RULES.card_026`,
-`install`, `validateAttackTarget`.
+`install`, `validateAttackTarget`, `canDirectAttack` (Beluga usage check
+reading `attacker.usage.combatAttacks.directAttacks` before the generic
+`DIRECT_ATTACK_DEFINITION_IDS` branch).
 
 File: `src/js/manual_abilities.js`
 `renderMigratedAbilityCard` / `activateMigratedAbility`.

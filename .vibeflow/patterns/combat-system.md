@@ -1,6 +1,6 @@
 ---
 tags: [combat, damage-calculation, game-rules, engine]
-modules: [src/js/game-engine.js, src/js/card-rules.js, game.html]
+modules: [src/js/game-engine.js, src/js/card-rules.js, src/js/game.js]
 applies_to: [handlers]
 confidence: inferred
 ---
@@ -9,7 +9,7 @@ confidence: inferred
 <!-- vibeflow:auto:start -->
 ## What
 Creature combat and direct attacks are resolved by
-`gameEngine.resolveCombat`. `game.html` only validates, displays the
+`gameEngine.resolveCombat`. `src/js/game.js` only validates, displays the
 result, and animates destruction. Card-specific combat modifiers hook
 `BEFORE_DAMAGE` / death events inside `CardRules.install`.
 
@@ -17,7 +17,8 @@ result, and animates destruction. Card-specific combat modifiers hook
 `src/js/game-engine.js` (`validateCombat`, `resolveCombat`,
 `getEffectiveStat`, `getRemainingDefense`). `src/js/card-rules.js`
 (`validateAttackTarget`, `canDirectAttack`, combat handlers).
-`game.html`: `canAttackTarget`, `performAttack`, `directAttack`.
+`src/js/game.js`: `canAttackTarget`, `performAttack`, `directAttack`
+(each one starting with the PvP guard — `pvp-ui-command-bridge.md`).
 
 ## The Pattern
 ```javascript
@@ -67,7 +68,7 @@ Attack limits use `getAttackCount` / `getAttackLimit`, not a parallel
 still exists for UI highlighting).
 
 ## Rules
-- Do not subtract `data.defense` in `game.html`. Remaining DEF is
+- Do not subtract `data.defense` in `src/js/game.js`. Remaining DEF is
   `getRemainingDefense`; ATK is `getEffectiveStat(..., 'attack')`.
 - Protections (taunt, evasion, fofura, etc.) belong in
   `CardRules.validateAttackTarget` / engine effects, not
@@ -80,7 +81,8 @@ still exists for UI highlighting).
   (`getEffectiveCardCost`, `canAttack`).
 
 ## Examples from this codebase
-File: `game.html` — `canAttackTarget`, `performAttack`, `directAttack`.
+File: `src/js/game.js` — `canAttackTarget`, `performAttack`,
+`directAttack` and their `pvpGuard({ cmd: 'ATTACK' | 'DIRECT_ATTACK' })`.
 
 File: `src/js/game-engine.js` — `resolveCombat` event sequence.
 

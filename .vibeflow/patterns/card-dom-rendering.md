@@ -1,6 +1,6 @@
 ---
 tags: [dom-rendering, drag-and-drop, css-theming, ui-state]
-modules: [game.html]
+modules: [src/js/game.js, src/css/]
 applies_to: [components]
 confidence: inferred
 ---
@@ -14,9 +14,12 @@ CSS classes toggled from JS, never inline styles for state. Theme values
 (colors, radii, spacing) come from `:root` CSS custom properties.
 
 ## Where
-`game.html`: `createCard`, `updateCardDisplay`, `destroyCard`,
-`dragStart`/`dragOver`/`dropCard`/`allowDrop`, and the `<style>` block
-(`:root`, `.card.*` state classes).
+`src/js/game.js`: `createCard`, `updateCardDisplay`, `destroyCard`,
+`dragStart`/`dragOver`/`dropCard`/`allowDrop`, `renderHandsFromState`,
+`createCardBack` (the inline script was extracted out of `game.html`, which
+is now a shell that only loads the scripts). Theme tokens (`:root`) and the
+`.card.*` state classes live in `src/css/game.css`; `src/css/pvp.css` adds
+the `body[data-seat]` perspective overrides.
 
 ## The Pattern
 ```javascript
@@ -76,13 +79,22 @@ function dropCard(e) {
   is the standard lookup; `cardId` is the engine `instanceId`.
 - Cost badges and summon gating use `getEffectiveCardCost` (engine
   modifiers), not the raw catalog `cost`.
+- The opponent hand renders through `createCardBack` (`.card.card-back`)
+  and the board mirrors by `body[data-seat="p2"]` in `src/css/pvp.css`
+  (pattern: `.vibeflow/patterns/pvp-hidden-state.md`).
+- Re-render from state (`renderHandsFromState` / `renderFieldsFromState`),
+  never from the DOM: card identity is the engine `instanceId`.
 
 ## Examples from this codebase
-File: [game.html](../../game.html#L3273)
+File: [src/js/game.js](../../src/js/game.js#L1589)
 `dropCard` — see "The Pattern" above.
 
-File: [game.html](../../game.html) (`<style>` block)
-`.card.can-attack`, `.card.can-be-targeted`, `.card.already-attacked` rules.
+File: [src/js/game.js](../../src/js/game.js#L1184)
+`renderHandsFromState` + `createCardBack` — the PvP hand rendering.
+
+File: [src/css/game.css](../../src/css/game.css)
+`:root` tokens and `.card.can-attack`, `.card.can-be-targeted`,
+`.card.already-attacked` rules.
 <!-- vibeflow:auto:end -->
 
 ## Anti-patterns

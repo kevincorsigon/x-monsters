@@ -25,7 +25,7 @@ installs `CardRules` on the engine and shows toast/glow feedback. It holds
 no effect maps and no per-card methods.
 
 ## Where
-`src/js/card-abilities.js`. `game.html` still calls `onCardSummoned` /
+`src/js/card-abilities.js`. `src/js/game.js` still calls `onCardSummoned` /
 `onCardEquipped` / `onCombatDeclared` after the engine has already
 resolved the action.
 

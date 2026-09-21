@@ -1,6 +1,6 @@
 ---
 tags: [data-loading, fallback, deck-building, json, card-schema]
-modules: [src/js/deck_system.js, data/cards_database.json]
+modules: [src/js/deck_system.js, scripts/deck_factory.js, data/cards_database.json]
 applies_to: [services, configs]
 confidence: inferred
 ---
@@ -14,9 +14,10 @@ it falls back to a hardcoded sample dataset. `DeckBuilder` then builds
 cost/type-balanced 30-card decks from whichever dataset loaded.
 
 ## Where
-`src/js/deck_system.js`: `loadCardSystem`, `getFallbackCardData`, `DeckBuilder`,
-`startNewMatch`, `drawCardFromDeck`. Schema source of truth:
-`data/cards_database.json`.
+`src/js/deck_system.js`: `loadCardSystem`, `getFallbackCardData`, `DeckBuilder`
+(`{ rng }` option), `createMatchDecks`, `startNewMatch`, `drawCardFromDeck`.
+`scripts/deck_factory.js`: CLI that reuses the same builder with a seeded
+RNG. Schema source of truth: `data/cards_database.json`.
 
 ## The Pattern
 ```javascript
@@ -66,6 +67,45 @@ selectBalancedByMana(cards, count) {
 }
 ```
 
+Deterministic decks (PvP): `DeckBuilder` takes an injected RNG and every
+shuffle accepts one, so a seed reproduces the same two decks on both clients
+and in `scripts/deck_factory.js`:
+
+```javascript
+// src/js/deck_system.js
+shuffleArray(array, rng = this.rng) {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+}
+
+createMatchDecks(deckSize = 40) {
+    const allCardsShuffled = this.shuffleArray([...this.allCards]);
+    const midPoint = Math.floor(allCardsShuffled.length / 2);
+    const deckBuilder1 = new DeckBuilder({ cards: allCardsShuffled.slice(0, midPoint) }, { rng: this.rng });
+    const deckBuilder2 = new DeckBuilder({ cards: allCardsShuffled.slice(midPoint) }, { rng: this.rng });
+    return {
+        player1: deckBuilder1.createBalancedDeck(deckSize),
+        player2: deckBuilder2.createBalancedDeck(deckSize)
+    };
+}
+```
+
+```javascript
+// scripts/deck_factory.js
+const rng = mulberry32(seed);
+const builder = new DeckBuilder(cardsData, { rng });
+const decks = builder.createMatchDecks(size);
+process.stdout.write(JSON.stringify({ p1: decks.player1, p2: decks.player2 }));
+```
+
+PvP matches use 50-card decks (`DECK_SIZE` in `server.py` / `pvp-game.js`);
+the server calls the CLI and degrades to "the client builds the deck from the
+same seed" when Node is not installed.
+
 ## Rules
 - Card object shape is fixed:
   `{ name, type: 'criatura'|'suporte'|'evolução', cost, attack, defense,
@@ -82,10 +122,18 @@ selectBalancedByMana(cards, count) {
 - `window.deckBuilder` / `window.cardsDatabase` are the cross-file access
   points — read them, don't re-fetch or re-parse `cards_database.json`
   elsewhere.
+- Never call `Math.random()` for anything the two PvP clients must agree on:
+  inject the RNG (`new DeckBuilder(cardsData, { rng })`,
+  `shuffleArray(arr, rng)`) and derive it from the server seed
+  (`mulberry32(seed)`); `Math.random` stays the default only for hotseat.
 
 ## Examples from this codebase
-File: [deck_system.js](../../src/js/deck_system.js#L1)
+File: [deck_system.js](../../src/js/deck_system.js#L54)
 `DeckBuilder` class — see "The Pattern" above.
+
+File: [scripts/deck_factory.js](../../scripts/deck_factory.js#L50)
+`main()` — `--seed`/`--size`, prints `{"p1":[…],"p2":[…]}` (called by
+`server.py#generate_decks`).
 
 File: [cards_database.json](../../data/cards_database.json#L1)
 First card entry — see schema above.
