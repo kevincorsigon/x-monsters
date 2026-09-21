@@ -159,6 +159,11 @@ volumes:
 - Python code follows the repo style: pt-BR docstrings/logs with `[{time}]`
   prefix, `now_iso` instead of `datetime`, dataclasses for room state,
   `asyncio.to_thread` for blocking file work.
+- The lobby (`pvp-lobby.html`) is a self-contained page (its own `<style>`, no
+  `src/css/game.css`) and must stay usable with no room open: the "Regras do
+  Jogo" button + modal (`#rules-modal`, the same five sections as `index.html`,
+  closed by ×, backdrop click or Esc) is never `disabled`. Keep the rules text in
+  sync with `index.html` — `tests/unit/run-tests.js` compares both.
 - Packaging: `Dockerfile` builds Node + Python 3 with only `websockets` as an
   external dependency and exposes 8000 with a `HEALTHCHECK`; the local path
   remains `py -3 -m pip install websockets` + `py -3 server.py`.

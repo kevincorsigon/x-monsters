@@ -245,6 +245,48 @@
             }
         }
 
+        // Faces do dado: o ícone é `assets/dice/dice-N.svg` (`dice-face-N` no CSS)
+        // e o valor fica também no `data-face`, porque o "+N" flutuante é filho do
+        // botão e `textContent` leria "5+5".
+        const DICE_FACES = ['1', '2', '3', '4', '5', '6'];
+
+        function marcarFaceDoDado(diceButton, valor) {
+            DICE_FACES.forEach(face => diceButton.classList.remove(`dice-face-${face}`));
+            diceButton.classList.add(`dice-face-${valor}`);
+            diceButton.textContent = '';
+            diceButton.dataset.face = String(valor);
+        }
+
+        function limparFaceDoDado(diceButton) {
+            DICE_FACES.forEach(face => diceButton.classList.remove(`dice-face-${face}`));
+            diceButton.textContent = '🎲';
+            delete diceButton.dataset.face;
+        }
+
+        // O dado "sorteia" na tela: as faces trocam até o resultado oficial chegar.
+        // Um timer por botão (WeakMap), porque os dois lados podem rolar em PvP.
+        const girosDeFace = new WeakMap();
+
+        function iniciarGiroDeFaces(diceButton) {
+            pararGiroDeFaces(diceButton);
+            // Face imediata: o intervalo só viria 90ms depois e o dado passaria
+            // um instante sem ícone na tela.
+            const sortearFace = () => marcarFaceDoDado(
+                diceButton,
+                DICE_FACES[Math.floor(Math.random() * DICE_FACES.length)]
+            );
+            sortearFace();
+            const timer = setInterval(sortearFace, 90);
+            girosDeFace.set(diceButton, timer);
+        }
+
+        function pararGiroDeFaces(diceButton) {
+            const timer = girosDeFace.get(diceButton);
+            if (!timer) return;
+            clearInterval(timer);
+            girosDeFace.delete(diceButton);
+        }
+
         // Feedback do resultado do dado: pulso dourado na energia + o "+N" subindo
         // do botão. Tudo local e fora do fluxo — o overlay central (`showMessage`)
         // cobria o tabuleiro e o "+N" em fluxo empurrava a pílula de energia.
@@ -262,6 +304,7 @@
             const flutuante = document.createElement('div');
             flutuante.textContent = `+${diceResult}`;
             flutuante.className = 'dice-result-floating';
+            flutuante.setAttribute('aria-hidden', 'true');
             diceButton.appendChild(flutuante);
             setTimeout(() => flutuante.remove(), 1500);
         }
@@ -288,9 +331,15 @@
             diceButton.classList.remove('dice-settled');
             diceButton.classList.add('dice-rolling');
             diceButton.title = 'Rolando o dado da sorte…';
+            // As faces trocam enquanto o resultado não chega: aí o dado parece
+            // realmente sendo sorteado, e não um giro à toa.
+            iniciarGiroDeFaces(diceButton);
             // Rede de segurança: se o resultado não voltar (queda no meio do roll
             // no PvP), o dado para de girar em vez de rodar para sempre.
-            setTimeout(() => diceButton.classList.remove('dice-rolling'), 5000);
+            setTimeout(() => {
+                pararGiroDeFaces(diceButton);
+                diceButton.classList.remove('dice-rolling');
+            }, 5000);
 
             const aplicarResultado = (diceResult) => {
                 // Guarda contra aplicação dupla (físico + remoto/DICE_RESULT no PvP).
@@ -300,10 +349,14 @@
 
                 // O resultado fica no próprio dado (face sorteada) com o "+N" e o
                 // pulso da energia: nada de overlay no meio do tabuleiro.
+                pararGiroDeFaces(diceButton);
                 diceButton.classList.remove('dice-rolling');
                 diceButton.classList.add('dice-settled');
-                diceButton.textContent = String(diceResult);
+                marcarFaceDoDado(diceButton, diceResult);
                 animarResultadoDoDado(diceButton, player, diceResult);
+                // O estado "já jogado" é o `:disabled` do CSS: a classe do quique
+                // sai depois da animação para não manter destaque no botão.
+                setTimeout(() => diceButton.classList.remove('dice-settled'), 500);
 
                 gameState.diceUsed[player] = true;
                 diceButton.disabled = true;
@@ -311,12 +364,16 @@
             };
 
             // Valor do servidor (PvP) aplica na hora; no modo local anima 800ms.
+            const generation = window.matchGeneration;
             if (forcedValue !== null) {
                 aplicarResultado(Number(forcedValue));
                 return;
             }
 
             setTimeout(() => {
+                // Partida reiniciada durante o giro: o dado da partida antiga não
+                // pode cair na nova (mesmo guard do `endGame`/`drawCardFromDeck`).
+                if (generation !== window.matchGeneration) return;
                 aplicarResultado(Math.floor(Math.random() * 6) + 1);
             }, 800);
         }
@@ -865,6 +922,61 @@
             return { canAttack: true, reason: 'Ataque permitido' };
         }
 
+        // Snapshot da mão dos dois jogadores. O motor move cartas do deck para a
+        // mão (Tlantidu ao morrer, Zol, ETC) sem passar pelo bloco `returnedToHand`
+        // do combate, então a UI compara antes/depois para reprojetar a mão e
+        // explicar o que entrou.
+        function instantaneoDasMaos() {
+            return {
+                p1: gameState.players.p1.zones.hand.map(carta => carta.instanceId),
+                p2: gameState.players.p2.zones.hand.map(carta => carta.instanceId)
+            };
+        }
+
+        function sincronizarMaosDoCombate(maosAntes) {
+            const mudou = ['p1', 'p2'].some(player => {
+                const agora = gameState.players[player].zones.hand;
+                return agora.length !== maosAntes[player].length
+                    || agora.some(carta => !maosAntes[player].includes(carta.instanceId));
+            });
+            if (mudou) renderHandsFromState();
+        }
+
+        /**
+         * Disclaimer do Tlantidu (card_038, "ao morrer pode procurar um monstro
+         * aquático no deck"): a busca é do motor — a UI só anuncia o que aconteceu,
+         * com a carta trazida ou o aviso de que não havia aquática no deck.
+         */
+        function anunciarBuscaDoTlantidu(destruidas, maosAntes) {
+            if (!window.cardAbilities?.showAbilityFeedback) return;
+
+            (destruidas || []).forEach(cardId => {
+                const instancia = gameState.cardInstances[cardId];
+                if (instancia?.definitionId !== 'card_038') return;
+
+                const dono = instancia.ownerId;
+                const nova = gameState.players[dono].zones.hand
+                    .find(carta => !maosAntes[dono].includes(carta.instanceId));
+
+                if (!nova) {
+                    window.cardAbilities.showAbilityFeedback(
+                        cardId,
+                        'Tlantidu: não havia monstro aquático no deck.'
+                    );
+                    return;
+                }
+
+                // Identidade só para quem pode ver a mão: em PvP a mão alheia é
+                // contagem, então a carta buscada pelo oponente continua oculta.
+                const podeRevelar = !window.PvpSession || dono === assentoLocal();
+                if (podeRevelar && !(nova.data?.traits || []).includes('aquatico')) return;
+
+                window.cardAbilities.showAbilityFeedback(cardId, podeRevelar
+                    ? `Tlantidu: ${nova.data?.name || 'uma carta'} foi buscada no deck e entrou na mão.`
+                    : 'Tlantidu: uma carta do deck entrou na mão.');
+            });
+        }
+
         function performAttack(attackerId, targetId) {
             if (pvpGuard({ cmd: 'ATTACK', args: { attackerId, targetId } })) return;
             const attacker = findCardData(attackerId);
@@ -890,6 +1002,7 @@
                 window.cardAbilities.onCombatDeclared(attackerId, targetId);
             }
 
+            const maosAntes = instantaneoDasMaos();
             const result = window.gameEngine.resolveCombat({
                 attackerId,
                 targetId,
@@ -940,6 +1053,12 @@
                 renderHandsFromState();
                 // renderFieldsFromState será chamado pelo destroyCard se houver derrotadas
             }
+
+            // Efeitos de morte que puxam carta do deck para a mão (Tlantidu) mudam o
+            // estado sem passar pelo bloco acima: reprojetar a mão é o que faz a
+            // carta comprada aparecer para o jogador.
+            sincronizarMaosDoCombate(maosAntes);
+            anunciarBuscaDoTlantidu(result.defeated, maosAntes);
 
             updateCardDisplay(attackerId, {
                 ...attacker.data,
@@ -1141,9 +1260,10 @@
                     // Nova partida: o dado volta a rolar. O `dataset.diceRolled`
                     // sobrevivia ao reset e engolia o resultado da partida seguinte
                     // (a guarda de aplicação dupla retornava cedo).
+                    pararGiroDeFaces(diceButton);
                     delete diceButton.dataset.diceRolled;
                     diceButton.classList.remove('dice-rolling', 'dice-settled');
-                    diceButton.textContent = '🎲';
+                    limparFaceDoDado(diceButton);
                     diceButton.disabled = false;
                     diceButton.title = 'Dado da Sorte (2 energia)';
                 }

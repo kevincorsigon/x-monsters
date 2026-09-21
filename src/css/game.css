@@ -578,6 +578,20 @@
             flex-shrink: 0;
         }
 
+        /* Pílula de energia: `Energia: N` na primeira linha e o dado da sorte na
+           linha de baixo, centralizado. Grid explícito para não depender da ordem
+           dos filhos no HTML (o dado continua sendo filho direto da pílula). */
+        .stat-energy {
+            display: grid;
+            grid-template-columns: auto auto;
+            justify-content: center;
+            justify-items: center;
+        }
+
+        .stat-energy .stat-label { grid-area: 1 / 1; }
+        .stat-energy .stat-value { grid-area: 1 / 2; }
+        .stat-energy .dice-button { grid-area: 2 / 1 / 3 / 3; }
+
         .stat-label {
             font-size: 0.8em;
             opacity: 0.8;
@@ -619,40 +633,70 @@
             transition: all 0.2s ease;
         }
 
-        .mini-button:hover {
+        /* Hover só em botão disponível: o `:hover` cru deixava o dado já jogado
+           parecer ativo (ficava dourado e crescia sob o mouse). */
+        .mini-button:not(:disabled):hover {
             background-color: var(--primary-color);
             transform: scale(1.1);
         }
 
-        /* Dado da Sorte: filho direto da pílula de energia (o `align-items` do
-           `.stat` centraliza) e ancorado em `relative` para o "+N" flutuar por
-           cima sem empurrar a pílula. */
+        /* Dado da Sorte: círculo discreto no repouso (o dourado cheio chamava
+           atenção ao lado da contagem de energia) e as faces `assets/dice/dice-N.svg`
+           trocadas pelo JS enquanto o dado rola. */
         .dice-button {
             position: relative;
-            background-color: var(--primary-color);
-            color: var(--bg-color);
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            border: 2px solid var(--primary-color);
             width: 30px;
             height: 30px;
             font-size: 1em;
             font-weight: bold;
             font-variant-numeric: tabular-nums;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 84%;
         }
 
+        .dice-button.dice-face-1 { background-image: url('../../assets/dice/dice-1.svg'); }
+        .dice-button.dice-face-2 { background-image: url('../../assets/dice/dice-2.svg'); }
+        .dice-button.dice-face-3 { background-image: url('../../assets/dice/dice-3.svg'); }
+        .dice-button.dice-face-4 { background-image: url('../../assets/dice/dice-4.svg'); }
+        .dice-button.dice-face-5 { background-image: url('../../assets/dice/dice-5.svg'); }
+        .dice-button.dice-face-6 { background-image: url('../../assets/dice/dice-6.svg'); }
+
+        /* Já jogado: o estado desativado é do CSS — sem anel dourado, dado bem
+           apagado (`grayscale` + `brightness`) e sem resposta ao clique. O JS só
+           liga o `disabled`; a aparência vem daqui. */
         .dice-button:disabled {
-            background-color: #666;
+            background-color: var(--field-color);
+            border-color: var(--secondary-color);
+            filter: grayscale(1) brightness(0.7);
+            opacity: 0.35;
             cursor: not-allowed;
-            opacity: 0.5;
+        }
+
+        /* Reforço para o caso do mouse já estar sobre o botão quando ele é
+           desabilitado (o `:not(:disabled)` do hover não desfaz um estado ativo). */
+        .dice-button:disabled:hover {
+            background-color: var(--field-color);
+            transform: none;
         }
 
         /* Rolando: o dado cai e roda enquanto o resultado não chega. */
         .dice-button.dice-rolling {
             animation: diceTumble 0.4s linear infinite;
             cursor: progress;
+            filter: none;
+            opacity: 1;
         }
 
-        /* Resultado: a face sorteada entra quicando. */
+        /* Resultado: a face sorteada entra quicando; o quique roda mesmo se o
+           botão já estiver desabilitado (dado do oponente no PvP). */
         .dice-button.dice-settled {
             animation: diceSettle 0.45s cubic-bezier(0.2, 1.6, 0.4, 1);
+            filter: none;
+            opacity: 1;
         }
 
         @keyframes diceTumble {

@@ -105,6 +105,32 @@ function dropCard(e) {
   the server-published counts. The label stays inside the deck box (slot-sized
   area, `font-size: 10px` via `.deck-count`) and turns to the `--pv-zero-color`
   token when the balance hits zero (`data-empty="1"`).
+- Feedback animations are anchored in the control that triggered them and stay
+  out of the flow: floating text/particles are `position: absolute` children of
+  a `position: relative` button (`pointer-events: none`, `aria-hidden="true"`),
+  so they never resize their pill/panel. The Dice of Luck (`rollDice` /
+  `animarResultadoDoDado`) is the reference: `.dice-rolling` → `diceTumble`
+  while waiting, then `.dice-settled` + the face in the button's text and
+  `data-face` (the floating "+N" is a child, so `textContent` would read
+  "5+5"), `+N` rising through `diceResultFloat` and `.energy-gain-dice` pulsing
+  the energy value. No centered overlay (`showMessage`) for "won N energy" —
+  it covered the board and was the other half of the layout break. The dice
+  itself sits on the **second line of the energy pill** (`.stat-energy` grid,
+  `.stat-energy .dice-button { grid-area: 2 / 1 / 3 / 3 }`), directly below
+  `Energia: N` and centred — the CSS owns that placement, the button stays a
+  direct child so the floating `+N` keeps its anchor. After being used the dice
+  is fully muted by CSS (`:disabled` → `grayscale(1) brightness(0.7)`,
+  `opacity: .35`, `cursor: not-allowed`) and the hover rule is scoped to
+  `.mini-button:not(:disabled):hover`: a raw `:hover` painted the used dice gold
+  and larger, i.e. "available", under the pointer.
+- Engine effects that move cards into a hand (`MOVE_CARD` from a death reaction:
+  Tlantidu `card_038`, Roller `card_069`, Zol, ETC) bypass the
+  `returnedToHand` block of the UI, so the UI takes an `instantaneoDasMaos()`
+  snapshot **before** `resolveCombat` and reprojects the hand afterwards
+  (`sincronizarMaosDoCombate`) only when the hand actually changed. The same
+  snapshot feeds the ability disclaimer (`anunciarBuscaDoTlantidu`): the engine
+  owns the rule, the UI only explains the outcome — and in PvP it names the card
+  only for the local seat, since the opponent's hand is a count.
 
 ## Examples from this codebase
 File: [src/js/game.js](../../src/js/game.js#L1589)

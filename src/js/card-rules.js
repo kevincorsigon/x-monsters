@@ -435,6 +435,7 @@
         card_030: { feedback: 'Cacton reflete metade do dano físico recebido.' },
         card_036: { feedback: 'Rei das Feras causa 10 PV após derrotar.' },
         card_042: { feedback: 'Fantom retorna à mão em vez de morrer.' },
+        card_038: { feedback: 'Tlantidu: ao morrer, procura um monstro aquático no deck e traz para a mão.' },
         card_052: { feedback: 'Dragão de Cobre causa 10 PV após derrotar.' },
         card_054: { feedback: 'Lorde Sanguinário transfere até 10 PV após derrotar.' },
         card_071: { feedback: 'Dragão de Jade causa 10 de dano ao atacante.' },

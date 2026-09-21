@@ -1668,8 +1668,24 @@ test('o botão do dado é filho direto da pílula de energia (game.html e pvp.ht
             const depoisDoBotao = html.slice(botao, botao + 220);
             assert.doesNotMatch(depoisDoBotao, /margin-top/, `margin-top inline desalinha o dado de ${seat} em ${arquivo}`);
             assert.match(depoisDoBotao, /<\/div>/, `a pílula de energia de ${seat} não fecha depois do dado em ${arquivo}`);
+
+            // O dado fica na linha de baixo da pílula (`.stat-energy`).
+            const pilula = html.lastIndexOf('class="stat stat-energy"', botao);
+            assert.notEqual(pilula, -1, `pílula de energia de ${seat} sem a classe .stat-energy em ${arquivo}`);
+            assert.ok(pilula < valor, `a classe .stat-energy de ${seat} não envolve a energia em ${arquivo}`);
         });
     });
+
+    // O layout da linha de baixo é do CSS: grid com o dado ocupando as duas colunas
+    // da segunda linha, sob `Energia: N`.
+    const css = fs.readFileSync(path.join(__dirname, '../../src/css/game.css'), 'utf8');
+    const bloco = css.slice(css.indexOf('.stat-energy {'), css.indexOf('.stat-energy .dice-button'));
+    assert.match(bloco, /display: grid;/);
+    assert.match(bloco, /grid-template-columns: auto auto;/);
+    assert.match(bloco, /justify-content: center;/);
+    assert.match(css, /\.stat-energy \.stat-label \{ grid-area: 1 \/ 1; \}/);
+    assert.match(css, /\.stat-energy \.stat-value \{ grid-area: 1 \/ 2; \}/);
+    assert.match(css, /\.stat-energy \.dice-button \{ grid-area: 2 \/ 1 \/ 3 \/ 3; \}/);
 });
 
 test('CSS do dado: rolagem, resultado e "+N" fora do fluxo', () => {
@@ -1683,7 +1699,9 @@ test('CSS do dado: rolagem, resultado e "+N" fora do fluxo', () => {
     assert.match(flutuante, /pointer-events: none;/);
     assert.match(flutuante, /animation: diceResultFloat 1\.4s ease-out forwards;/);
 
-    const botao = css.slice(css.indexOf('.dice-button {'), css.indexOf('}', css.indexOf('.dice-button {')));
+    // A âncora é a regra base: `.stat-energy .dice-button` também traz o seletor.
+    const botao = (/\n\s*\.dice-button \{\n([\s\S]*?)\}/.exec(css) || [])[1] || '';
+    assert.notEqual(botao, '', 'regra .dice-button ausente em game.css');
     assert.match(botao, /position: relative;/);
 
     assert.match(css, /\.dice-button\.dice-rolling \{\s*animation: diceTumble 0\.4s linear infinite;/);
@@ -1699,30 +1717,145 @@ test('CSS do dado: rolagem, resultado e "+N" fora do fluxo', () => {
     assert.doesNotMatch(css, /@keyframes diceRoll \{/);
 });
 
+test('Tlantidu traz a aquática do deck e o aviso aparece na UI de combate', () => {
+    // Disclaimer preventivo (padrão do Fantom): ao invocar, o jogador é avisado do
+    // efeito de morte — `getFeedback` é o que a UI usa em `onCardSummoned`.
+    const feedback = CardRules.getFeedback('card_038');
+    assert.match(feedback, /Tlantidu: ao morrer/);
+    assert.match(feedback, /aquático/);
+
+    // O motor move a carta do deck para a mão; a UI precisa reprojetar a mão (a
+    // busca não passa pelo bloco `returnedToHand`) e anunciar o que veio.
+    const fonte = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
+    const inicio = fonte.indexOf('function instantaneoDasMaos');
+    const fim = fonte.indexOf('function performAttack', inicio);
+    assert.notEqual(inicio, -1, 'instantaneoDasMaos não encontrada');
+    const helpers = fonte.slice(inicio, fim);
+    assert.match(helpers, /function sincronizarMaosDoCombate\(maosAntes\)/);
+    assert.match(helpers, /if \(mudou\) renderHandsFromState\(\);/);
+    assert.match(helpers, /function anunciarBuscaDoTlantidu\(destruidas, maosAntes\)/);
+    assert.match(helpers, /instancia\?\.definitionId !== 'card_038'/);
+    assert.match(helpers, /'Tlantidu: não havia monstro aquático no deck\.'/);
+    // Em PvP a mão alheia é contagem: identidade só para o assento local.
+    assert.match(helpers, /const podeRevelar = !window\.PvpSession \|\| dono === assentoLocal\(\);/);
+
+    const ataque = fonte.slice(fim, fonte.indexOf('function updateCardDisplay'));
+    // O snapshot da mão tem de ser anterior ao combate, senão não há como saber o
+    // que o motor colocou na mão.
+    assert.match(ataque, /const maosAntes = instantaneoDasMaos\(\);\s*const result = window\.gameEngine\.resolveCombat\(/);
+    assert.match(ataque, /sincronizarMaosDoCombate\(maosAntes\);\s*anunciarBuscaDoTlantidu\(result\.defeated, maosAntes\);/);
+});
+
+test('o lobby PvP tem o modal de regras do jogo (o mesmo do index.html)', () => {
+    const lobby = fs.readFileSync(path.join(__dirname, '../../pvp-lobby.html'), 'utf8');
+    const index = fs.readFileSync(path.join(__dirname, '../../index.html'), 'utf8');
+
+    // Botão, modal e os dois caminhos de abrir/fechar declarados no lobby.
+    assert.match(lobby, /<button id="rules-button" class="secondary" onclick="showRulesModal\(\)">Regras do Jogo<\/button>/);
+    assert.match(lobby, /<div id="rules-modal" class="modal-overlay">/);
+    assert.match(lobby, /<span class="modal-close" onclick="closeRulesModal\(\)">&times;<\/span>/);
+    assert.match(lobby, /function showRulesModal\(\) \{\s*document\.getElementById\('rules-modal'\)\.classList\.add\('visible'\);/);
+    assert.match(lobby, /function closeRulesModal\(\) \{\s*document\.getElementById\('rules-modal'\)\.classList\.remove\('visible'\);/);
+    // Além do ×: o fundo escuro e o Esc fecham (o index só tem o ×).
+    assert.match(lobby, /if \(evento\.target === modalDeRegras\) closeRulesModal\(\);/);
+    assert.match(lobby, /if \(evento\.key === 'Escape'\) closeRulesModal\(\);/);
+
+    // Conteúdo idêntico ao do index.html: um teste de consistência das regras.
+    const titulos = html => [...html.matchAll(/<h3>(.*?)<\/h3>/g)].map(m => m[1]);
+    const paragrafos = html => [...html.matchAll(/<p>(.*?)<\/p>/g)].map(m => m[1]);
+    assert.deepEqual(titulos(lobby), titulos(index), 'seções das regras divergem do index.html');
+    assert.deepEqual(paragrafos(lobby), paragrafos(index), 'parágrafos das regras divergem do index.html');
+    assert.ok(titulos(lobby).length === 5, 'o lobby deve trazer as 5 seções de regras');
+
+    // CSS do modal no lobby: mesma linguagem (overlay fixo, conteúdo rolável).
+    const overlay = lobby.slice(lobby.indexOf('.modal-overlay {'), lobby.indexOf('.modal-overlay.visible'));
+    assert.match(overlay, /position: fixed;/);
+    assert.match(overlay, /visibility: hidden;/);
+    assert.match(lobby, /\.modal-overlay\.visible \{ visibility: visible; opacity: 1; \}/);
+    assert.match(lobby, /\.modal-content \{[\s\S]*?max-height: 80vh;[\s\S]*?overflow-y: auto;/);
+    assert.match(lobby, /\.rules-text h3 \{[\s\S]*?border-bottom: 2px solid var\(--secondary-color\);/);
+});
+
+test('os ícones de face do dado existem e o botão usa o do valor sorteado', () => {
+    const raiz = path.join(__dirname, '../..');
+    const css = fs.readFileSync(path.join(raiz, 'src/css/game.css'), 'utf8');
+    // O seletor aparece também em `.stat-energy .dice-button`: a âncora é a regra
+    // base, no começo da linha.
+    const botao = (/\n\s*\.dice-button \{\n([\s\S]*?)\}/.exec(css) || [])[1] || '';
+
+    for (let face = 1; face <= 6; face += 1) {
+        assert.ok(
+            fs.existsSync(path.join(raiz, `assets/dice/dice-${face}.svg`)),
+            `ícone assets/dice/dice-${face}.svg ausente`
+        );
+        const regra = `.dice-button.dice-face-${face} { background-image: url('../../assets/dice/dice-${face}.svg'); }`;
+        assert.ok(css.includes(regra), `regra do ícone ${face} ausente em game.css`);
+    }
+
+    // O botão é discreto no repouso (o dourado cheio chamava atenção ao lado da
+    // energia) e ganha o dourado no hover, herdado do `.mini-button`.
+    assert.match(botao, /background-color: var\(--secondary-color\);/);
+    assert.match(botao, /border: 2px solid var\(--primary-color\);/);
+    assert.match(botao, /background-size: 84%;/);
+
+    // Já jogado: a aparência do estado desativado é do CSS (o JS só liga o
+    // `disabled`) — sem anel dourado, bem apagado e sem hover de botão ativo.
+    const desabilitado = css.slice(css.indexOf('.dice-button:disabled {'), css.indexOf('}', css.indexOf('.dice-button:disabled {')));
+    assert.match(desabilitado, /background-color: var\(--field-color\);/);
+    assert.match(desabilitado, /border-color: var\(--secondary-color\);/);
+    assert.match(desabilitado, /filter: grayscale\(1\) brightness\(0\.7\);/);
+    assert.match(desabilitado, /opacity: 0\.35;/);
+    assert.match(desabilitado, /cursor: not-allowed;/);
+    assert.doesNotMatch(desabilitado, /--primary-color/);
+
+    // O `:hover` cru deixava o dado usado dourado e maior, parecendo disponível.
+    assert.match(css, /\.mini-button:not\(:disabled\):hover \{/);
+    assert.doesNotMatch(css, /\n\s*\.mini-button:hover \{/);
+    assert.match(css, /\.dice-button:disabled:hover \{\s*background-color: var\(--field-color\);\s*transform: none;/);
+});
+
 test('rollDice mostra a face sorteada sem overlay e o reset devolve o dado', () => {
     const fonte = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
-    const inicio = fonte.indexOf('function animarResultadoDoDado');
-    assert.notEqual(inicio, -1, 'animarResultadoDoDado não encontrada');
+    const inicio = fonte.indexOf('const DICE_FACES');
+    assert.notEqual(inicio, -1, 'const DICE_FACES não encontrada');
 
-    const animacao = fonte.slice(inicio, fonte.indexOf('function rollDice', inicio));
+    // Face pelo ícone: `dice-face-N` + `data-face` (o "+N" flutuante é filho do
+    // botão, então `textContent` leria "5+5").
+    const faces = fonte.slice(inicio, fonte.indexOf('function animarResultadoDoDado'));
+    assert.match(faces, /diceButton\.classList\.add\(`dice-face-\$\{valor\}`\);/);
+    assert.match(faces, /diceButton\.dataset\.face = String\(valor\);/);
+    assert.match(faces, /diceButton\.textContent = '🎲';/);
+    // O giro das faces é por botão (WeakMap): os dois lados podem rolar em PvP.
+    assert.match(faces, /const timer = setInterval\(sortearFace, 90\);/);
+    assert.match(faces, /sortearFace\(\);/);
+    assert.match(faces, /clearInterval\(timer\);/);
+    assert.match(faces, /const girosDeFace = new WeakMap\(\);/);
+
+    const animacao = fonte.slice(fonte.indexOf('function animarResultadoDoDado'), fonte.indexOf('function rollDice'));
     assert.match(animacao, /energyElement\.classList\.add\('energy-gain-dice'\);/);
     assert.match(animacao, /flutuante\.className = 'dice-result-floating';/);
     assert.match(animacao, /diceButton\.appendChild\(flutuante\);/);
 
     const roll = fonte.slice(fonte.indexOf('function rollDice', inicio), fonte.indexOf('function playSound'));
     assert.match(roll, /diceButton\.classList\.add\('dice-rolling'\);/);
-    assert.match(roll, /diceButton\.classList\.remove\('dice-rolling'\);\s*diceButton\.classList\.add\('dice-settled'\);/);
-    assert.match(roll, /diceButton\.textContent = String\(diceResult\);/);
+    assert.match(roll, /iniciarGiroDeFaces\(diceButton\);/);
+    assert.match(roll, /pararGiroDeFaces\(diceButton\);\s*diceButton\.classList\.remove\('dice-rolling'\);\s*diceButton\.classList\.add\('dice-settled'\);\s*marcarFaceDoDado\(diceButton, diceResult\);/);
     assert.match(roll, /animarResultadoDoDado\(diceButton, player, diceResult\);/);
+    // O estado "já jogado" é o `:disabled`: a classe do quique sai depois.
+    assert.match(roll, /setTimeout\(\(\) => diceButton\.classList\.remove\('dice-settled'\), 500\);/);
+    // Resultado local de uma partida reiniciada no meio do giro não aplica.
+    assert.match(roll, /const generation = window\.matchGeneration;/);
+    assert.match(roll, /if \(generation !== window\.matchGeneration\) return;/);
     // O feedback saiu do centro da tela para o próprio dado.
     assert.doesNotMatch(roll, /showMessage\(`🎲 Dado da Sorte/);
 
-    // Reset de partida: face, classes e o guard `dataset.diceRolled` — que
-    // sobrevivia ao reset e engolia o resultado da partida seguinte.
+    // Reset de partida: face, classes e os guards (o `dataset.diceRolled` e o
+    // giro de faces sobreviviam ao reset).
     const reset = fonte.slice(fonte.indexOf('function resetGame'), fonte.indexOf('function renderHandsFromState'));
+    assert.match(reset, /pararGiroDeFaces\(diceButton\);/);
     assert.match(reset, /delete diceButton\.dataset\.diceRolled;/);
     assert.match(reset, /diceButton\.classList\.remove\('dice-rolling', 'dice-settled'\);/);
-    assert.match(reset, /diceButton\.textContent = '🎲';/);
+    assert.match(reset, /limparFaceDoDado\(diceButton\);/);
 });
 
 test('Núcleo de Energia Pura aceita dragão ou elite e aplica somente +5/+5', () => {
@@ -4086,10 +4219,12 @@ test('fim de jogo trava os botões e o reset devolve a interatividade', () => {
     assert.match(victorySoundBody, /if \(window\.victorySoundPlayed\) return;/);
 });
 
-test('timers de fim de turno e de vitória respeitam a geração da partida', () => {
+test('timers de fim de turno, de vitória e do dado respeitam a geração da partida', () => {
     const interfaceSource = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
     const generationGuards = interfaceSource.match(/generation !== window\.matchGeneration/g) || [];
-    assert.equal(generationGuards.length, 2);
+    // endGame (fim de turno/vitória), a compra do deck e o resultado do dado da
+    // sorte — um timer pendente nunca pode cair na partida seguinte.
+    assert.equal(generationGuards.length, 3);
 });
 
 /**

@@ -31,7 +31,15 @@
     document.body.dataset.seat = 'p1';
     state.currentPlayer = 'p1';
     state.currentPhase = 'invocation';
-    for (let i = 0; i < 6; i++) Model.drawCard(state, 'p1');
+    // Criaturas explícitas: comprar do deck sorteado não garante 3 criaturas na mão
+    // (o balanceamento tem 48–50 cartas e o tipo varia).
+    [1, 2, 3].forEach(numero => {
+        const criatura = Model.createCardInstance({
+            id: `card_campo_${numero}`, name: `Criatura de Teste ${numero}`, type: 'criatura',
+            cost: 1, attack: 5, defense: 5
+        }, 'p1', { instanceId: `campo_criatura_${numero}` });
+        Model.registerCard(state, criatura, 'hand', 'p1');
+    });
     window.renderHandsFromState();
     window.renderPlayerStats();
     window.renderFieldsFromState();
@@ -63,7 +71,7 @@
         .filter(carta => carta.data?.type === 'criatura')
         .sort((a, b) => (a.data.cost || 0) - (b.data.cost || 0))
         .slice(0, 3);
-    assert('a mão rende 3 criaturas para invocar', criaturas.length === 3);
+    assert('a mão tem 3 criaturas prontas para invocar', criaturas.length === 3);
 
     criaturas.forEach(carta => {
         Model.setPlayerStat(state, 'energy', 'p1', 20, { energyCap: 20 });

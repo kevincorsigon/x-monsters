@@ -24,6 +24,7 @@ const CONSOLE_SCRIPTS = [
     'tests/browser/test_tobinha.js',
     'tests/browser/test_deck_count.js',
     'tests/browser/test_dice_roll.js',
+    'tests/browser/test_tlantidu_death.js',
 ];
 
 // Scripts de console PVP (precisam de pvp.html carregado)
@@ -35,6 +36,11 @@ const PVP_CONSOLE_SCRIPTS = [
     'tests/browser/test_field_card_size.js',
     'tests/browser/test_pvp_game_over.js',
     'tests/browser/test_pvp_deck_count.js',
+];
+
+// Scripts de console do lobby (precisam de pvp-lobby.html carregado)
+const LOBBY_CONSOLE_SCRIPTS = [
+    'tests/browser/test_pvp_lobby_rules.js',
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -225,6 +231,12 @@ async function main() {
     for (const script of PVP_CONSOLE_SCRIPTS) {
         const wsUrl = await openNewTab();
         await runConsoleAndReport(script, wsUrl, 'pvp.html');
+    }
+
+    // Rodar scripts de console do lobby contra pvp-lobby.html
+    for (const script of LOBBY_CONSOLE_SCRIPTS) {
+        const wsUrl = await openNewTab();
+        await runConsoleAndReport(script, wsUrl, 'pvp-lobby.html');
     }
 
     chrome.kill();

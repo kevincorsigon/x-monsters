@@ -1,6 +1,181 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-21 — Regras do jogo no lobby PvP (botão + modal, igual ao index.html)
+Pedido: "na tela do lobby do pvp, temos que ter um botão com modal das regras do
+jogo, assim como temos em index.html".
+
+Causa: o modal de regras existia **só** no `index.html` (`.modal-overlay` /
+`.modal-content` / `.rules-text` + `showRulesModal`/`closeRulesModal`). O
+`pvp-lobby.html` é uma página autocontida (bloco `<style>` próprio, sem
+`src/css/game.css`) e não tinha nem o botão nem o CSS do modal — quem abria o
+lobby não tinha acesso às regras, apesar de jogar o mesmo jogo.
+
+Decisão: o lobby recebe o mesmo modal, com o conteúdo **idêntico** ao do
+`index.html`, e com dois caminhos extras de fechar.
+- **`pvp-lobby.html` (HTML)**: `<button id="rules-button" class="secondary"
+  onclick="showRulesModal()">Regras do Jogo</button>` no `.action-row` (junto de
+  Criar partida / Atualizar / Nova partida, e **nunca `disabled`** — não depende
+  de sala) e `#rules-modal.modal-overlay` com o mesmo texto das 5 seções
+  (Objetivo, Energia, Fases, Combate, Mecânicas Adicionais). O índice é `h2` +
+  `h3` + `p`/`ul`, idêntico ao `index.html` — travado por teste.
+- **`pvp-lobby.html` (CSS)**: as regras de `.modal-overlay` / `.modal-content` /
+  `.rules-text` foram copiadas para o bloco local (mesma linguagem: overlay
+  `position: fixed` + `inset: 0`, `visibility/opacity` com transição, conteúdo
+  `max-height: 80vh` + `overflow-y: auto`) porque a página não carrega o CSS do
+  board.
+- **`pvp-lobby.html` (JS)**: `showRulesModal()` / `closeRulesModal()` trocando a
+  classe `visible`, mais fechar por **clique no fundo escuro** (`evento.target ===
+  modalDeRegras`, para não fechar ao clicar dentro do texto) e por **Esc**.
+
+Evidências: **203/203** em `node tests/unit/run-tests.js` (teste novo: botão,
+modal, as duas funções, os três caminhos de fechar, CSS do overlay e — o mais
+importante — `deepEqual` dos `h3`/`p` contra o `index.html`, para o texto não
+divergir) e **19 PASS / 0 FAIL** em `node tests/browser/run-browser-tests.js`,
+com o novo `tests/browser/test_pvp_lobby_rules.js` (13 checks rodando em
+`pvp-lobby.html` via o novo `LOBBY_CONSOLE_SCRIPTS` do runner: abre pelo clique
+real, cobre a viewport, cabe na tela com rolagem interna, 5 seções iguais às do
+index, fecha no ×/fundo/Esc e reabre). O teste do Esc é comprovadamente vermelho
+ao remover o listener de `keydown`. Screenshot CDP conferido: modal aberto em
+600×643 px sobre o lobby com o × no canto. `py -3 tests/pvp/smoke_match.py` segue
+com todos os checklists OK.
+
+## 2026-09-21 — Tlantidu: a carta buscada ao morrer aparecia no estado, não na mão
+Sintoma (relatado jogando): "Tlantidu ao morrer não trouxe carta do tipo aquática
+para a mão — deveria trazer caso exista e apresentar um disclaimer".
+
+Causa: a busca é do **motor** e funcionava (os testes de `card-rules.js` já
+cobriam: a aquática ia para a mão do dono em `resolveCombat`). O que não
+acontecia era a **UI**: `performAttack` só reprojetava a mão no bloco
+`returnedToHand` (atacante/alvo que voltam à mão por efeito próprio), então um
+`MOVE_CARD` deck→mão vindo da reação de morte ficava invisível — a carta existia
+em `zones.hand`, o DOM e o contador da mão não mudavam, e nada era anunciado.
+Medido com o CDP: 4/9 checks antes da correção (mão renderizada, contador e
+aviso vermelhos; o estado já estava certo).
+
+Decisão: a UI sincroniza a mão depois de qualquer combate e explica o efeito.
+- **`src/js/game.js`**: `instantaneoDasMaos()` tira um snapshot dos `instanceId`
+  das mãos **antes** do `resolveCombat`; `sincronizarMaosDoCombate(maosAntes)`
+  reprojeta a mão só quando algo entrou/saiu (cobre Tlantidu, Zol, ETC sem
+  renderizar à toa); `anunciarBuscaDoTlantidu(result.defeated, maosAntes)` é o
+  disclaimer: diz qual carta veio (`Tlantidu: <nome> foi buscada no deck e entrou
+  na mão.`) ou avisa `Tlantidu: não havia monstro aquático no deck.` Em PvP a mão
+  alheia é contagem, então a identidade só é revelada para o assento local
+  (`podeRevelar = !window.PvpSession || dono === assentoLocal()`), com mensagem
+  genérica para o oponente. O canal é o `showAbilityFeedback` das habilidades.
+- **`src/js/card-rules.js`**: `card_038` ganhou `feedback` em `COMBAT_RULES`
+  (mesmo lugar do Fantom, `card_042`) — o disclaimer preventivo aparece na
+  invocação pelo `getFeedback` que o `onCardSummoned` já usa.
+
+Evidências: **202/202** em `node tests/unit/run-tests.js` (teste novo: feedback
+do `card_038` + o fluxo de snapshot/sincronização/anúncio na fonte do
+`performAttack`) e **18 PASS / 0 FAIL** em `node tests/browser/run-browser-tests.js`
+com o novo `tests/browser/test_tlantidu_death.js` (10 checks: a aquática do deck
+entra na mão renderizada e no contador, a não aquática fica no deck, o
+disclaimer nomeia a carta, e sem aquática no deck a mão fica intacta com o aviso
+de ausência). O teste é comprovadamente vermelho sem a correção (4/9) — foi
+escrito antes dela. `py -3 tests/pvp/smoke_match.py` segue com todos os
+checklists OK.
+
+## 2026-09-21 — Dado da Sorte com ícones de face e estado "já jogado" no CSS
+Pedido: "não temos ícones de dados com os valores aplicados, tipo dice-1, dice-4"
+e "depois de jogado o dado é que o botão ficasse desativado em CSS".
+
+Causa do visual atual: o resultado saía como **número** no botão (sem ícone de
+face) e o `:disabled` era genérico (`#666` + `opacity .5`), com a classe
+`dice-settled` ficando no botão depois da animação — o estado "usado" não era
+declarado em CSS.
+
+Decisão: a face é o ícone do dado e o repouso do botão é discreto; o estado
+"já jogado" é o `:disabled` do CSS.
+- **`assets/dice/dice-1.svg` … `dice-6.svg`** (novos): dado marfim com os pips
+  da face, desenhados para o círculo escuro com anel dourado.
+- **`src/css/game.css`**: `.dice-button` passou a ser neutro no repouso
+  (`--secondary-color` + `border: 2px solid var(--primary-color)`; o dourado
+  cheio continua no `:hover`, herdado do `.mini-button`) — era o bloco dourado
+  que chamava atenção ao lado da energia. `.dice-face-1`…`dice-face-6` ligam o
+  `background-image` de cada ícone. `.dice-button:disabled` agora é o estado
+  "usado": fundo `--field-color`, anel cinza, `filter: grayscale(1)`,
+  `opacity: .45`, `cursor: not-allowed`. `.dice-rolling`/`.dice-settled`
+  garantem `filter: none; opacity: 1` para o giro e o quique aparecerem mesmo
+  com o botão desabilitado (dado do oponente no PvP).
+- **`src/js/game.js`**: `DICE_FACES`, `marcarFaceDoDado` (classe `dice-face-N`
+  + `data-face`), `limparFaceDoDado`, `iniciarGiroDeFaces`/`pararGiroDeFaces`
+  (`setInterval` de 90ms por botão num `WeakMap` — os dois lados podem rolar em
+  PvP, e a primeira face entra na hora). No resultado, o giro para, a face
+  sorteada fica no botão e a classe `dice-settled` sai 500ms depois, deixando o
+  `:disabled` cuidar da aparência. `resetGame` limpa face, classes e para o giro.
+- Bug colateral: o `setTimeout` de 800ms da rolagem local sobrevivia ao
+  `resetGame` e aplicava o resultado na partida nova. Ganhou a mesma guarda de
+  geração dos outros timers (`generation !== window.matchGeneration`).
+- Layout da pílula: o dado saiu de lado do número e foi para a **linha de baixo**
+  (`game.html`/`pvp.html`: `class="stat stat-energy"`; `game.css`:
+  `.stat-energy` em `grid` com `Energia: N` na linha 1 e o
+  `.stat-energy .dice-button` ocupando as duas colunas da linha 2). Grid explícito
+  para não depender da ordem dos filhos e manter o botão como filho direto da
+  pílula (o `+N` continua ancorado nele). O dado ficou centralizado na horizontal
+  e abaixo do valor — medido no CDP: dado em `y=304,8` contra valor terminando em
+  `y=297,7`, centros alinhados em `x≈145,4`.
+- Já jogado, o dado fica **bem apagado e inerte**: `.dice-button:disabled` com
+  `filter: grayscale(1) brightness(0.7)`, `opacity: .35` e `cursor: not-allowed`.
+  O `:hover` do `.mini-button` virou `.mini-button:not(:disabled):hover` porque o
+  seletor cru deixava o dado usado **dourado e maior** sob o mouse (parecia
+  disponível), com `.dice-button:disabled:hover` zerando o `transform` para o caso
+  do ponteiro já estar em cima quando o botão desabilita. O clique não faz nada:
+  o `disabled` do botão bloqueia o `onclick` e o teste dispara `.click()` para
+  provar que nem custo, nem giro, nem novo resultado acontecem.
+
+Evidências: 201/201 em `node tests/unit/run-tests.js` (4 testes do dado, os
+ícones e o `:disabled`) e 17 PASS / 0 FAIL em `node tests/browser/run-browser-tests.js`
+com o `tests/browser/test_dice_roll.js` (28 checks: face marcada pelo ícone,
+`backgroundImage` = `dice-N.svg`, estado usado pelo CSS computado, giro com
+faces trocando, reset). Vermelho confirmado removendo `filter: grayscale(1)` do
+`:disabled` (1 teste de unidade + 1 check do browser falham). Screenshot CDP
+conferido com o dado mostrando a face 4 e o "+4" subindo.
+
+## 2026-09-21 — Dado da Sorte: alinhado na pílula e resultado sem quebrar o layout
+Sintoma: o dado aparecia fora do centro da pílula de energia e o "+N" do
+resultado empurrava o conteúdo do botão (a pílula dançava a cada rolagem).
+
+Causas: (1) `.control-buttons` (`margin-top: 3px`) envolvia o botão e o próprio
+botão tinha um `margin-top: 4px` **inline** — 7 px de desalinhamento contra o
+`align-items: center` do `.stat`; (2) `.dice-result-floating` **não tinha regra
+nenhuma** em `game.css`: o `+N` era um `div` em fluxo dentro do `<button>`, então
+entrava no layout do botão; (3) o feedback era um `showMessage` centralizado, que
+cobria o tabuleiro.
+
+Decisão: o dado é filho direto da pílula e o resultado aparece **no próprio
+dado**.
+- **`game.html` / `pvp.html`**: `<button class="mini-button dice-button">` direto
+  no `.stat` (sem wrapper, sem margem inline) — o alinhamento passa a ser o do
+  `align-items: center` da pílula.
+- **`src/css/game.css`**: `.control-buttons` e a animação antiga (`@keyframes
+  diceRoll` / `.dice-animation`) saíram. `padding: 0; line-height: 1` no
+  `.mini-button` centraliza o glifo; `.dice-button` é `position: relative`;
+  `.dice-rolling` roda `diceTumble 0.4s linear infinite` enquanto espera;
+  `.dice-settled` entra com `diceSettle` (quique); `.dice-result-floating` é
+  `position: absolute` + `pointer-events: none` subindo com `diceResultFloat`
+  (fora do fluxo, por isso não empurra nada); `.energy-value.energy-gain-dice`
+  pulsa com `energyGainDice` (a animação vence o `transform` inline do
+  `changeStat`).
+- **`src/js/game.js`**: `animarResultadoDoDado` (pulso + flutuante);
+  `rollDice` troca classe de rolagem por resultado, mostra a face no botão
+  (`textContent` **e** `data-face` — o flutuante é filho, então `textContent`
+  leria "5+5"), tira o `showMessage` central, tem rede de segurança de 5 s se o
+  resultado não voltar no PvP e título com o valor. `resetGame` devolve 🎲 e
+  limpa `dice-rolling`/`dice-settled`/`data-face`/`dataset.diceRolled` — este
+  último era um bug: sobrevivia ao reset, a guarda de aplicação dupla retornava
+  cedo e o dado da partida seguinte não dava energia nenhuma.
+
+Evidências: 200/200 em `node tests/unit/run-tests.js` (3 testes novos: HTML sem
+wrapper/margem, CSS das animações e do flutuante, `rollDice`/`resetGame`) e
+17 PASS / 0 FAIL em `node tests/browser/run-browser-tests.js`, com o novo
+`tests/browser/test_dice_roll.js` (23 checks: dado centrado na pílula, face
+sorteada, custo/ganho de energia exatos, "+N" absoluto, pílula sem crescer nem
+estourar, dado já usado inerte, reset devolvendo o dado). Vermelho confirmado
+trocando `position: absolute` do flutuante por `static` (1 teste de unidade + 1
+check do browser falham).
+
 ## 2026-09-21 — A área de saque passou a mostrar as cartas restantes
 Pedido: "a quantidade de cartas restantes devem aparecer na área de sacar" —
 o tabuleiro dizia "Clique para sacar" sem dizer se ainda havia carta para

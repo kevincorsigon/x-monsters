@@ -43,7 +43,8 @@ and `pvp-lobby.html` (`/pvp`) creates rooms via `POST /api/matches`.
   `publicarContagemDeMao`).
 - **`src/js/pvp-game.js`** — PvP bootstrap: socket + seat, `MATCH_START`,
   command appliers, control blocking, end-of-match overlay.
-- **`pvp.html` / `pvp-lobby.html`** — online board and lobby;
+- **`pvp.html` / `pvp-lobby.html`** — online board and lobby (o lobby traz o
+  botão + modal "Regras do Jogo", conteúdo igual ao do `index.html`);
   **`src/css/pvp.css`** — PvP-only styles (`body[data-seat]`).
 - **`server.py`** — statics + lobby API + WebSocket relay, per-room ledger,
   server-side RNG, `matches/<roomId>.json` mirror.
@@ -55,7 +56,8 @@ and `pvp-lobby.html` (`/pvp`) creates rooms via `POST /api/matches`.
 - **`tests/browser/`** — manual console diagnostics (not loaded in production);
   `run-browser-tests.js` drives them via CDP (`test_pvp_draw.js` cobre a regra
   "só o DRAW do ledger muda a mão", `test_field_card_size.js` trava o tamanho
-  das cartas em campo e `test_pvp_game_over.js` o overlay de fim de partida).
+  das cartas em campo, `test_pvp_game_over.js` o overlay de fim de partida e
+  `test_pvp_lobby_rules.js` o modal de regras do lobby).
 - **`scripts/`** — OCR, print sheets, `check_cards.py` coverage scan,
   `deck_factory.js` (seeded decks for PvP).
 - **`assets/cards/`** — 110 card images referenced by JSON `image`.
@@ -131,19 +133,29 @@ patterns:
 - `src/js/deck_system.js` — fetch JSON + seeded balanced decks.
 - `src/js/manual_abilities.js` — activated-ability panel (+ PvP ABILITY).
 - `data/cards_database.json` — 110-card catalog.
-- `tests/unit/run-tests.js` — engine/rules/PvP regression tests (197 tests).
+- `tests/unit/run-tests.js` — engine/rules/PvP regression tests (203 tests).
 - `tests/pvp/smoke_match.py` — server + 2 WS clients smoke test (ledger só com
   as compras esperadas; F5 não soma comando).
 - `tests/browser/test_pvp_draw.js` — regra da compra em PvP no DOM real +
   contador de mão vindo do websocket.
 - `tests/browser/test_deck_count.js` — área de saque mostra as cartas restantes
   (rótulo dentro da caixa do deck, zero com alerta visual).
+- `tests/browser/test_dice_roll.js` — pílula de energia com o dado na linha de
+  baixo (centralizado sob `Energia: N`) e resultado sem quebrar o layout (face
+  pelo ícone `assets/dice/dice-N.svg`, "já jogado" pelo `:disabled` do CSS, "+N"
+  absoluto, reset do dado).
+- `tests/browser/test_tlantidu_death.js` — morte do Tlantidu pelo combate real:
+  a aquática do deck aparece na mão renderizada e o disclaimer nomeia a carta
+  (ou avisa que não havia aquática no deck).
 - `tests/browser/test_pvp_deck_count.js` — o mesmo contador em PvP: deck privado
   do dono e deck oculto do oponente encolhendo com o ledger.
 - `tests/browser/test_field_card_size.js` — carta invocada entra no campo no
   tamanho do slot (regressão do `.card.selected` com `scale`).
 - `tests/browser/test_pvp_game_over.js` — overlay de fim de partida visível,
   com o vencedor e o botão de volta ao lobby.
+- `tests/browser/test_pvp_lobby_rules.js` — botão "Regras do Jogo" no lobby abre
+  o modal (mesmas 5 seções do `index.html`), fecha no ×/fundo/Esc e o conteúdo
+  cabe na viewport com rolagem interna (`LOBBY_CONSOLE_SCRIPTS` no runner).
 - `scripts/deck_factory.js` — seeded deck CLI used by the server.
 - `scripts/check_cards.py` — catalog vs `card-rules.js` mention scan.
 - `game.html` / `pvp.html` / `pvp-lobby.html` — board shell, online board, lobby.
