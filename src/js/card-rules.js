@@ -1752,9 +1752,38 @@
         return engine.resolveChoice(pending.choiceId, targetIds);
     }
 
+    // Todo suporte carrega os próprios números de ATK/DEF no catálogo
+    // (`data/cards_database.json`) e eles somam ao hospedeiro. A regra da carta
+    // tem precedência quando declara o stat (001/004/009/015/104 usam os números
+    // do texto) e equipamentos hostis nunca derivam o stat do catálogo: ali o
+    // número é a magnitude da penalidade aplicada pela própria regra
+    // (ex.: 005 drena 5 DEF por turno via DEFENSE_DRAIN).
+    function createCatalogStatEffects(equipment, targetId, rule, declaredStats) {
+        if (rule.targetSide === 'ENEMY') return [];
+        const data = equipment.data || {};
+
+        return ['attack', 'defense']
+            .filter(stat => !declaredStats.has(stat))
+            .map(stat => ({ stat, value: Number(data[stat]) || 0 }))
+            .filter(entry => entry.value !== 0)
+            .map(entry => ({
+                kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
+                targetId,
+                modifier: {
+                    id: `${equipment.instanceId}:${entry.stat}`,
+                    sourceId: equipment.instanceId,
+                    stat: entry.stat,
+                    operation: GameEngine.MODIFIER_OPERATIONS.ADD,
+                    value: entry.value,
+                    duration: {
+                        kind: GameEngine.DURATION_KINDS.UNTIL_SOURCE_LEAVES,
+                        sourceId: equipment.instanceId
+                    }
+                }
+            }));
+    }
+
     function createEquipmentEffects(equipment, targetId, state) {
-        // Update target's base stats with equipment stats if present
-        // const target = state.cardInstances[targetId];
         const rule = getEquipmentRule(equipment.definitionId);
         // Suportes sem regra de equipamento (ex.: cartas só ativadas da mão ou
         // ainda não implementadas) não geram efeitos migrados. Retornar null
@@ -1762,38 +1791,18 @@
         if (!rule) {
             return null;
         }
-     /*   const equipBase = equipment.baseStats || {};
 
+        const additionalEffects = rule.effects ? rule.effects(equipment, targetId, state) : [];
+        const declaredStats = new Set([
+            ...Object.keys(rule.modifiers || {}),
+            ...additionalEffects
+                .filter(effect => effect &&
+                    effect.kind === GameEngine.EFFECT_KINDS.ADD_MODIFIER &&
+                    effect.modifier)
+                .map(effect => effect.modifier.stat)
+        ]);
 
-
-
-            if (Object.keys(rule.modifiers || {}).length === 0) {
-                // Add base stats from equipment to target if no modifiers
-                if (equipBase.attack) {
-                    target.baseStats = target.baseStats || {};
-                    target.baseStats.attack = (target.baseStats.attack ?? 0) + equipBase.attack;
-                }
-                if (equipBase.defense) {
-                    target.baseStats = target.baseStats || {};
-                    target.baseStats.defense = (target.baseStats.defense ?? 0) + equipBase.defense;
-                }
-            }
-
-        if (target && equipment) {
-            const equipBase = equipment.baseStats || {};
-            if (equipBase.attack) {
-                target.baseStats = target.baseStats || {};
-                target.baseStats.attack = (target.baseStats.attack ?? 0) + equipBase.attack;
-            }
-            if (equipBase.defense) {
-                target.baseStats = target.baseStats || {};
-                target.baseStats.defense = (target.baseStats.defense ?? 0) + equipBase.defense;
-            }
-        }
-        */
-        
-
-        const modifierEffects = Object.entries(rule.modifiers).map(([stat, value]) => ({
+        const modifierEffects = Object.entries(rule.modifiers || {}).map(([stat, value]) => ({
             kind: GameEngine.EFFECT_KINDS.ADD_MODIFIER,
             targetId,
             modifier: {
@@ -1808,8 +1817,12 @@
                 }
             }
         }));
-        const additionalEffects = rule.effects ? rule.effects(equipment, targetId, state) : [];
-        return [...modifierEffects, ...additionalEffects];
+
+        return [
+            ...modifierEffects,
+            ...createCatalogStatEffects(equipment, targetId, rule, declaredStats),
+            ...additionalEffects
+        ];
     }
 
     function createRecentlySummonedEffect(event, context) {

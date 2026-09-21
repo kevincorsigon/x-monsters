@@ -9,6 +9,14 @@ const PvpProtocol = require('../../src/js/pvp-protocol.js');
 const { DeckBuilder, mulberry32 } = require('../../scripts/deck_factory.js');
 const cardsDatabase = require('../../data/cards_database.json');
 
+// O repositório guarda os arquivos com LF, mas um checkout Windows com
+// `core.autocrlf=true` entrega CRLF. Testes que ancoram em início de linha
+// (`\n...`) ou fatiaram um bloco por `\n` precisam do texto normalizado para
+// valer nos dois checkouts.
+function readSourceText(relativePath) {
+    return fs.readFileSync(path.join(__dirname, '../..', relativePath), 'utf8').replace(/\r\n/g, '\n');
+}
+
 const tests = [];
 
 function test(name, callback) {
@@ -914,6 +922,10 @@ test('reverte habilidade de invocação quando handler posterior falha', () => {
     assert.equal(state.eventLog.length, 0);
 });
 
+function findCatalogCard(definitionId) {
+    return cardsDatabase.cards.find(card => card.id === definitionId) || null;
+}
+
 function createEquipmentRuleFixture(definitionId) {
     const state = GameStateModel.createInitialGameState();
     const engine = GameEngine.createEngine(state);
@@ -926,13 +938,16 @@ function createEquipmentRuleFixture(definitionId) {
         attack: 20,
         defense: 20
     }, 'p2', { instanceId: `${definitionId}_target` });
+    // O suporte replica os números do catálogo: a regra da carta tem precedência
+    // quando declara o stat e o catálogo preenche os stats que ela não declara.
+    const definition = findCatalogCard(definitionId) || {};
     const equipment = GameStateModel.createCardInstance({
         id: definitionId,
-        name: definitionId,
+        name: definition.name || definitionId,
         type: 'suporte',
-        cost: 1,
-        attack: 99,
-        defense: 99
+        cost: definition.cost ?? 1,
+        attack: definition.attack ?? 0,
+        defense: definition.defense ?? 0
     }, 'p1', { instanceId: `${definitionId}_equipment` });
     GameStateModel.registerCard(state, target, 'field', 'p2');
     GameStateModel.registerCard(state, equipment, 'hand', 'p1');
@@ -973,6 +988,57 @@ test('equipamentos 001, 004 e 009 usam exatamente os números do texto', () => {
     const abutuaram = createEquipmentRuleFixture('card_009');
     assert.equal(abutuaram.engine.getEffectiveStat(abutuaram.target.instanceId, 'attack'), 20);
     assert.equal(abutuaram.engine.getEffectiveStat(abutuaram.target.instanceId, 'defense'), 5);
+});
+
+test('suportes somam os próprios ATK/DEF do catálogo quando a regra não declara o stat', () => {
+    ['card_002', 'card_089', 'card_092', 'card_093', 'card_095', 'card_096',
+        'card_100', 'card_101', 'card_102', 'card_103', 'card_105', 'card_106',
+        'card_107', 'card_108'].forEach(definitionId => {
+        const definition = findCatalogCard(definitionId);
+        assert.ok(definition, `${definitionId} deve existir no catálogo`);
+        const { engine, target, equipment } = createEquipmentRuleFixture(definitionId);
+
+        assert.equal(
+            engine.getEffectiveStat(target.instanceId, 'attack'),
+            20 + definition.attack,
+            `${definitionId} deve somar ${definition.attack} de ATK do catálogo`
+        );
+        assert.equal(
+            engine.getEffectiveStat(target.instanceId, 'defense'),
+            20 + definition.defense,
+            `${definitionId} deve somar ${definition.defense} de DEF do catálogo`
+        );
+
+        engine.resolveAction({
+            type: 'REMOVE_CATALOG_EQUIPMENT',
+            actorId: 'p1',
+            sourceId: equipment.instanceId,
+            effects: [{
+                kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
+                instanceId: equipment.instanceId,
+                destinationZone: 'discard',
+                destinationPlayerId: equipment.ownerId
+            }]
+        });
+        assert.equal(engine.getEffectiveStat(target.instanceId, 'attack'), 20);
+        assert.equal(engine.getEffectiveStat(target.instanceId, 'defense'), 20);
+    });
+});
+
+test('suportes hostis aplicam só a penalidade da regra, sem duplicar o catálogo', () => {
+    const zica = createEquipmentRuleFixture('card_005');
+    assert.deepEqual(zica.target.modifiers, [], 'Zica drena DEF, não soma stat do catálogo');
+    assert.equal(zica.engine.getEffectiveStat(zica.target.instanceId, 'defense'), 20);
+
+    const onzeDeSetembro = createEquipmentRuleFixture('card_015');
+    assert.deepEqual(
+        onzeDeSetembro.target.modifiers.map(modifier => modifier.id),
+        ['card_015_equipment:attack', 'card_015_equipment:defense']
+    );
+    assert.equal(onzeDeSetembro.engine.getEffectiveStat(onzeDeSetembro.target.instanceId, 'attack'), 10);
+    // 20 - 25 = -5, mas o motor exibe DEF efetiva com piso em 0.
+    assert.equal(onzeDeSetembro.engine.getEffectiveStat(onzeDeSetembro.target.instanceId, 'defense'), 0);
+    assert.equal(onzeDeSetembro.target.modifiers.find(modifier => modifier.id === 'card_015_equipment:defense').value, -25);
 });
 
 test('remover equipamento limpa somente seus próprios modificadores', () => {
@@ -2084,7 +2150,7 @@ test('o botão do dado é filho direto da pílula de energia (game.html e pvp.ht
 });
 
 test('CSS do dado: rolagem, resultado e "+N" fora do fluxo', () => {
-    const css = fs.readFileSync(path.join(__dirname, '../../src/css/game.css'), 'utf8');
+    const css = readSourceText('src/css/game.css');
 
     // O flutuante precisa ser absoluto dentro do botão: em fluxo ele empurrava a
     // pílula de energia (o `+N` era um div filho do `<button>`).
@@ -2173,7 +2239,7 @@ test('o lobby PvP tem o modal de regras do jogo (o mesmo do index.html)', () => 
 
 test('os ícones de face do dado existem e o botão usa o do valor sorteado', () => {
     const raiz = path.join(__dirname, '../..');
-    const css = fs.readFileSync(path.join(raiz, 'src/css/game.css'), 'utf8');
+    const css = readSourceText('src/css/game.css');
     // O seletor aparece também em `.stat-energy .dice-button`: a âncora é a regra
     // base, no começo da linha.
     const botao = (/\n\s*\.dice-button \{\n([\s\S]*?)\}/.exec(css) || [])[1] || '';
@@ -2647,13 +2713,15 @@ test('rollback tardio desfaz Aura, morte, dano e descarte', () => {
 });
 
 function installAttackEquipment(fixture, definitionId) {
+    // Stats zerados de propósito: o foco aqui é o limite/penalidade de ataque,
+    // não a soma de ATK/DEF do catálogo (testada em "suportes somam ...").
     const equipment = GameStateModel.createCardInstance({
         id: definitionId,
         name: definitionId,
         type: 'suporte',
         cost: 1,
-        attack: 99,
-        defense: 99
+        attack: 0,
+        defense: 0
     }, 'p1', { instanceId: `${definitionId}_attack_equipment` });
     GameStateModel.registerCard(fixture.state, equipment, 'equipment', 'p1');
     equipment.attachedTo = fixture.attacker.instanceId;
@@ -4541,6 +4609,7 @@ test('fluxo de drag-and-drop do suporte usa o motivo exato da recusa', () => {
     };
     const ui = new Function('window', 'document', `${gameSource}\n;return { gameState, dragStart, dropCard, createCard };`)(fakeWindow, fakeDocument);
     const uiState = ui.gameState;
+    const uiEngine = fakeWindow.gameEngine;
 
     const field = createEl('field-p1');
     field.className = 'player1-field';
@@ -4597,6 +4666,8 @@ test('fluxo de drag-and-drop do suporte usa o motivo exato da recusa', () => {
     assert.equal(uiState.cardInstances.dnd_staff.zone, 'equipment');
     assert.equal(toasts.length, 1);
     assert.match(toasts[0], /foi equipada em/);
+    assert.equal(uiEngine.getEffectiveStat(dragon.instanceId, 'attack'), 30, 'ATK 25 + 5 do Cajado');
+    assert.equal(uiEngine.getEffectiveStat(dragon.instanceId, 'defense'), 35, 'DEF 30 + 5 do Cajado');
     toasts.length = 0;
 
     // Cenário 3: mesmo com a carta já equipada, um drop subsequente no campo

@@ -1,6 +1,46 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-21 — Suporte equipado soma sempre os próprios ATK/DEF do catálogo
+
+Reclamação de produto: cartas de suporte com `attack`/`defense` no
+`data/cards_database.json` não somavam ao serem equipadas. Causa: em
+`CardRules.createEquipmentEffects` o ramo migrado devolvia apenas
+`rule.modifiers`, e o fallback de stats do catálogo (dentro de
+`equipSupportCard`, em `game.js`) só rodava para suportes **sem** regra — 14
+cartas migradas ficavam sem soma alguma (`card_002`, `089`, `092`, `093`,
+`095`, `096`, `100`, `101`, `102`, `103`, `105`, `106`, `107`, `108`).
+
+Regra adotada (precedência explícita):
+
+1. `rule.modifiers` (números do texto) vence quando declara o stat —
+   `card_001` continua +5/+5 e `card_104` continua +5/+5 mesmo com 10/5 e 10/10
+   no catálogo; `card_004`/`015` mantêm a penalidade assinada.
+2. Stat não declarado pela regra (nem por `ADD_MODIFIER` devolvido por
+   `rule.effects`) recebe `ADD_MODIFIER` com o valor do catálogo, duração
+   `UNTIL_SOURCE_LEAVES` e id `${instanceId}:${stat}`.
+3. `targetSide: 'ENEMY'` nunca deriva stat do catálogo: ali o número é a
+   magnitude da penalidade aplicada pela própria regra (`card_005` drena 5 DEF
+   por turno via `DEFENSE_DRAIN`; `card_015` aplica -10/-25 em `effects`), e
+   somar de novo duplicaria o efeito.
+
+Dois testes novos (`suportes somam os próprios ATK/DEF ...` e `suportes hostis
+aplicam só a penalidade da regra ...`) varrem a lista real do catálogo, e o
+harness de drag-and-drop passou a conferir `getEffectiveStat` depois do
+equipamento pela UI (Mago Arcano 25/30 + Cajado da Ilusão 5/5 = 30/35).
+
+Fixtures ajustadas: `createEquipmentRuleFixture` lê o catálogo real (antes
+usava 99/99 arbitrários, que com a nova regra virariam soma) e
+`installAttackEquipment` ficou em 0/0 para isolar limite/penalidade de ataque
+da soma de stats.
+
+No mesmo passo, as duas falhas que restavam na suíte foram corrigidas: `CSS do
+dado: rolagem, resultado e "+N" fora do fluxo` e `os ícones de face do dado
+existem...` ancoravam em `\n\s*\.dice-button \{\n` e quebravam em checkout
+Windows com `core.autocrlf=true` (o repositório guarda LF). Agora os testes
+leem arquivos-fonte por `readSourceText(...)`, que normaliza CRLF → LF —
+**223/223**.
+
 ## 2026-09-21 — Auditoria das 79 cartas: o que é travável sem olhar a arte
 
 Segunda rodada da revisão de traits: em vez de tentar adivinhar arte, foram

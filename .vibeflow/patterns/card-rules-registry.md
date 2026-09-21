@@ -55,6 +55,14 @@ const EQUIPMENT_RULES = Object.freeze({
 });
 ```
 
+`modifiers` usa os números do texto e tem precedência sobre o catálogo. Todo
+stat de `attack`/`defense` que a regra **não** declara (nem via `ADD_MODIFIER`
+em `effects`) é somado ao hospedeiro com o valor do próprio suporte no
+`data/cards_database.json` (`createCatalogStatEffects`, duração
+`UNTIL_SOURCE_LEAVES`). Regras com `targetSide: 'ENEMY'` são isentas dessa
+derivação: nelas o número do catálogo é a magnitude da penalidade que a regra
+já aplica assinada (`card_004`/`009`/`015`) ou via efeito próprio (`card_005`).
+
 Activated abilities used from the manual panel:
 
 ```javascript

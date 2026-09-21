@@ -83,6 +83,10 @@ asserts the relay, the ledger mirror and the deck isolation.
   opening a socket inside the Node suite.
 - Randomness in a test is always seeded (`mulberry32(42)`) — the suite never
   depends on `Math.random`.
+- Assertions sobre arquivos-fonte (CSS/HTML/JS) leem via `readSourceText(...)`,
+  que normaliza CRLF → LF: o repositório guarda LF, mas um checkout Windows
+  com `core.autocrlf=true` entrega CRLF e regex ancorada em `\{\n` falha. Toda
+  regex que dependa de fim de linha deve usar `\s*` ou o texto normalizado.
 
 ## Examples from this codebase
 File: `tests/unit/run-tests.js`
