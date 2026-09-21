@@ -1361,6 +1361,37 @@ test('Scoul ativa +10/+10 com dragão inferido por ID em qualquer campo', () => 
     assert.equal(fixture.engine.getEffectiveStat(fixture.source.instanceId, 'attack'), 10);
 });
 
+test('Scoul não ativa sozinho e Gobra (dragão) ativa pelo JSON', () => {
+    const db = cardsDatabase.cards;
+    assert.deepEqual(db.find(c => c.id === 'card_020').traits, ['dragao']);
+    assert.ok(db.find(c => c.id === 'card_037').traits.includes('dragao'));
+    const fixture = createSummonRuleFixture('card_037');
+    fixture.source.data.traits = [...db.find(c => c.id === 'card_037').traits];
+    emitSummoned(fixture.engine, fixture.source);
+    assert.equal(fixture.engine.getEffectiveStat(fixture.source.instanceId, 'attack'), 10);
+    const gobra = addFieldCreature(fixture.state, 'p1', 'card_020', 'gobra_dragao');
+    gobra.data.traits = [...db.find(c => c.id === 'card_020').traits];
+    assert.equal(CardRules.hasTrait(gobra, 'dragao'), true);
+    assert.equal(fixture.engine.getEffectiveStat(fixture.source.instanceId, 'attack'), 20);
+});
+
+test('toda criatura do JSON tem ao menos uma trait', () => {
+    const semTrait = cardsDatabase.cards.filter(c => c.type === 'criatura' && !Array.isArray(c.traits));
+    assert.deepEqual(semTrait.map(c => c.id), []);
+    const vazias = cardsDatabase.cards.filter(c => c.type === 'criatura' && c.traits.length === 0);
+    assert.deepEqual(vazias.map(c => c.id), []);
+});
+
+test('traits do JSON têm precedência sobre o fallback legado', () => {
+    const state = GameStateModel.createInitialGameState();
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+    const scoul = addFieldCreature(state, 'p1', 'card_037', 'scoul_json');
+    scoul.data.traits = ['besta'];
+    assert.equal(CardRules.hasTrait(scoul, 'dragao'), false);
+    assert.equal(CardRules.hasTrait(scoul, 'besta'), true);
+});
+
 test('K-023 concede +5 ATK a todos os robôs aliados e limpa ao sair', () => {
     const fixture = createSummonRuleFixture('card_033');
     const robot1 = addFieldCreature(fixture.state, 'p1', 'card_018', 'robot_1');
@@ -3271,6 +3302,26 @@ test('Baltz descarta todas as cartas de suporte do oponente', () => {
     assert.equal(support2.zone, 'discard');
 });
 
+test('Baltz descarta suporte do campo além do equipamento', () => {
+    const state = GameStateModel.createInitialGameState();
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+    const baltz = addFieldCreature(state, 'p1', 'card_016', 'baltz_campo', { cost: 3 });
+    const equipado = GameStateModel.createCardInstance({
+        id: 'suporte', name: 'Suporte', type: 'suporte', cost: 1, attack: 0, defense: 0
+    }, 'p2', { instanceId: 'baltz_equip' });
+    GameStateModel.registerCard(state, equipado, 'equipment', 'p2');
+    const emCampo = GameStateModel.createCardInstance({
+        id: 'suporte', name: 'Suporte', type: 'suporte', cost: 1, attack: 0, defense: 0
+    }, 'p2', { instanceId: 'baltz_campo_sup' });
+    GameStateModel.registerCard(state, emCampo, 'field', 'p2');
+    state.currentPhase = 'combat';
+    const result = CardRules.activateAbility(engine, baltz.instanceId);
+    assert.equal(result.status, 'resolved');
+    assert.equal(equipado.zone, 'discard');
+    assert.equal(emCampo.zone, 'discard');
+});
+
 test('Gobra retorna à mão e descarta equipamentos anexados', () => {
     const state = GameStateModel.createInitialGameState();
     const engine = GameEngine.createEngine(state);
@@ -3466,6 +3517,31 @@ test('Tlantidu busca um monstro aquático no deck ao ser destruído', () => {
     assert.equal(fixture.target.zone, 'discard');
     assert.equal(nonAquaticCard.zone, 'deck');
     assert.equal(aquaticCard.zone, 'hand');
+});
+
+test('Tlantidu sorteia entre as aquáticas em vez do primeiro do deck', () => {
+    const montar = (valor) => {
+        const fixture = createCombatFixture({ attackerAttack: 30, targetDefense: 5, targetAttack: 0 });
+        fixture.state.rng = () => valor;
+        fixture.target.definitionId = 'card_038';
+        CardRules.install(fixture.engine);
+        ['a1', 'a2'].forEach((suffix, i) => {
+            const aquatica = GameStateModel.createCardInstance({
+                id: 'card_083', name: 'Hidra', type: 'criatura', cost: 12, attack: 59, defense: 59
+            }, 'p2', { instanceId: `tlantidu_aqua_${suffix}_${i}` });
+            aquatica.data.traits = ['aquatico', 'elite'];
+            GameStateModel.registerCard(fixture.state, aquatica, 'deck', 'p2');
+        });
+        return fixture;
+    };
+    const primeira = montar(0);
+    primeira.engine.resolveCombat({ attackerId: primeira.attacker.instanceId, targetId: primeira.target.instanceId });
+    const maoPrimeira = primeira.state.players.p2.zones.hand.map(c => c.instanceId);
+    assert.ok(maoPrimeira.includes('tlantidu_aqua_a1_0'));
+    const ultima = montar(0.9999);
+    ultima.engine.resolveCombat({ attackerId: ultima.attacker.instanceId, targetId: ultima.target.instanceId });
+    const maoUltima = ultima.state.players.p2.zones.hand.map(c => c.instanceId);
+    assert.ok(maoUltima.includes('tlantidu_aqua_a2_1'));
 });
 
 test('Alucard ressuscita um aliado do cemitério diretamente para o campo ao derrotar', () => {
@@ -4028,6 +4104,23 @@ test('revealInstance replaces placeholder correctly', () => {
 });
 
 // 7. pvp-session: ordenação por seq, gap pede COMMAND_LOG, duplicada é ignorada
+test('replay duplicado de COMMAND_LOG não compra duas vezes', () => {
+    const PvpSession = require('../../src/js/pvp-session.js').PvpSession;
+    const aplicados = [];
+    const sessao = new PvpSession({
+        transportSend: () => {},
+        applyCommand: (entry) => aplicados.push(entry.seq),
+        onEvent: () => {}
+    });
+    const log = [
+        { seq: 1, cmd: 'DRAW', actor: 'p1', args: { player: 'p1' }, reveals: [] },
+        { seq: 2, cmd: 'DRAW', actor: 'p2', args: { player: 'p2' }, reveals: [] }
+    ];
+    sessao.handleCommandLog(log);
+    sessao.handleCommandLog(log);
+    assert.deepEqual(aplicados, [1, 2]);
+});
+
 test('pvp-session handles command order and seq gaps', () => {
     const state = GameStateModel.createInitialGameState();
     const sent = [];

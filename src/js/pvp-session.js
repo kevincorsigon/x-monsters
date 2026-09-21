@@ -264,6 +264,14 @@
             entries.forEach(entry => {
                 const seq = Number(entry?.seq);
                 if (!Number.isFinite(seq) || seq <= this.lastSeq) return;
+                // F5 duplo: o mesmo COMMAND_LOG pode chegar 2x (reconnect +
+                // abertura). Sem esta checagem o DRAW reaplicava e a mão do
+                // oponente crescia a cada reload.
+                const duplicada = this.commandLog.some(item => Number(item?.seq) === seq);
+                if (duplicada) {
+                    this.lastSeq = Math.max(this.lastSeq, seq);
+                    return;
+                }
                 this.applyEntry(entry);
             });
 

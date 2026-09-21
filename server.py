@@ -14,7 +14,7 @@ card-rules.js. Por isso valida assento, ordem, turno e fase declarados no
 ledger, e nao o conteudo da acao - anti-cheat de conteudo esta fora do escopo.
 
 Uso:
-    py -3 server.py [--host 127.0.0.1] [--port 8000]
+    py -3 server.py [--host 127.0.0.1] [--port 8080]
 """
 
 import argparse
@@ -863,7 +863,7 @@ def main():
         default="127.0.0.1",
         help="interface de escuta (use 0.0.0.0 para jogar com outra pessoa na rede local)",
     )
-    parser.add_argument("--port", type=int, default=8000, help="porta (padrao 8000)")
+    parser.add_argument("--port", type=int, default=8080, help="porta (padrao 8080 para dev local, Docker usa 8000)")
     args = parser.parse_args()
     try:
         asyncio.run(main_async(args.host, args.port))

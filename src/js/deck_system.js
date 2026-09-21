@@ -135,7 +135,14 @@ async function loadCardSystem() {
         // Tentar carregar via fetch primeiro (servidor)
         const response = await fetch('data/cards_database.json');
         const cardsData = await response.json();
-        
+
+        // Normaliza traits vindas do JSON para minúsculas (fonte única de traits).
+        (cardsData.cards || []).forEach(carta => {
+            if (Array.isArray(carta.traits)) {
+                carta.traits = carta.traits.map(t => String(t).toLowerCase());
+            }
+        });
+
         window.deckBuilder = new DeckBuilder(cardsData);
         window.cardsDatabase = cardsData;
         

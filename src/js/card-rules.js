@@ -801,7 +801,11 @@
                 const source = context.state.cardInstances[sourceId];
                 if (!source) return [];
                 const opponentId = source.controllerId === 'p1' ? 'p2' : 'p1';
-                return context.state.players[opponentId].zones.equipment.map(card => ({
+                const suportesDoOponente = [
+                    ...context.state.players[opponentId].zones.equipment,
+                    ...context.state.players[opponentId].zones.field.filter(card => card?.data?.type === 'suporte')
+                ];
+                return suportesDoOponente.map(card => ({
                     kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
                     instanceId: card.instanceId,
                     destinationZone: 'discard',
@@ -1272,14 +1276,14 @@
             modifiers: []
         },
         card_037: {
-            feedback: 'Scoul recebe +10/+10 enquanto houver um dragão em campo.',
+            feedback: 'Scoul recebe +10/+10 enquanto houver outro dragão em campo.',
             modifiers: [
                 dynamicModifier('attack', GameEngine.MODIFIER_OPERATIONS.ADD,
                     () => 10,
-                    state => allFieldCreatures(state).some(card => hasTrait(card, 'dragao'))),
+                    state => allFieldCreatures(state).some(card => card.definitionId !== 'card_037' && hasTrait(card, 'dragao'))),
                 dynamicModifier('defense', GameEngine.MODIFIER_OPERATIONS.ADD,
                     () => 10,
-                    state => allFieldCreatures(state).some(card => hasTrait(card, 'dragao')))
+                    state => allFieldCreatures(state).some(card => card.definitionId !== 'card_037' && hasTrait(card, 'dragao')))
             ]
         },
         card_040: {
@@ -1405,7 +1409,19 @@
     }
 
     function hasTrait(card, trait) {
+        const traitsDoCatalogo = card?.data?.traits;
+        if (Array.isArray(traitsDoCatalogo) && traitsDoCatalogo.length > 0) {
+            return traitsDoCatalogo.includes(trait);
+        }
         return (TRAITS_BY_DEFINITION[card?.definitionId] || []).includes(trait);
+    }
+
+    function getTraits(card) {
+        const traitsDoCatalogo = card?.data?.traits;
+        if (Array.isArray(traitsDoCatalogo) && traitsDoCatalogo.length > 0) {
+            return Object.freeze([...traitsDoCatalogo]);
+        }
+        return TRAITS_BY_DEFINITION[card?.definitionId] || Object.freeze([]);
     }
 
     function allFieldCreatures(state) {
@@ -2670,8 +2686,12 @@
                 }
 
                 if (destroyedCard?.definitionId === 'card_038') {
+                    const rng = typeof context.state.rng === 'function' ? context.state.rng : Math.random;
                     const deck = context.state.players[event.payload.ownerId].zones.deck;
-                    const aquaticCard = deck.find(card => hasTrait(card, 'aquatico'));
+                    const aquaticas = deck.filter(card => hasTrait(card, 'aquatico'));
+                    const aquaticCard = aquaticas.length > 0
+                        ? aquaticas[Math.floor(rng() * aquaticas.length)]
+                        : null;
                     if (aquaticCard) {
                         effects.push({
                             kind: GameEngine.EFFECT_KINDS.MOVE_CARD,
@@ -2884,6 +2904,7 @@
         validateAttackTarget,
         canDirectAttack,
         hasTrait,
+        getTraits,
         getActivatedTargets,
         createActivatedAbilityAction,
         activateAbility,

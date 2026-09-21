@@ -123,6 +123,12 @@
 
     function aplicarCompra(entry) {
         const player = entry.actor;
+        // Idempotência do replay/F5: COMMAND_LOG repete DRAWs já aplicados.
+        // `applyEntry` só avança `lastSeq` depois de aplicar, então dedupe aqui
+        // pelo log da sessão antes de comprar de novo.
+        const seq = Number(entry?.seq);
+        const jaAplicado = session?.commandLog?.some(item => Number(item?.seq) === seq);
+        if (Number.isFinite(seq) && jaAplicado) return;
         if (player === seatLocal) {
             window.addCardToHand?.(player);
             return;
@@ -308,6 +314,17 @@
         const oponente = mensagem.opponentSeat || outroAssento(assento);
         seatLocal = assento;
 
+        // F5/replay: o MATCH_START chega de novo (a sessão reseta o log e o
+        // servidor reenvia a abertura). Remontar por cima do estado antigo
+        // empilhava placeholders (mão do oponente crescendo a cada reload).
+        // Zera o DOM das mãos/campos antes do reset canônico.
+        document.querySelectorAll('[id^="hand-"] .card, [id^="field-"] .card').forEach(el => el.remove());
+
+        // RNG com seed da sala: Tlantidu sorteia a aquática e os dois
+        // clientes precisam sortear a mesma.
+        const rngSala = mulberrySala(mensagem.seed);
+        window.gameState.rng = rngSala;
+
         const decksPrivados = Array.isArray(mensagem.deck) && mensagem.deck.length > 0
             ? mensagem.deck
             : gerarDeckLocal(mensagem.seed, assento);
@@ -446,6 +463,21 @@
 // ── fim de partida, revelações e bootstrap automático ────────────────────
 
     /**
+     * mulberry32 local (mesmo algoritmo de scripts/deck_factory.js): sem ele
+     * o sorteio da Tlantidu divergiria entre os dois clientes no PvP.
+     */
+    function mulberrySala(seed) {
+        let a = Number(seed) >>> 0;
+        return function () {
+            a |= 0;
+            a = (a + 0x6D2B79F5) | 0;
+            let t = Math.imul(a ^ (a >>> 15), 1 | a);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
+    /**
      * Monta o `reveal` de uma carta que sai da mão: identidade + slot, para que o
      * outro cliente saiba exatamente qual placeholder substituir.
      */
@@ -522,6 +554,9 @@
         estadoDaPartida = 'finalizada';
         atualizarBadges('partida finalizada');
         window.gameOver = true;
+        // Vinheta local também no PvP: o endGame retornou cedo após o
+        // sendGameOver, então sem isto não havia música nem overlay próprio.
+        if (typeof window.playVictorySound === 'function') window.playVictorySound();
         document.querySelectorAll('button').forEach(botao => { botao.disabled = true; });
 
         if (document.getElementById('pvp-game-over')) return;
@@ -547,9 +582,21 @@
     function enviarFimDePartida(vencedor) {
         if (window.__gameOverEnviado || !session) return;
         window.__gameOverEnviado = true;
+
+        // Normaliza o vencedor para o formato esperado pelo servidor (p1/p2)
+        // O motor informa "Jogador 1"/"Jogador 2"; o servidor exige "p1"/"p2"
+        let vencedorNormalizado = vencedor;
+        if (vencedor === 'Jogador 1') {
+            vencedorNormalizado = 'p1';
+        } else if (vencedor === 'Jogador 2') {
+            vencedorNormalizado = 'p2';
+        }
+
+        console.log('[PvP] Enviando GAME_OVER para o servidor. Vencedor:', vencedorNormalizado, '(original:', vencedor, ')');
+
         session.transportSend({
             type: 'GAME_OVER',
-            winner: vencedor,
+            winner: vencedorNormalizado,
             reason: 'pv-zero',
             turn: window.gameState.turn,
             at: new Date().toISOString()

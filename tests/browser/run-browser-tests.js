@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Runner de testes de browser via Chrome DevTools Protocol (sem npm)
-// Requer: Chrome instalado + servidor HTTP rodando em localhost:8000
+// Requer: Chrome instalado + servidor HTTP rodando em localhost:8080
 
 const { spawn } = require('child_process');
 const http = require('http');
-const BASE = 'http://localhost:8000';
+const BASE = 'http://localhost:8080';
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const DEBUG_PORT = 9333;
 
@@ -22,6 +22,13 @@ const CONSOLE_SCRIPTS = [
     'tests/browser/test_attack_calculation.js',
     'tests/browser/test_mago_arcano.js',
     'tests/browser/test_tobinha.js',
+];
+
+// Scripts de console PVP (precisam de pvp.html carregado)
+const PVP_CONSOLE_SCRIPTS = [
+    'tests/browser/test_pvp_protocol.js',
+    'tests/browser/test_pvp_session.js',
+    'tests/browser/test_pvp_state.js',
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -56,7 +63,7 @@ function cdp(ws, method, params = {}) {
     });
 }
 
-async function runPage(wsUrl, label, scriptToInject) {
+async function runPage(wsUrl, label, scriptToInject, pageUrl = 'game.html') {
     const logs = [];
     const ws = new WebSocket(wsUrl);
     await new Promise((res, rej) => {
@@ -78,7 +85,7 @@ async function runPage(wsUrl, label, scriptToInject) {
     let domLog = null;
 
     if (scriptToInject) {
-        await cdp(ws, 'Page.navigate', { url: `${BASE}/game.html` });
+        await cdp(ws, 'Page.navigate', { url: `${BASE}/${pageUrl}` });
         await sleep(3000);
         const fs = require('fs');
         const code = fs.readFileSync(require('path').join(__dirname, '..', '..', scriptToInject), 'utf8');
@@ -186,10 +193,10 @@ async function main() {
         pass ? passed++ : failed++;
     }
 
-    async function runConsoleAndReport(scriptPath, wsUrl) {
-        const { logs } = await runPage(wsUrl, null, scriptPath);
+    async function runConsoleAndReport(scriptPath, wsUrl, pageUrl = 'game.html') {
+        const { logs } = await runPage(wsUrl, null, scriptPath, pageUrl);
         const errors = logs.filter(l => l.type === 'error');
-        console.log(`\n=== ${scriptPath} (via game.html) ===`);
+        console.log(`\n=== ${scriptPath} (via ${pageUrl}) ===`);
         printLogs(logs);
         const pass = errors.length === 0;
         console.log(pass ? `→ PASS` : `→ FAIL (${errors.length} erros)`);
@@ -205,7 +212,13 @@ async function main() {
     // Rodar scripts de console contra game.html
     for (const script of CONSOLE_SCRIPTS) {
         const wsUrl = await openNewTab();
-        await runConsoleAndReport(script, wsUrl);
+        await runConsoleAndReport(script, wsUrl, 'game.html');
+    }
+
+    // Rodar scripts de console PVP contra pvp.html
+    for (const script of PVP_CONSOLE_SCRIPTS) {
+        const wsUrl = await openNewTab();
+        await runConsoleAndReport(script, wsUrl, 'pvp.html');
     }
 
     chrome.kill();

@@ -76,6 +76,8 @@
             currentPlayer: 'p1',
             currentPhase: 'energy',
             turn: 1,
+            // RNG padrão do estado (sobrescrito pelo bootstrap PvP com seed).
+            rng: Math.random,
             diceUsed: { p1: false, p2: false },
             selectedCard: null,
             attackingCard: null,
@@ -135,6 +137,14 @@
         }
 
         const nextState = createInitialGameState(options);
+        // Preserva o RNG injetado (PvP usa seed): createInitialGameState
+        // recria com Math.random e apagaria sem isto.
+        if (typeof state.rng === 'function' && nextState.rng === Math.random) {
+            nextState.rng = state.rng;
+        }
+        if (typeof options.rng === 'function') {
+            nextState.rng = options.rng;
+        }
         Object.keys(state).forEach(key => delete state[key]);
         Object.assign(state, nextState);
 

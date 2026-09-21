@@ -28,6 +28,9 @@
       "defense": 3,
       "hability": "Remove monstros com custo abaixo de 3 do campo inimigo para sua mão.",
       "id": "card_003",
+      "traits": [
+        "humanoide"
+      ],
       "image": "assets/cards/etc.png"
     },
     {
@@ -98,6 +101,10 @@
       "defense": 8,
       "hability": "Voo Veloz: Pode atacar diretamente os pontos de vida do oponente.",
       "id": "card_010_1",
+      "traits": [
+        "demonio",
+        "voador"
+      ],
       "image": "assets/cards/diabrete_alado_1.png"
     },
     {
@@ -108,6 +115,10 @@
       "defense": 8,
       "hability": "Voo Veloz: Pode atacar diretamente os pontos de vida do oponente.",
       "id": "card_010_2",
+      "traits": [
+        "demonio",
+        "voador"
+      ],
       "image": "assets/cards/diabrete_alado_2.png"
     },
     {
@@ -118,6 +129,10 @@
       "defense": 8,
       "hability": "Voo Veloz: Pode atacar diretamente os pontos de vida do oponente.",
       "id": "card_010_3",
+      "traits": [
+        "demonio",
+        "voador"
+      ],
       "image": "assets/cards/diabrete_alado_3.png"
     },
     {
@@ -128,6 +143,9 @@
       "defense": 15,
       "hability": "Copia habilidades de monstros com menos de 4 de custo.",
       "id": "card_011",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/kirb.png"
     },
     {
@@ -138,6 +156,9 @@
       "defense": 35,
       "hability": "Cura aliados em +10 de defesa ao ser invocado.",
       "id": "card_012",
+      "traits": [
+        "humanoide"
+      ],
       "image": "assets/cards/natalino.png"
     },
     {
@@ -148,6 +169,9 @@
       "defense": 3,
       "hability": "Permite comprar carta extra ao ser invocado.",
       "id": "card_013",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/zol.png"
     },
     {
@@ -158,6 +182,9 @@
       "defense": 12,
       "hability": "Fofura: não podem ser atacados por criaturas com custo superior a 3.",
       "id": "card_014",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/tobinha_e_boguinha.png"
     },
     {
@@ -178,6 +205,10 @@
       "defense": 14,
       "hability": "Remove cartas de suporte do oponente.",
       "id": "card_016",
+      "traits": [
+        "guerreiro",
+        "humanoide"
+      ],
       "image": "assets/cards/baltz.png"
     },
     {
@@ -188,6 +219,9 @@
       "defense": 10,
       "hability": "Primeiro ataque do turno causa +10 de dano.",
       "id": "card_017",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/bufaboi.png"
     },
     {
@@ -198,6 +232,9 @@
       "defense": 23,
       "hability": "Impede ataque de inimigos.",
       "id": "card_018",
+      "traits": [
+        "robotico"
+      ],
       "image": "assets/cards/cp-2.png"
     },
     {
@@ -208,6 +245,9 @@
       "defense": 15,
       "hability": "Ataque Furtivo: Ao atacar um monstro que acabou de ser invocado, Garras Afiadas ganha +10 de Ataque.",
       "id": "card_019",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/garras_afiadas.png"
     },
     {
@@ -218,6 +258,9 @@
       "defense": 15,
       "hability": "Pode sair e voltar da mão 1x/turno.",
       "id": "card_020",
+      "traits": [
+        "dragao"
+      ],
       "image": "assets/cards/gobra.png"
     },
     {
@@ -228,6 +271,9 @@
       "defense": 10,
       "hability": "Dobra ataque contra monstros com defesa superior.",
       "id": "card_021",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/paladar.png"
     },
     {
@@ -238,6 +284,9 @@
       "defense": 15,
       "hability": "Ignora defesa dos inimigos e causa dano direto.",
       "id": "card_022",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/puma_da_selva.png"
     },
     {
@@ -248,6 +297,9 @@
       "defense": 13,
       "hability": "Causa 15 de dano direto ao inimigo ao ser invocado.",
       "id": "card_023",
+      "traits": [
+        "robotico"
+      ],
       "image": "assets/cards/raylaser.png"
     },
     {
@@ -258,6 +310,9 @@
       "defense": 5,
       "hability": "Caso sozinho em campo, ganha 5 de ataque e defesa para cada criatura do oponente.",
       "id": "card_024",
+      "traits": [
+        "demonio"
+      ],
       "image": "assets/cards/slipul.png"
     },
     {
@@ -268,6 +323,9 @@
       "defense": 10,
       "hability": "Não pode ser alvo direto enquanto houver aliados.",
       "id": "card_025",
+      "traits": [
+        "humanoide"
+      ],
       "image": "assets/cards/zé_mulherzinha.png"
     },
     {
@@ -278,6 +336,9 @@
       "defense": 20,
       "hability": "Sabotaram meu copo: Uma vez por turno pode tirar 5 pontos de defesa e ataque de uma criatura oponente.",
       "id": "card_026",
+      "traits": [
+        "humanoide"
+      ],
       "image": "assets/cards/sabota_copos.png"
     },
     {
@@ -288,6 +349,9 @@
       "defense": 10,
       "hability": "Biluga Biluga: pode se grudar a uma criatura oponente e infringir 10 de dano a cada turno, porém não pode atacar e nem defender mais.",
       "id": "card_027",
+      "traits": [
+        "robotico"
+      ],
       "image": "assets/cards/bilugatron.png"
     },
     {
@@ -308,6 +372,9 @@
       "defense": 12,
       "hability": "Se derrotar uma criatura oponente, pode atacar de novo.",
       "id": "card_029",
+      "traits": [
+        "dragao"
+      ],
       "image": "assets/cards/aladar.png"
     },
     {
@@ -318,6 +385,9 @@
       "defense": 25,
       "hability": "Devolve metade do dano ao atacante.",
       "id": "card_030",
+      "traits": [
+        "planta"
+      ],
       "image": "assets/cards/cacton.png"
     },
     {
@@ -328,6 +398,10 @@
       "defense": 20,
       "hability": "Sorte Mágica: Uma vez por turno, você pode usar uma habilidade mágica adicional.",
       "id": "card_031",
+      "traits": [
+        "magico",
+        "humanoide"
+      ],
       "image": "assets/cards/duende.png"
     },
     {
@@ -338,6 +412,9 @@
       "defense": 15,
       "hability": "Caso a defesa da criatura for menor que esta carta causa 10 pontos extras de dano.",
       "id": "card_032",
+      "traits": [
+        "aquatico"
+      ],
       "image": "assets/cards/hipool.png"
     },
     {
@@ -348,6 +425,9 @@
       "defense": 20,
       "hability": "Sincronia Robótica: Quando está em campo com outro monstro robô, ambos os monstros ganham +5 de Ataque.",
       "id": "card_033",
+      "traits": [
+        "robotico"
+      ],
       "image": "assets/cards/k-023.png"
     },
     {
@@ -358,6 +438,9 @@
       "defense": 25,
       "hability": "Paralisa um inimigo por 1 turno.",
       "id": "card_034",
+      "traits": [
+        "aquatico"
+      ],
       "image": "assets/cards/medusa_de_lama.png"
     },
     {
@@ -368,6 +451,10 @@
       "defense": 2,
       "hability": "Ataca diretamente jogadores, ignorando monstros.",
       "id": "card_035",
+      "traits": [
+        "voador",
+        "dragao"
+      ],
       "image": "assets/cards/ptera.png"
     },
     {
@@ -378,6 +465,10 @@
       "defense": 20,
       "hability": "Ao derrotar uma criatura causa 10 pontos de dano ao jogador.",
       "id": "card_036",
+      "traits": [
+        "elite",
+        "besta"
+      ],
       "image": "assets/cards/rei_das_feras.png"
     },
     {
@@ -388,6 +479,9 @@
       "defense": 25,
       "hability": "Fica mais forte em 10 pontos de ataque e defesa com dragões em campo.",
       "id": "card_037",
+      "traits": [
+        "dragao"
+      ],
       "image": "assets/cards/scoul.png"
     },
     {
@@ -398,6 +492,9 @@
       "defense": 18,
       "hability": "Ao morrer pode procurar um monstro aquático no deck.",
       "id": "card_038",
+      "traits": [
+        "aquatico"
+      ],
       "image": "assets/cards/tlantidu.png"
     },
     {
@@ -408,6 +505,9 @@
       "defense": 25,
       "hability": "Pode voltar a mão e depois ser invocado sem custo uma vez por partida.",
       "id": "card_039",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/trox.png"
     },
     {
@@ -418,6 +518,9 @@
       "defense": 20,
       "hability": "Rolha de poço: dobra a defesa caso seja a única criatura do seu lado do campo.",
       "id": "card_040",
+      "traits": [
+        "humanoide"
+      ],
       "image": "assets/cards/little_big_shimbard.png"
     },
     {
@@ -428,6 +531,9 @@
       "defense": 20,
       "hability": "Huumm Gulosinho: uma vez por turno caso o jogador abdique de atacar ganha 5 pontos de ataque e defesa.",
       "id": "card_041",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/gulosinho.png"
     },
     {
@@ -438,6 +544,9 @@
       "defense": 20,
       "hability": "Evasão Fantasmagórica: Se Fantom for alvo de um ataque e a Defesa dele for 0, ele não é derrotado e pode se teletransportar para a sua mão, sem custo.",
       "id": "card_042",
+      "traits": [
+        "fantasma"
+      ],
       "image": "assets/cards/fantom.png"
     },
     {
@@ -448,6 +557,10 @@
       "defense": 25,
       "hability": "Se houver aliados com custo abaixo de 3, dobra o ataque.",
       "id": "card_043",
+      "traits": [
+        "humanoide",
+        "guerreiro"
+      ],
       "image": "assets/cards/goblin_mestre_de_armas.png"
     },
     {
@@ -458,6 +571,10 @@
       "defense": 26,
       "hability": "Voar Alto: Não pode ser atacado por monstros que custem 4 ou menos.",
       "id": "card_044",
+      "traits": [
+        "voador",
+        "besta"
+      ],
       "image": "assets/cards/grifo_real.png"
     },
     {
@@ -468,6 +585,10 @@
       "defense": 25,
       "hability": "Ritual de Invocação: Você pode invocar um Diabrete Alado ao custo de 1 ponto.",
       "id": "card_045",
+      "traits": [
+        "magico",
+        "humanoide"
+      ],
       "image": "assets/cards/invocador_das_trevas.png"
     },
     {
@@ -478,6 +599,10 @@
       "defense": 22,
       "hability": "Pode pagar 3 pontos de energia para ignorar a defesa de uma criatura.",
       "id": "card_046",
+      "traits": [
+        "humanoide",
+        "guerreiro"
+      ],
       "image": "assets/cards/salatiel.png"
     },
     {
@@ -488,6 +613,10 @@
       "defense": 19,
       "hability": "Ataca duas vezes, mas com dano reduzido pela metade no segundo ataque.",
       "id": "card_047",
+      "traits": [
+        "humanoide",
+        "guerreiro"
+      ],
       "image": "assets/cards/tobias.png"
     },
     {
@@ -498,6 +627,9 @@
       "defense": 39,
       "hability": "Imune a habilidades de monstros com custo menor que 4.",
       "id": "card_048",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/turtol.png"
     },
     {
@@ -508,6 +640,9 @@
       "defense": 22,
       "hability": "Guela atolada: Escolhe uma criatura oponente por turno que não pode atacar.",
       "id": "card_049",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/entola_guela.png"
     },
     {
@@ -518,6 +653,9 @@
       "defense": 18,
       "hability": "Linguadex: Paralisa uma criatura oponente ao entrar em campo, ela não pode atacar enquanto essa carta estiver em campo.",
       "id": "card_050",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/shupáku.png"
     },
     {
@@ -528,6 +666,9 @@
       "defense": 30,
       "hability": "Descarga de Choque: Uma vez por turno, pode causar 10 de dano a todos os monstros do oponente.",
       "id": "card_051",
+      "traits": [
+        "dragao"
+      ],
       "image": "assets/cards/dino_elétrico.png"
     },
     {
@@ -538,6 +679,9 @@
       "defense": 38,
       "hability": "Ao derrotar um monstro, causa 10 de dano ao jogador inimigo.",
       "id": "card_052",
+      "traits": [
+        "dragao"
+      ],
       "image": "assets/cards/dragão_de_cobre.png"
     },
     {
@@ -548,6 +692,9 @@
       "defense": 45,
       "hability": "Não pode ser atacada por monstros com custo menor que 5 e pode trocar ATK/DEF ao atacar.",
       "id": "card_053",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/gárgula_de_rocha.png"
     },
     {
@@ -558,6 +705,10 @@
       "defense": 25,
       "hability": "Drenagem Vital: Uma vez por turno, ao derrotar um monstro em combate, pode roubar 10 pontos de vida dos pontos de vida do seu oponente e adicioná-los aos seus.",
       "id": "card_054",
+      "traits": [
+        "elite",
+        "vampiro"
+      ],
       "image": "assets/cards/lorde_sanguinário.png"
     },
     {
@@ -568,6 +719,9 @@
       "defense": 30,
       "hability": "Rajada de Mana: Uma vez por turno, pode causar 5 de dano direto aos pontos de vida do oponente.",
       "id": "card_055",
+      "traits": [
+        "magico"
+      ],
       "image": "assets/cards/mago_arcano.png"
     },
     {
@@ -578,6 +732,10 @@
       "defense": 25,
       "hability": "Carga Furiosa: O primeiro ataque em cada turno ignora a Defesa do monstro alvo, causando dano total.",
       "id": "card_056",
+      "traits": [
+        "guerreiro",
+        "humanoide"
+      ],
       "image": "assets/cards/minotauro_guerreiro.png"
     },
     {
@@ -588,6 +746,9 @@
       "defense": 27,
       "hability": "Sopro Triplo: Uma vez por turno, pode escolher até três monstros do oponente. Cada um deles recebe 5 de dano direto.",
       "id": "card_057",
+      "traits": [
+        "fogo"
+      ],
       "image": "assets/cards/quimera_de_fogo.png"
     },
     {
@@ -598,6 +759,9 @@
       "defense": 25,
       "hability": "Se ele for o único monstro em seu campo, pode usar sua habilidade de evasão para não ser alvo de ataques de monstros com custo 4 ou menos",
       "id": "card_058",
+      "traits": [
+        "humanoide"
+      ],
       "image": "assets/cards/sábio_da_montanha.png"
     },
     {
@@ -608,6 +772,9 @@
       "defense": 30,
       "hability": "Licantropia das trevas: Caso o oponente tenha somente uma criatura ele não pode ser atacado.",
       "id": "card_059",
+      "traits": [
+        "lobisomem"
+      ],
       "image": "assets/cards/o_lica.png"
     },
     {
@@ -618,6 +785,9 @@
       "defense": 40,
       "hability": "Caso existam outras criaturas em campo só ele pode ser atacado.",
       "id": "card_060",
+      "traits": [
+        "demonio"
+      ],
       "image": "assets/cards/tranca_rua.png"
     },
     {
@@ -628,6 +798,9 @@
       "defense": 35,
       "hability": "Elixir Protetor: Uma vez por turno, pode escolher um monstro aliado. Esse monstro ganha +10 de Defesa até o final do próximo turno do oponente.",
       "id": "card_061",
+      "traits": [
+        "elite"
+      ],
       "image": "assets/cards/alquimista_guardião.png"
     },
     {
@@ -638,6 +811,9 @@
       "defense": 37,
       "hability": "Ressucita um aliado ao derrotar inimigos.",
       "id": "card_062",
+      "traits": [
+        "vampiro"
+      ],
       "image": "assets/cards/alucard.png"
     },
     {
@@ -648,6 +824,9 @@
       "defense": 45,
       "hability": "Uma vez por turno, pode atacar diretamente os pontos de vida do seu oponente, mas causando apenas metade do seu dano de Ataque.",
       "id": "card_063",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/beluga_de_terracota.png"
     },
     {
@@ -658,6 +837,9 @@
       "defense": 37,
       "hability": "Ignora 10 pontos da defesa inimiga para cada criatura robotica que você controlar.",
       "id": "card_064",
+      "traits": [
+        "robotico"
+      ],
       "image": "assets/cards/gamaa.png"
     },
     {
@@ -668,6 +850,10 @@
       "defense": 40,
       "hability": "Imune a habilidades inimigas.",
       "id": "card_065",
+      "traits": [
+        "dragao",
+        "robotico"
+      ],
       "image": "assets/cards/iron_dragon.png"
     },
     {
@@ -678,6 +864,9 @@
       "defense": 33,
       "hability": "Primeiro ataque causa o dobro de pontos.",
       "id": "card_066",
+      "traits": [
+        "humanoide"
+      ],
       "image": "assets/cards/mexica.png"
     },
     {
@@ -688,6 +877,11 @@
       "defense": 28,
       "hability": "Lâmina Sagrada. Uma vez por turno, anula as habilidades de um monstro adversário até o final do turno do oponente.",
       "id": "card_067",
+      "traits": [
+        "elite",
+        "paladino",
+        "humanoide"
+      ],
       "image": "assets/cards/paladino_alvorada.png"
     },
     {
@@ -698,6 +892,11 @@
       "defense": 39,
       "hability": "Escudo das Sombras. Se for o único monstro em seu campo, ganha +10 de Defesa.",
       "id": "card_068",
+      "traits": [
+        "elite",
+        "paladino",
+        "humanoide"
+      ],
       "image": "assets/cards/paladino_crepuscular.png"
     },
     {
@@ -708,6 +907,9 @@
       "defense": 35,
       "hability": "Retorna à mão ao morrer, mas custando um ponto a mais de custo toda vez que retornar.",
       "id": "card_069",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/roller.png"
     },
     {
@@ -718,6 +920,9 @@
       "defense": 20,
       "hability": "Rugido Assustador: O primeiro ataque de Tiranossauro ignora 10 de Defesa do monstro adversário.",
       "id": "card_070",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/tiranossauro.png"
     },
     {
@@ -728,6 +933,9 @@
       "defense": 35,
       "hability": "Pele Ácida: Ao ser atacado, causa 10 de dano direto ao monstro que o atacou, refletindo seu invólucro venenoso.",
       "id": "card_071",
+      "traits": [
+        "dragao"
+      ],
       "image": "assets/cards/dragão_de_jade.png"
     },
     {
@@ -738,6 +946,10 @@
       "defense": 40,
       "hability": "Causa terremoto de 10 de dano em todos os inimigos.",
       "id": "card_072",
+      "traits": [
+        "humanoide",
+        "guerreiro"
+      ],
       "image": "assets/cards/gigante_da_marreta.png"
     },
     {
@@ -748,6 +960,9 @@
       "defense": 50,
       "hability": "Pele de Pedra: É imune a danos causados por habilidades especiais de outros monstros, refletindo sua resistência a ataques que não sejam físicos",
       "id": "card_073",
+      "traits": [
+        "besta"
+      ],
       "image": "assets/cards/golem_de_pedra.png"
     },
     {
@@ -758,6 +973,9 @@
       "defense": 37,
       "hability": "Ignora 10 pontos do ataque inimigo.",
       "id": "card_074",
+      "traits": [
+        "aquatico"
+      ],
       "image": "assets/cards/nucles.png"
     },
     {
@@ -778,6 +996,10 @@
       "defense": 45,
       "hability": "Quando ataca, o dano causado é igual ao Ataque dela menos 15. Se o monstro for derrotado, ganha 10 de Ataque extra.",
       "id": "card_076",
+      "traits": [
+        "elite",
+        "vampiro"
+      ],
       "image": "assets/cards/condessa_carmilla.png"
     },
     {
@@ -788,6 +1010,11 @@
       "defense": 47,
       "hability": "Causa dano 5 pontos de ataque extras por monstro inimigo.",
       "id": "card_077",
+      "traits": [
+        "humanoide",
+        "guerreiro",
+        "lobisomem"
+      ],
       "image": "assets/cards/marik.png"
     },
     {
@@ -798,6 +1025,10 @@
       "defense": 38,
       "hability": "Domínio Aéreo. Seus ataques ignoram em 20 pontos a Defesa do monstro oponente.",
       "id": "card_078",
+      "traits": [
+        "lobisomem",
+        "elite"
+      ],
       "image": "assets/cards/lobo_alfa_fly.png"
     },
     {
@@ -808,6 +1039,10 @@
       "defense": 47,
       "hability": "Ao ser invocado, causa 20 de dano direto ao oponente.",
       "id": "card_079",
+      "traits": [
+        "lobisomem",
+        "elite"
+      ],
       "image": "assets/cards/lobo_beta_lightning.png"
     },
     {
@@ -818,6 +1053,11 @@
       "defense": 49,
       "hability": "Aplica queimadura contínua a uma criatura do oponente - 5 de defesa a cada turno.",
       "id": "card_080",
+      "traits": [
+        "lobisomem",
+        "fogo",
+        "elite"
+      ],
       "image": "assets/cards/lobo_omega_pyro.png"
     },
     {
@@ -828,6 +1068,10 @@
       "defense": 59,
       "hability": "Ataca todos os monstros adversários, causando metade do ATK.",
       "id": "card_081",
+      "traits": [
+        "lobisomem",
+        "elite"
+      ],
       "image": "assets/cards/latex.png"
     },
     {
@@ -838,6 +1082,10 @@
       "defense": 59,
       "hability": "Paralisa monstros do oponente por 3 turnos.",
       "id": "card_082",
+      "traits": [
+        "lobisomem",
+        "elite"
+      ],
       "image": "assets/cards/lobo_gamma_freeze.png"
     },
     {
@@ -848,6 +1096,10 @@
       "defense": 59,
       "hability": "Respiração Cáustica: Ao atacar, causa 20 de dano adicional a todos os outros monstros em campo, tanto seus quanto os do oponente.",
       "id": "card_083",
+      "traits": [
+        "aquatico",
+        "elite"
+      ],
       "image": "assets/cards/hidra_das_profundezas.png"
     },
     {
@@ -858,6 +1110,10 @@
       "defense": 59,
       "hability": "Ataca duas vezes por turno.",
       "id": "card_084",
+      "traits": [
+        "elite",
+        "robotico"
+      ],
       "image": "assets/cards/imperial_x.png"
     },
     {
@@ -878,6 +1134,9 @@
       "defense": 59,
       "hability": "Ao ser invocado, cria uma barreira de luz que impede que qualquer monstro com Ataque de 30 ou menos cause dano a ele ou ao seu controlador por um turno.",
       "id": "card_086",
+      "traits": [
+        "elite"
+      ],
       "image": "assets/cards/sentinela_solar.png"
     },
     {
@@ -888,6 +1147,11 @@
       "defense": 59,
       "hability": "Pode atacar duas vezes; ao derrotar, recupera 1 monstro do cemitério para a mão.",
       "id": "card_087",
+      "traits": [
+        "elite",
+        "guerreiro",
+        "humanoide"
+      ],
       "image": "assets/cards/superior.png"
     },
     {

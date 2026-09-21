@@ -1,6 +1,6 @@
 # X Monsters — container com servidor PvP (HTTP + WebSocket + deck_factory Node)
 #
-# O server.py serve, na mesma porta (8000 por padrão):
+# O server.py serve, na mesma porta (8000 no Docker; 8080 localmente por padrão):
 #   - arquivos estáticos (pvp.html, pvp-lobby.html, game.html, index.html, CSS, …)
 #   - API do lobby (/api/matches)
 #   - WebSocket do relay (/ws)

@@ -9,14 +9,14 @@ ferramentas Python para manutenção das cartas.
 Na raiz do projeto, inicie um servidor HTTP local:
 
 ```powershell
-py -3 -m http.server 8000
+py -3 -m http.server 8080
 ```
 
 Acesse:
 
-- Jogo completo: http://localhost:8000/game.html
-- Contador simplificado: http://localhost:8000/index.html
-- Testes manuais: http://localhost:8000/tests/browser/test_abilities.html
+- Jogo completo: http://localhost:8080/game.html
+- Contador simplificado: http://localhost:8080/index.html
+- Testes manuais: http://localhost:8080/tests/browser/test_abilities.html
 
 O servidor é necessário para que `game.html` carregue as 110 cartas de
 `data/cards_database.json`. Abrir o arquivo diretamente por `file://` ativa
@@ -26,7 +26,7 @@ o fallback limitado do navegador.
 
 O `server.py` é um processo Python que substitui o `http.server` e soma
 suporte a WebSocket para partidas PvP em tempo real. Ele serve os arquivos
-estáticos na mesma porta (8000) e atua como intermediário de execução
+estáticos na mesma porta (8080) e atua como intermediário de execução
 lockstep: cria salas, ordena os comandos via WebSocket, é a única autoridade
 de aleatoriedade (dado e decks) e grava um espelho da partida em
 `matches/<roomId>.json`.
@@ -52,13 +52,13 @@ py -3 -m pip install websockets
 Inicie o servidor:
 
 ```powershell
-py -3 server.py              # escuta em 127.0.0.1:8000
+py -3 server.py              # escuta em 127.0.0.1:8080
 py -3 server.py --host 0.0.0.0   # acessível na rede local
 ```
 
 Fluxo:
 
-1. Abra o **lobby** em `http://localhost:8000/pvp` e clique em *"Criar partida"*.
+1. Abra o **lobby** em `http://localhost:8080/pvp` e clique em *"Criar partida"*.
 2. Copie os dois links (`…/pvp/<roomId>/p1` e `…/pvp/<roomId>/p2`) e abra em
    navegadores separados — um para cada jogador.
 3. Cada jogador vê o **seu** campo embaixo; a mão do oponente aparece como
@@ -86,8 +86,8 @@ docker compose up -d
 
 Acesso:
 
-- Lobby: `http://localhost:8000/pvp`
-- Jogo completo (local): `http://localhost:8000/game.html`
+- Lobby: `http://localhost:8080/pvp`
+- Jogo completo (local): `http://localhost:8080/game.html`
 - Partida PvP: abra `…/pvp/<roomId>/p1` e `…/pvp/<roomId>/p2` em navegadores separados
 
 Parar o serviço:

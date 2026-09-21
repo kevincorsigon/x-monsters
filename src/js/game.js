@@ -78,6 +78,8 @@
             // Em PvP quem sentencia o fim é o servidor: aqui só informamos o
             // resultado e esperamos o GAME_OVER oficial (mesmo vencedor nos dois).
             if (typeof window.sendGameOver === 'function') {
+                window.gameOver = true;
+                playVictorySound();
                 window.sendGameOver(vencedor);
                 return;
             }
@@ -225,10 +227,6 @@
         function rollDice(player, forcedValue = null) {
             // Em PvP o dado é do servidor: pedimos e só aplicamos no DICE_RESULT.
             if (forcedValue === null && pvpGuard({ cmd: 'ROLL_DICE', args: { player } })) {
-                if (window.PvpSession?.PvpSession?.sendDiceRequest) {
-                    window.PvpSession.PvpSession.sendDiceRequest();
-                    showMessage('🎲 Pedindo o dado ao servidor…', 'info');
-                }
                 return;
             }
             if (gameState.diceUsed[player]) {
@@ -248,6 +246,9 @@
             diceButton.classList.add('dice-animation');
 
             const aplicarResultado = (diceResult) => {
+                // Guarda contra aplicação dupla (físico + remoto/DICE_RESULT no PvP).
+                if (diceButton.dataset.diceRolled === '1') return;
+                diceButton.dataset.diceRolled = '1';
                 changeStat('energy', player, diceResult);
 
                 // Exibe animação/feedback ao invés de alert
@@ -292,6 +293,7 @@
             window.victorySoundPlayed = true;
             playSound('victorySound');
         }
+        window.playVictorySound = playVictorySound;
 
         // Funções do jogo
         function nextPhase() {
@@ -881,10 +883,14 @@
                 .filter(card => card.zone === 'hand');
             if (returnedToHand.length > 0) {
                 returnedToHand.forEach(card => {
-                    document.getElementById(card.instanceId)?.remove();
+                    const cardElement = document.getElementById(card.instanceId);
+                    if (cardElement && !cardElement.classList.contains('destroying')) {
+                        cardElement.classList.add('destroying');
+                        cardElement.style.animation = 'cardReturnToHand 0.3s ease-out forwards';
+                    }
                 });
                 renderHandsFromState();
-                renderFieldsFromState();
+                // renderFieldsFromState será chamado pelo destroyCard se houver derrotadas
             }
 
             updateCardDisplay(attackerId, {
@@ -1020,26 +1026,27 @@
 
             // Remover do DOM com animação
             const cardElement = document.getElementById(cardId);
-            const removerEDesenhar = () => {
-                cardElement?.remove();
-                renderFieldsFromState();
-            };
-            if (cardElement) {
+            const hasElement = !!cardElement;
+            
+            if (hasElement) {
                 console.log('💥 Elemento DOM encontrado, iniciando animação');
                 
                 // Efeito visual de destruição
                 cardElement.style.animation = 'cardDestroy 0.5s ease-out forwards';
+                cardElement.addEventListener('animationend', () => {
+                    cardElement.remove();
+                    renderFieldsFromState();
+                }, { once: true });
                 
                 // Mostrar feedback visual de descarte
                 showMessage(`${cardData.data?.name || 'Carta'} foi para o descarte!`, 'info');
-                
-                setTimeout(() => {
-                    console.log('💥 Removendo elemento do DOM');
-                    removerEDesenhar();
-                }, 500);
             } else {
-                console.log('💥 ERRO: Elemento DOM não encontrado para carta:', cardId);
-                removerEDesenhar();
+                console.log('💥 Elemento DOM não encontrado (provavelmente já removido), apenas atualizando campo');
+            }
+            
+            // Renderização imediata apenas se não houver elemento (sem animação)
+            if (!hasElement) {
+                renderFieldsFromState();
             }
         }
 
@@ -1236,12 +1243,28 @@
                 const fieldContainer = document.getElementById(`field-${player}`);
                 if (!fieldContainer) return;
                 
-                // Remover cartas que não estão mais no estado
+                // Primeiro, garantir que todas as cartas do gameState estejam no DOM
+                gameState.cards[player].field.forEach(card => {
+                    const existingElement = document.getElementById(card.instanceId);
+                    if (!existingElement) {
+                        // Carta no gameState mas não no DOM - criar
+                        const cardInstance = gameState.cardInstances[card.instanceId];
+                        if (cardInstance) {
+                            const newCard = createCard(cardInstance, player);
+                            fieldContainer.appendChild(newCard.element);
+                        }
+                    }
+                });
+                
+                // Remover cartas que não estão mais no estado (exceto se estiverem em animação)
                 Array.from(fieldContainer.children).forEach(child => {
                     if (child.classList.contains('card')) {
                         const instanceId = child.id;
                         const cardInState = gameState.cards[player].field.find(c => c.instanceId === instanceId);
-                        if (!cardInState) {
+                        // Só remove se não estiver em animação e não estiver no estado
+                        const isAnimating = child.classList.contains('destroying') || 
+                                           child.style.animation && child.style.animation.includes('cardDestroy');
+                        if (!cardInState && !isAnimating) {
                             child.remove();
                         }
                     }
