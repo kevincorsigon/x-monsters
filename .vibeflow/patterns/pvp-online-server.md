@@ -145,7 +145,10 @@ volumes:
 ## Rules
 - The server never implements card rules: it validates seat, order, turn, phase
   and dice usage, and treats command content as declared by the clients
-  (anti-cheat of content is out of scope and documented as such).
+  (anti-cheat of content is out of scope and documented as such). The single
+  exception is the hand count — a counter both screens display, not a rule:
+  `HAND_DELTAS` for `DRAW`/`SUMMON`/`EQUIP` plus the owner's `HAND_SIZE`
+  (`patterns/pvp-lockstep-protocol.md`).
 - Rooms are memory-only; `matches/<roomId>.json` is an audit mirror and is
   gitignored. Deleting it does not affect a live match.
 - Any new HTTP route goes through `handle_http`/`handle_api`; any new WebSocket

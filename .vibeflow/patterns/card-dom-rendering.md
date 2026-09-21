@@ -55,6 +55,7 @@ function dropCard(e) {
     const summonResult = window.gameEngine.resolveAction({ /* SUMMON_CARD */ });
     if (summonResult.status === 'resolved') {
         cardElement.remove();
+        cardElement.classList.remove('selected'); // destaque é da mão, não da mesa
         e.currentTarget.appendChild(cardElement);
         cardElement.classList.add('card-play-animation');
         cardElement.classList.remove('can-be-summoned', 'dragging');
@@ -84,6 +85,26 @@ function dropCard(e) {
   (pattern: `.vibeflow/patterns/pvp-hidden-state.md`).
 - Re-render from state (`renderHandsFromState` / `renderFieldsFromState`),
   never from the DOM: card identity is the engine `instanceId`.
+- A visual state class must never change the card's **size**: selection,
+  highlighting and alerts use color/shadow/border, not `transform: scale()`.
+  `.card.selected` keeps an inline-less `transform` out of the rule for exactly
+  this reason — the hand's arc rotations (`:nth-child`) win over the class and
+  hide the scale there, but a card in the field has no competing rule, so the
+  scale showed up as "one card bigger than its neighbours" on the board.
+- Hand-only state does not travel with the element: `dropCard` moves the same
+  DOM node from the hand into the field, so it strips `selected` (and
+  `can-be-summoned`/`dragging`) plus clears `gameState.selectedCard` — otherwise
+  the click highlight follows the card onto the board.
+- Zone counters on the board are a *view* of the state, never a parallel
+  counter: `updateDiscardCount`/`updateDeckCounter` read
+  `state.players[id].zones.<zone>.length` and write the label plus a
+  `data-count` attribute. `updateDeckCounter` is repainted where the balance
+  can change — `renderHandsFromState` (boot/replay/ledger), `addCardToHand`
+  (the draw click) and `updateUI` (generic repaint, through which card effects
+  that pull from the deck pass) — plus `pvp-game.atualizarContadoresDeMao` for
+  the server-published counts. The label stays inside the deck box (slot-sized
+  area, `font-size: 10px` via `.deck-count`) and turns to the `--pv-zero-color`
+  token when the balance hits zero (`data-empty="1"`).
 
 ## Examples from this codebase
 File: [src/js/game.js](../../src/js/game.js#L1589)

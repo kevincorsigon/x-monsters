@@ -86,8 +86,24 @@
   travels inside a reveal (`.vibeflow/patterns/pvp-hidden-state.md`).
 - New PvP CSS goes to `src/css/pvp.css` with `body[data-seat]` selectors;
   never edit `game.css` for perspective changes.
+- The opponent hand is recessed by CSS only: top row, `overflow: hidden`
+  (the fan can never reach the board) plus `translateY(-58%) scale(0.82)`
+  off the top edge, `pointer-events: none`, and `.hand-title` above it
+  (`.vibeflow/patterns/pvp-hidden-state.md`). The local hand keeps its
+  drag/hover/overflow.
 - Rules stay out of the server and out of the PvP layer: the engine
   (`game-engine.js` / `card-rules.js`) remains mode-agnostic.
+- The hand count shown in the UI comes from the websocket, never from a local
+  recount: `server.py` keeps `Room.hand_sizes` (its own deltas for
+  `DRAW`/`SUMMON`/`EQUIP`) and publishes it as `handSizes` on every accepted
+  `COMMAND`, on `COMMAND_LOG`, on `HAND_SIZES` and as `state.maos` on
+  `MATCH_START`/`ROOM_STATE`; the owner publishes `HAND_SIZE {hand}` whenever
+  the engine changes its own hand (`publicarContagemDeMao`). `game.js`
+  `updateHandCounter` prefers `PvpSession.current.handSizeOf(player)` and
+  falls back to `state.players[<p>].zones.hand.length` outside PvP; the opponent
+  fan follows the same number (`PvpState.resizeHiddenZone`), so title and backs
+  never disagree (`.vibeflow/patterns/pvp-lockstep-protocol.md`,
+  `.vibeflow/patterns/pvp-hidden-state.md`).
 
 ## Python server (`server.py`)
 - One process serves statics + `/api/*` + WebSocket `/ws` on the same port;

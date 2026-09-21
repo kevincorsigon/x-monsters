@@ -5,10 +5,14 @@ clientes WebSocket simultaneamente (p1 e p2) e verifica o ciclo mínimo:
 
   1. ambos recebem ROOM_STATE -> MATCH_START;
   2. END_TURN de p1 é aceito e replicado para os dois;
-  3. DICE_REQUEST de p2 devolve o mesmo DICE_RESULT aos dois;
-  4. STATE_HASH broadcast bate nos dois lados;
-  5. comando fora do turno é rejeitado (REJECTED);
-  6. matches/<roomId>.json existe, é JSON válido e tem o ledger gravado.
+  3. o assento que abre o turno manda o próprio DRAW (sem compra automática) e
+     ele é replicado; DRAW fora do turno é rejeitado;
+  4. DICE_REQUEST de p2 devolve o mesmo DICE_RESULT aos dois;
+  5. STATE_HASH broadcast bate nos dois lados;
+  6. comando fora do turno é rejeitado (REJECTED);
+  7. o ledger só registra as compras esperadas (10 da abertura + 1 da virada) e
+     a reconexão/F5 reaplica o log sem acrescentar comando nenhum;
+  8. matches/<roomId>.json existe, é JSON válido e tem o ledger gravado.
 
 Exit code 0 = tudo passou.
 """
@@ -150,6 +154,16 @@ async def run_test():
         assert_true(p1.has_type("MATCH_START"), "p1 recebeu MATCH_START")
         assert_true(p2.has_type("MATCH_START"), "p2 recebeu MATCH_START")
 
+        # ── contagem de mão já no MATCH_START (o que a UI exibe) ──
+        for cliente in (p1, p2):
+            inicio = [m for m in cliente.messages if m.get("type") == "MATCH_START"][-1]
+            maos = (inicio.get("state") or {}).get("maos") or {}
+            assert_true(
+                maos.get("p1") == 5 and maos.get("p2") == 5,
+                f"{cliente.seat} recebe a contagem de mão da abertura "
+                f"(p1={maos.get('p1')}, p2={maos.get('p2')})",
+            )
+
         # ── rejeita terceiro cliente no mesmo assento ──
         p1c = WsClient("p1")
         try:
@@ -208,6 +222,75 @@ async def run_test():
                 f"DICE_RESULT igual nos dois ({p1_dice[-1]['value']})",
             )
 
+        # ── o assento que abre o turno manda o próprio DRAW ──
+        # Em PvP não existe compra automática: o único DRAW fora da abertura é o
+        # do assento cujo turno começou (comando que a ponte da UI envia quando o
+        # END_TURN chega ao vivo). Um reload reaplica o log, mas não reenvia nada.
+        await p2.send({
+            "type": "COMMAND",
+            "cmd": "DRAW",
+            "args": {"player": "p2"},
+            "reveals": [],
+            "hash": "turno-2-draw",
+        })
+        await asyncio.sleep(0.5)
+
+        p1_draws = [m for m in p1.messages
+                    if m.get("type") == "COMMAND" and m.get("cmd") == "DRAW"]
+        p2_draws = [m for m in p2.messages
+                    if m.get("type") == "COMMAND" and m.get("cmd") == "DRAW"]
+        assert_true(
+            len(p1_draws) >= 1 and p1_draws[-1].get("actor") == "p2",
+            "o DRAW do turno de p2 chega replicado para p1",
+        )
+        assert_true(
+            len(p2_draws) >= 1 and p1_draws[-1].get("seq") == p2_draws[-1].get("seq"),
+            "o DRAW do turno de p2 chega na mesma seq nos dois",
+        )
+
+        # ── a contagem de mão viaja junto do comando aceito ──
+        assert_true(
+            (p1_draws[-1].get("handSizes") or {}).get("p2") == 6
+            and (p2_draws[-1].get("handSizes") or {}).get("p2") == 6,
+            "o DRAW de p2 publica a mesma contagem nos dois lados (p2=6)",
+        )
+
+        # ── contagem publicada pelo dono (efeito que o servidor não conhece) ──
+        maos_antes = len([m for m in p1.messages if m.get("type") == "HAND_SIZES"])
+        await p2.send({"type": "HAND_SIZE", "hand": 3})
+        await asyncio.sleep(0.4)
+        p1_maos = [m for m in p1.messages if m.get("type") == "HAND_SIZES"]
+        assert_true(
+            len(p1_maos) > maos_antes and (p1_maos[-1].get("handSizes") or {}).get("p2") == 3,
+            "HAND_SIZE do dono é replicado para o oponente (p2=3)",
+        )
+
+        # ── mão cheia: o servidor recusa a compra que o oponente contaria ──
+        await p2.send({"type": "HAND_SIZE", "hand": 7})
+        await asyncio.sleep(0.3)
+        draws_replicados = len([m for m in p1.messages
+                                if m.get("type") == "COMMAND" and m.get("cmd") == "DRAW"])
+        await p2.send({
+            "type": "COMMAND",
+            "cmd": "DRAW",
+            "args": {"player": "p2"},
+            "reveals": [],
+            "hash": "draw-mao-cheia",
+        })
+        await asyncio.sleep(0.5)
+        assert_true(
+            any(
+                m.get("type") == "REJECTED" and "cheia" in (m.get("reason") or "")
+                for m in p2.messages
+            ),
+            "DRAW com a mão cheia é recusado pelo servidor",
+        )
+        assert_true(
+            len([m for m in p1.messages
+                 if m.get("type") == "COMMAND" and m.get("cmd") == "DRAW"]) == draws_replicados,
+            "a compra recusada não vira verso no oponente",
+        )
+
         # ── comando fora do turno é rejeitado ──
         await p1.send({
             "type": "COMMAND",
@@ -220,6 +303,23 @@ async def run_test():
         assert_true(
             any(m.get("type") == "REJECTED" for m in p1.messages),
             "END_TURN fora do turno é rejeitado para p1",
+        )
+
+        # ── DRAW fora do turno também: só quem está no turno compra ──
+        await p1.send({
+            "type": "COMMAND",
+            "cmd": "DRAW",
+            "args": {"player": "p1"},
+            "reveals": [],
+            "hash": "draw-out-of-turn",
+        })
+        await asyncio.sleep(0.5)
+        assert_true(
+            any(
+                m.get("type") == "REJECTED" and m.get("cmd") == "DRAW"
+                for m in p1.messages
+            ),
+            "DRAW fora do turno é rejeitado para p1",
         )
 
         # So o p1 cai (F5): o p2 segue conectado para validar o GAME_OVER
@@ -240,10 +340,25 @@ async def run_test():
         assert_true("END_TURN" in cmds, "ledger registra END_TURN")
         assert_true("ROLL_DICE" in cmds, "ledger registra ROLL_DICE")
         assert_true(data["roomId"] == room_id, "roomId no ledger confere")
+        assert_true(
+            (data.get("maos") or {}).get("p2") == 7,
+            f"o espelho registra a contagem de mão publicada ({data.get('maos')})",
+        )
         abertura = [c for c in data["commands"] if c["cmd"] == "DRAW"]
         assert_true(
-            len(abertura) == 10,
-            "ledger tem as 10 compras da abertura (5 por assento)",
+            len(abertura) == 11,
+            "ledger tem 11 compras: 10 da abertura + 1 da virada do turno de p2",
+        )
+        assert_true(
+            all(c["actor"] in ("p1", "p2") for c in abertura),
+            "todo DRAW do ledger é de um assento válido (nunca compra automática)",
+        )
+        compras_p1 = [c for c in abertura if c["actor"] == "p1"]
+        compras_p2 = [c for c in abertura if c["actor"] == "p2"]
+        assert_true(
+            len(compras_p1) == 5 and len(compras_p2) == 6,
+            f"p1 comprou 5 (abertura) e p2 comprou 6 (abertura + virada): "
+            f"{len(compras_p1)}/{len(compras_p2)}",
         )
         assert_true(
             data["commands"] == sorted(data["commands"], key=lambda c: c["seq"]),
@@ -286,13 +401,33 @@ async def run_test():
                 "o log da reconexão traz o ledger inteiro",
             )
             assert_true(
-                logs[-1]["lastSeq"] >= 12,
+                logs[-1]["lastSeq"] >= 13,
                 f"lastSeq da reconexão é o do ledger ({logs[-1]['lastSeq']})",
             )
         match_start = [m for m in p1b.messages if m.get("type") == "MATCH_START"][-1]
         assert_true(
             match_start["seat"] == "p1" and match_start["opponentSeat"] == "p2",
             "MATCH_START da reconexão devolve o assento correto",
+        )
+        maos_reconexao = (match_start.get("state") or {}).get("maos") or {}
+        assert_true(
+            maos_reconexao.get("p2") == 7,
+            f"o F5 recebe a contagem de mão vigente (p2={maos_reconexao.get('p2')})",
+        )
+
+        # ── F5 não soma comando ao ledger ──
+        # O cliente reaplica o `COMMAND_LOG` inteiro; se ele reenviasse a abertura
+        # do turno, cada reload acrescentaria um DRAW novo ao ledger.
+        pos_reconexao = json.loads(ledger.read_text(encoding="utf-8"))
+        comandos_pos_reconexao = pos_reconexao["commands"]
+        assert_true(
+            len(comandos_pos_reconexao) == len(data["commands"]),
+            "reconexão (F5) não adiciona comando ao ledger",
+        )
+        draws_pos_reconexao = [c for c in comandos_pos_reconexao if c["cmd"] == "DRAW"]
+        assert_true(
+            len(draws_pos_reconexao) == 11,
+            "reconexão mantém as 11 compras (10 da abertura + 1 do turno)",
         )
         assert_true(
             "deck" in match_start,

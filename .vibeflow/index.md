@@ -39,7 +39,8 @@ and `pvp-lobby.html` (`/pvp`) creates rooms via `POST /api/matches`.
 - **`src/js/pvp-state.js`** — hidden zones (placeholders), reveals, opaque
   instance ids.
 - **`src/js/pvp-session.js`** — headless lockstep session: seq order, dedupe,
-  resync, dice feed.
+  resync, dice feed, publisher of the hand count (`handSizeOf`,
+  `publicarContagemDeMao`).
 - **`src/js/pvp-game.js`** — PvP bootstrap: socket + seat, `MATCH_START`,
   command appliers, control blocking, end-of-match overlay.
 - **`pvp.html` / `pvp-lobby.html`** — online board and lobby;
@@ -49,9 +50,12 @@ and `pvp-lobby.html` (`/pvp`) creates rooms via `POST /api/matches`.
 - **`data/cards_database.json`** — 110-card catalog.
 - **`index.html`** — standalone PV/Energy counter (no engine).
 - **`tests/unit/run-tests.js`** — Node regression suite (engine, rules, PvP
-  protocol/session).
+  protocol/session, PvP draw bridge).
 - **`tests/pvp/smoke_match.py`** — network smoke test (server + 2 WS clients).
-- **`tests/browser/`** — manual console diagnostics (not loaded in production).
+- **`tests/browser/`** — manual console diagnostics (not loaded in production);
+  `run-browser-tests.js` drives them via CDP (`test_pvp_draw.js` cobre a regra
+  "só o DRAW do ledger muda a mão", `test_field_card_size.js` trava o tamanho
+  das cartas em campo e `test_pvp_game_over.js` o overlay de fim de partida).
 - **`scripts/`** — OCR, print sheets, `check_cards.py` coverage scan,
   `deck_factory.js` (seeded decks for PvP).
 - **`assets/cards/`** — 110 card images referenced by JSON `image`.
@@ -127,8 +131,19 @@ patterns:
 - `src/js/deck_system.js` — fetch JSON + seeded balanced decks.
 - `src/js/manual_abilities.js` — activated-ability panel (+ PvP ABILITY).
 - `data/cards_database.json` — 110-card catalog.
-- `tests/unit/run-tests.js` — engine/rules/PvP regression tests (175 tests).
-- `tests/pvp/smoke_match.py` — server + 2 WS clients smoke test.
+- `tests/unit/run-tests.js` — engine/rules/PvP regression tests (197 tests).
+- `tests/pvp/smoke_match.py` — server + 2 WS clients smoke test (ledger só com
+  as compras esperadas; F5 não soma comando).
+- `tests/browser/test_pvp_draw.js` — regra da compra em PvP no DOM real +
+  contador de mão vindo do websocket.
+- `tests/browser/test_deck_count.js` — área de saque mostra as cartas restantes
+  (rótulo dentro da caixa do deck, zero com alerta visual).
+- `tests/browser/test_pvp_deck_count.js` — o mesmo contador em PvP: deck privado
+  do dono e deck oculto do oponente encolhendo com o ledger.
+- `tests/browser/test_field_card_size.js` — carta invocada entra no campo no
+  tamanho do slot (regressão do `.card.selected` com `scale`).
+- `tests/browser/test_pvp_game_over.js` — overlay de fim de partida visível,
+  com o vencedor e o botão de volta ao lobby.
 - `scripts/deck_factory.js` — seeded deck CLI used by the server.
 - `scripts/check_cards.py` — catalog vs `card-rules.js` mention scan.
 - `game.html` / `pvp.html` / `pvp-lobby.html` — board shell, online board, lobby.

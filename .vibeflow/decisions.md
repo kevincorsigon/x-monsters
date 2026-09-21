@@ -1,6 +1,142 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-21 — A área de saque passou a mostrar as cartas restantes
+Pedido: "a quantidade de cartas restantes devem aparecer na área de sacar" —
+o tabuleiro dizia "Clique para sacar" sem dizer se ainda havia carta para
+comprar, e o único jeito de saber era o gear "Decks" (modal).
+
+Decisão: o contador é uma **view da zona `deck` do estado**, não um contador
+paralelo — quem compra mexe no array, o rótulo só o lê.
+- **`game.html` / `pvp.html`**: `<div id="deck-count-p1|p2" class="deck-count">`
+  dentro de cada área de saque (`.player1-deck` / `.player2-deck`), ao lado do
+  hint de compra existente.
+- **`src/css/game.css`**: `.deck-count` (10px, cor primária, dentro da caixa do
+  slot) e `.deck-count[data-empty="1"]` na cor de alerta (`--pv-zero-color`) —
+  zero cartas precisa gritar, é o que decide se ainda dá para comprar.
+- **`src/js/game.js`**: `updateDeckCounter(player)` lê
+  `gameState.players[player].zones.deck.length` e escreve texto + `data-count` +
+  `data-empty`; repintado em `renderHandsFromState` (boot, F5/replay, DRAW do
+  ledger), em `addCardToHand` (clique de compra) e em `updateUI` (repaint geral,
+  por onde passam os efeitos que puxam do deck, ex. Zol).
+- **`src/js/pvp-game.js`**: `atualizarContadoresDeMao` repinta o deck junto da
+  mão — o deck oculto do oponente encolhe a cada `DRAW` replicado. Exibir o
+  **tamanho** do deck alheio não fere a decisão 6 da spec parte 4 (o segredo é a
+  *composição*): o servidor já publica `opponentDeckSize` no `MATCH_START` e a
+  contagem de mão em cada comando.
+
+Evidências: 197/197 em `node tests/unit/run-tests.js` (4 testes novos: markup de
+`game.html`/`pvp.html`, CSS, origem do número em `game.js`, repaint em
+`pvp-game.js`) e 16 PASS / 0 FAIL em `node tests/browser/run-browser-tests.js`
+(22 checks no hotseat + 10 no PvP, incluindo o rótulo dentro da caixa do deck sem
+overflow). Confirmado vermelho removendo o `<div>` de `pvp.html` (2 testes de
+unidade falham) e o `updateDeckCounter(player)` de `addCardToHand` (3 checks do
+hotseat e 7 do PvP falham).
+
+## 2026-09-21 — Overlay de fim de partida voltou a aparecer no PvP (e agora leva ao lobby)
+Sintoma: acabava a partida no PvP e nada acontecia na tela — o `tratarFimDePartida`
+rodava (overlay no DOM, botões travados, vinheta) mas o jogador não via o
+resultado.
+
+Causa: o overlay nasce com `class="pvp-overlay"` no fim do `<body>`, e
+`src/css/pvp.css` não tinha nenhuma regra `pvp-overlay*`. Sem `position: fixed`
+o bloco cai no fluxo **depois** do tabuleiro (`.game-container` = 100dvh) e o
+`body { overflow: hidden }` recorta tudo: o overlay existia e ficava fora da
+janela. Medido com o CDP: `position: static` → 3 checks vermelhos (não cobre a
+viewport, topo fora do canto); `fixed` → verde.
+
+Decisão: o fim de partida no PvP é um overlay fixo, na linguagem visual do
+`game.html`, com o caminho de volta para o lobby.
+- **`src/css/pvp.css`**: `.pvp-overlay` (`position: fixed`, `inset: 0`,
+  `z-index: 2000`, backdrop) + `.pvp-overlay-card`, `.pvp-overlay-detail` e
+  `.pvp-primary-link` (CTA dourado), usando só os tokens do `game.css`.
+- **`src/js/pvp-game.js`**: título com o nome do vencedor no padrão da casa
+  (`Jogador X venceu!`, via `GameStateModel.getPlayerName`), linha na
+  perspectiva do assento ("Você venceu/perdeu"), detalhe `Sala · turno · motivo`
+  e CTA **`<a href="/pvp">Voltar ao lobby</a>`** — o `?nova=1` anterior era
+  inerte (o lobby ignora a query) e não era `<button>` de propósito: o fim de
+  partida desabilita todo botão da página. `montarPartida` repõe o overlay
+  quando o `MATCH_START` traz `state.resultado` (sala finalizada + F5).
+
+Evidências: 193/193 em `node tests/unit/run-tests.js` (teste novo de fonte+CSS)
+e 14 PASS / 0 FAIL em `node tests/browser/run-browser-tests.js`, com o novo
+`tests/browser/test_pvp_game_over.js` (16 checks: ausência do overlay com a
+partida viva, cobertura da viewport, vencedor, CTA e a reposição no F5),
+confirmado vermelho ao trocar `position: fixed` por `static`. Screenshot CDP
+conferido com o overlay sobre o tabuleiro.
+
+Pendência detectada (não corrigida): `atualizarBadges` escreve em
+`#pvp-status`, elemento que **não existe** em `pvp.html` — o badge de
+conexão/turno prometido na spec parte 5 é inerte hoje. Falta decidir onde ele
+fica na tela antes de existir.
+
+## 2026-09-21 — Carta em campo não muda de tamanho por causa do destaque de seleção
+Sintoma (PvP e hotseat): depois de alguns cliques, UMA carta do campo aparecia
+maior que as vizinhas (149,2×198,9 ao lado de 135,6×180,8, com o topo ~9 px
+acima) — sem nenhum comando de rede envolvido, o servidor seguia com os dois
+lados idênticos.
+
+Causa: `selectCard` marca a carta clicada com `.card.selected`, e `game.css`
+dava `transform: scale(1.1)` nessa classe. Na mão o arco (`:nth-child`, 0,3,0)
+tem especificidade maior e engolia o scale; no campo não existe regra
+concorrente, então o destaque do clique crescia a carta. Pior: o elemento da mão
+é movido (não recriado) para o campo em `dropCard`, então a última carta clicada
+levava a classe junto — e como `selectCard` limpa `.selected` de todas antes de
+marcar a próxima, o resultado é sempre "uma única carta maior" na mesa.
+
+Decisão: estado visual nunca muda o tamanho da carta; seleção é só cor/brilho.
+- **`src/css/game.css`**: `.card.selected` fica com `border-color` + `box-shadow`
+  e sem `transform` (a escala nunca teve efeito na mão de qualquer forma).
+- **`src/js/game.js`**: `dropCard` remove `selected` da carta que entra no campo
+  e zera `gameState.selectedCard` — o destaque do clique não viaja para a mesa.
+
+Evidências: sonda headless mediu as 3 cartas em campo em 135,6×180,8 depois do
+fix (antes, a última clicada: 149,2×198,9); 192/192 em
+`node tests/unit/run-tests.js` (dois testes novos: fonte de `dropCard` e
+`.card.selected` sem `transform`) e 13 PASS / 0 FAIL em
+`node tests/browser/run-browser-tests.js`, com o novo
+`tests/browser/test_field_card_size.js` (7 checks) confirmado vermelho ao
+reintroduzir o `scale(1.1)` sem a limpeza no `dropCard`.
+
+## 2026-09-21 — Contagem de cartas na mão passa a ser publicada pelo websocket
+O contador exibido (`hand-title-<p>` com `data-count`) era sempre
+`state.players[<p>].zones.hand.length` recontado no cliente. Nos dois assentos
+isso é derivado do mesmo ledger, mas nada garantia que o número exibido fosse o
+que o servidor aceitou: um efeito que mexe na mão (Trox devolvendo carta, compra
+por habilidade) e o corte de limite no cliente eram invisíveis para o outro lado.
+
+Decisão: a contagem vira um campo replicado do servidor, e o cliente só exibe o
+que recebeu.
+- **`server.py`**: `Room.hand_sizes` (+ `HAND_DELTAS` = `DRAW` +1, `SUMMON`/`EQUIP`
+  −1, o que o servidor sabe contar sozinho), `entry["hand"]` no ledger,
+  `handSizes` em todo `COMMAND` aceito e no `COMMAND_LOG`, `maos` no
+  `public_state` (portanto no `MATCH_START`/`ROOM_STATE` e no espelho em disco),
+  mensagem nova `HAND_SIZE {hand}` (o dono publica o que só o motor sabe) com
+  broadcast `HAND_SIZES`, e `validate_command` recusa `DRAW` com a mão cheia —
+  o corte do limite deixa de ser só do cliente.
+- **`src/js/pvp-session.js`**: `handSizes`/`handSizeOf`/`setHandSizes` +
+  `publicarContagemDeMao()` (só publica quando o valor muda).
+- **`src/js/game.js`**: `updateHandCounter` prefere `handSizeOf(player)` e cai no
+  estado local fora do PvP; `publicarContagemDivergente` publica `HAND_SIZE`
+  quando o motor local muda a mão (nunca durante replay/aplicação);
+  `window.updateHandCounter` exposto para o repaint.
+- **`src/js/pvp-game.js`**: `atualizarContadoresDeMao` repinta os contadores a
+  cada mensagem com contagem do servidor e, para a mão alheia, chama
+  `PvpState.resizeHiddenZone` — o leque exibido passa a ter exatamente os versos
+  que o servidor anunciou (no `MATCH_START` o ajuste é pulado: quem constrói a
+  mão do oponente é o `COMMAND_LOG` da abertura).
+- **`src/js/pvp-state.js`**: `resizeHiddenZone(state, ownerId, zone, n)` completa
+  com placeholders sem identidade (índice derivado do maior em uso, para não
+  colidir com o deck oculto) ou remove o excesso do fim, mantendo
+  `cardInstances` e os aliases legados coerentes.
+
+Evidências: 190/190 em `node tests/unit/run-tests.js`, 29/29 no
+`tests/browser/test_pvp_draw.js` (12 PASS / 0 FAIL na suíte de browser) e
+`py -3 tests/pvp/smoke_match.py` com `maos` 5/5 no `MATCH_START`, `handSizes`
+do `DRAW` igual nos dois lados, `HAND_SIZE` replicado, `DRAW` de mão cheia
+recusado e o espelho registrando `{"p1": 5, "p2": 7}`. Detalhes do padrão em
+[patterns/pvp-lockstep-protocol.md](patterns/pvp-lockstep-protocol.md).
+
 ## 2026-09-13 — Fechado o gap de custo do Trox/Roller
 Fechamento da limitação #1 registrada na entrada da Fase 6 ("039 Trox / 069
 Roller — cláusulas de custo dependiam do fluxo de invocação por arrasto em

@@ -158,6 +158,18 @@ body[data-seat] .peek-hand-btn { display: none !important; }
   state.
 - All new PvP styling lives in `src/css/pvp.css` (`body[data-seat]` selectors),
   never in `game.css`.
+- The end-of-match overlay (`tratarFimDePartida`) is plain DOM plus the
+  `pvp-overlay*` classes from `pvp.css`, and it **must** be
+  `position: fixed`: `body` has `overflow: hidden` and the board fills
+  `100dvh`, so an in-flow block is created in the DOM but renders outside the
+  window — the symptom is "the overlay never shows" even though the code ran.
+  Its CTA is an `<a href="/pvp">` (the lobby is where the next room is created)
+  and deliberately not a `<button>`: the end of match disables every button on
+  the page before the overlay is mounted.
+- A finished room re-shows the overlay: `montarPartida` calls
+  `tratarFimDePartida` when the `MATCH_START` carries `state.resultado`
+  (from `Room.public_state`), so F5/reconnect after the end still explains who
+  won instead of leaving a frozen board.
 
 ## Examples from this codebase
 File: `src/js/game.js`
@@ -172,6 +184,11 @@ event) / `aplicarHabilidade` (reuses `window.applyMigratedAbilityLocally`) /
 File: `src/js/manual_abilities.js`
 `ABILITY` is sent from the UI with the hand reveal, while
 `applyMigratedAbilityLocally` stays the single applier for both modes.
+
+File: `src/js/pvp-game.js` + `src/css/pvp.css`
+`tratarFimDePartida` — `#pvp-game-over` overlay with the winner name, the
+seat perspective and the "Voltar ao lobby" CTA; `montarPartida` also replays it
+from `state.resultado`. Locked by `tests/browser/test_pvp_game_over.js`.
 <!-- vibeflow:auto:end -->
 
 ## Anti-patterns

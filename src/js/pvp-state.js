@@ -144,6 +144,57 @@
         return hiddenSlots;
     }
 
+    /**
+     * Próximo índice livre de placeholder para o dono: os ids são
+     * `hidden_<owner>_<index>`, então partir do maior índice em uso evita
+     * colisão com o que já está nas zonas (inclusive o deck oculto).
+     */
+    function nextHiddenIndex(state, ownerId) {
+        let maior = -1;
+        ZONE_NAMES.forEach(zone => {
+            (state?.players?.[ownerId]?.zones?.[zone] || []).forEach((carta, slot) => {
+                if (!carta) return;
+                const indice = Number.isFinite(Number(carta.index)) ? Number(carta.index) : slot;
+                maior = Math.max(maior, indice);
+            });
+        });
+        return maior + 1;
+    }
+
+    /**
+     * Ajusta o tamanho de uma zona oculta para bater com a contagem publicada
+     * pelo servidor (`handSizes`).
+     *
+     * O cliente não inventa identidade: a sobra vira placeholder (sem
+     * `definitionId`) e o excesso sai do fim da zona. É o que mantém o leque do
+     * oponente coerente com o contador exibido — o número vem do websocket e o
+     * cliente só desenha a quantidade de versos anunciada.
+     *
+     * Devolve quantos slots entraram/saíram (0 = já batia).
+     */
+    function resizeHiddenZone(state, ownerId, zoneType, targetLength) {
+        const zona = state?.players?.[ownerId]?.zones?.[zoneType];
+        const alvo = Number(targetLength);
+        if (!Array.isArray(zona) || !Number.isFinite(alvo) || alvo < 0) return 0;
+
+        let ajuste = 0;
+        while (zona.length > alvo) {
+            const removida = zona.pop();
+            if (removida?.instanceId) delete state.cardInstances[removida.instanceId];
+            if (removida && !isHiddenInstance(removida)) {
+                console.warn('pvp-state: contagem do servidor removeu uma carta revelada', removida.instanceId);
+            }
+            ajuste -= 1;
+        }
+        while (zona.length < alvo) {
+            const placeholder = createHiddenInstance(ownerId, nextHiddenIndex(state, ownerId), zoneType);
+            zona.push(placeholder);
+            state.cardInstances[placeholder.instanceId] = placeholder;
+            ajuste += 1;
+        }
+        return ajuste;
+    }
+
     function findHiddenSlot(state, instanceId) {
         for (const playerId of PLAYER_IDS) {
             const zones = state?.players?.[playerId]?.zones;
@@ -298,6 +349,7 @@
         installHiddenZones,
         createHiddenSlots,
         findHiddenSlot,
+        resizeHiddenZone,
         revealInstance,
         applyReveals,
         createPvpIdFactory,

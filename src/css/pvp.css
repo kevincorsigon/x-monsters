@@ -126,3 +126,107 @@ body[data-seat="p2"] .player2-hand .card.equipped:hover .equipment-card {
     opacity: 0.8;
     z-index: 999;
 }
+
+/* ──────────────────────────────────────────────────────────────
+   Mão do oponente: informativa e recuada.
+   A mão alheia é sempre a linha de cima do grid (o assento p2
+   espelha as áreas), então a regra cobre os dois assentos: o leque
+   fica pendurado para fora da borda superior, encolhido e atrás do
+   campo/da fase, sem nunca cobrir o tabuleiro nem capturar ponteiro.
+   ────────────────────────────────────────────────────────────── */
+body[data-seat="p1"] .player2-hand,
+body[data-seat="p2"] .player1-hand {
+    /* z-index 0 mantém a área na camada do campo: como ela vem antes
+       no DOM, o fundo do campo cobre qualquer sobra do leque. */
+    z-index: 0;
+    /* O recorte é a garantia dura: nada da mão alheia sai da faixa,
+       então o campo nunca é coberto (também zera o min-height auto). */
+    overflow: hidden;
+    /* Versos não são jogáveis nem espiáveis: sem hover/drag/scale. */
+    pointer-events: none;
+}
+
+body[data-seat="p1"] .player2-hand #hand-p2,
+body[data-seat="p2"] .player1-hand #hand-p1 {
+    /* Sobe mais da metade da própria altura e encolhe: sobra só a
+       ponta dos versos, sem invadir a linha do campo. */
+    transform: translateY(-58%) scale(0.82);
+    transform-origin: center top;
+    opacity: 0.9;
+}
+
+/* O leque sobe por cima da faixa: o título (e o contador "N cartas")
+   precisa continuar legível, então pinta acima do leque (z-index 25). */
+body[data-seat="p1"] .player2-hand .hand-title,
+body[data-seat="p2"] .player1-hand .hand-title {
+    z-index: 26;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Overlay de fim de partida (spec parte 5, DoD 1 e 3).
+   Montado por `tratarFimDePartida` (src/js/pvp-game.js) com as classes
+   abaixo. O `position: fixed` não é decoração: o `body` tem
+   `overflow: hidden` e o tabuleiro ocupa 100dvh, então um bloco em
+   fluxo nascia fora da janela — o overlay existia no DOM e "não
+   aparecia" no PvP.
+   ────────────────────────────────────────────────────────────── */
+.pvp-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(12px, 3vw, 32px);
+    background: rgba(0, 0, 0, 0.8);
+}
+
+.pvp-overlay-card {
+    width: min(460px, 100%);
+    padding: clamp(18px, 3vw, 34px);
+    text-align: center;
+    background: linear-gradient(135deg, rgba(26, 30, 40, 0.98) 0%, rgba(43, 48, 61, 0.98) 100%);
+    border: 2px solid var(--primary-color);
+    border-radius: var(--border-radius);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+}
+
+.pvp-overlay-card h1 {
+    margin-bottom: 10px;
+    font-size: clamp(1.6rem, 4vw, 3rem);
+    color: var(--text-color);
+}
+
+.pvp-overlay-card p {
+    color: var(--text-color);
+}
+
+.pvp-overlay-detail {
+    margin-top: 6px;
+    color: var(--primary-color);
+    font-size: clamp(12px, 1.4vw, 14px);
+    opacity: 0.9;
+}
+
+/* CTA de volta ao lobby: parece botão, mas é `<a>` — o fim de partida
+   desabilita todo `<button>` da página antes de montar o overlay. */
+.pvp-primary-link {
+    display: inline-block;
+    margin-top: 18px;
+    padding: clamp(8px, 1.2vh, 12px) clamp(18px, 2.4vw, 28px);
+    background-color: var(--primary-color);
+    color: var(--bg-color);
+    font-family: inherit;
+    font-size: clamp(14px, 1.6vw, 16px);
+    font-weight: bold;
+    text-decoration: none;
+    border-radius: var(--border-radius);
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.pvp-primary-link:hover,
+.pvp-primary-link:focus-visible {
+    background-color: var(--energy-color);
+    transform: scale(1.03);
+}
+

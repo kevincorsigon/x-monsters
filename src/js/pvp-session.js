@@ -8,7 +8,12 @@
  *   - aplicar o log do servidor **em ordem de seq**, ignorando duplicadas;
  *   - detectar gap de seq e pedir `COMMAND_LOG`;
  *   - alimentar o dado da sorte a partir de `DICE_RESULT`;
- *   - comparar o `STATE_HASH` do servidor com o local e pedir log se divergir.
+ *   - comparar o `STATE_HASH` do servidor com o local e pedir log se divergir;
+ *   - carregar a contagem de mao publicada pelo servidor (`handSizes` no
+ *     `COMMAND`/`COMMAND_LOG`/`HAND_SIZES`, `state.maos` no
+ *     `MATCH_START`/`ROOM_STATE`) e publicar a propria contagem quando o motor
+ *     local a muda por um efeito (`HAND_SIZE`), para que o contador exibido nos
+ *     dois navegadores venha do websocket e nao de uma recontagem local.
  *
  * A mutação de estado fica com o `applyCommand` injetado (headless e testável).
  */
@@ -25,6 +30,8 @@
     if (!Protocol) {
         throw new Error('PvpProtocol deve ser carregado antes de PvpSession');
     }
+
+    const PLAYER_IDS = ['p1', 'p2'];
 
     class PvpSession {
         /**
@@ -47,7 +54,12 @@
             this.lastSeq = 0;
             this.commandLog = [];
             this.applying = false;
+            this.replaying = false;
             this.pendingResync = false;
+            // Contagem de mao por assento, publicada pelo servidor (`null` =
+            // ainda nao recebida; a UI cai no fallback local nesse caso).
+            this.handSizes = { p1: null, p2: null };
+            this.ultimaContagemPublicada = null;
             PvpSession.current = this;
         }
 
@@ -77,6 +89,15 @@
             return this.applying;
         }
 
+        /**
+         * Verdadeiro enquanto o `COMMAND_LOG` é reaplicado (F5/resync): quem
+         * reage a um comando ao vivo (ex.: abrir o turno com `DRAW`) não pode
+         * reenviar nada nesse caminho.
+         */
+        isReplaying() {
+            return this.replaying;
+        }
+
         setState(state) {
             this.state = state;
         }
@@ -89,7 +110,40 @@
         resetLog() {
             this.lastSeq = 0;
             this.commandLog = [];
+            this.replaying = false;
             this.pendingResync = false;
+            this.handSizes = { p1: null, p2: null };
+            this.ultimaContagemPublicada = null;
+        }
+
+        /**
+         * Guarda a contagem de mão publicada pelo servidor (`handSizes` do
+         * broadcast ou `state.maos`). Devolve `true` quando algo mudou.
+         */
+        setHandSizes(sizes) {
+            if (!sizes || typeof sizes !== 'object') return false;
+            let mudou = false;
+            PLAYER_IDS.forEach(playerId => {
+                const valor = Number(sizes[playerId]);
+                if (!Number.isFinite(valor) || valor < 0) return;
+                if (this.handSizes[playerId] !== valor) {
+                    this.handSizes[playerId] = valor;
+                    mudou = true;
+                }
+            });
+            return mudou;
+        }
+
+        /** Contagem autoritativa da mão do assento (`null` se ainda não chegou). */
+        handSizeOf(playerId) {
+            const valor = this.handSizes?.[playerId];
+            return Number.isFinite(valor) ? valor : null;
+        }
+
+        /** Contagem local da mão do assento, declarada em cada comando enviado. */
+        localHandSize() {
+            const zona = this.state?.players?.[this.seat]?.zones?.hand;
+            return Array.isArray(zona) ? zona.length : null;
         }
 
         // ── envio ────────────────────────────────────────────────────────────
@@ -108,6 +162,23 @@
             };
             this.transportSend(command);
             return command;
+        }
+
+        /**
+         * Publica a contagem da própria mão no servidor (`HAND_SIZE`).
+         *
+         * Caminho dos efeitos que mudam a mão por dentro do motor (habilidade que
+         * devolve carta, compra por efeito): o servidor não conhece a regra, mas
+         * replica o número, então os dois navegadores exibem o mesmo contador.
+         * Repetir o mesmo valor não gera tráfego.
+         */
+        publicarContagemDeMao() {
+            const hand = this.localHandSize();
+            if (!Number.isFinite(hand)) return false;
+            if (hand === this.ultimaContagemPublicada) return false;
+            this.ultimaContagemPublicada = hand;
+            this.transportSend({ type: 'HAND_SIZE', hand });
+            return true;
         }
 
         /** Pede o dado da sorte ao servidor (única autoridade de RNG). */
@@ -165,13 +236,20 @@
 
             switch (message.type) {
                 case 'COMMAND':
+                    this.setHandSizes(message.handSizes);
                     this.handleRemoteCommand(message);
                     return true;
                 case 'COMMAND_LOG':
+                    this.setHandSizes(message.handSizes);
                     this.handleCommandLog(message.log);
                     return true;
                 case 'DICE_RESULT':
                     this.handleDiceResult(message);
+                    return true;
+                case 'HAND_SIZES':
+                    // Contagem publicada pelo servidor (dono + deltas que ele
+                    // conhece): é ela que o contador exibe.
+                    this.setHandSizes(message.handSizes);
                     return true;
                 case 'STATE_HASH':
                     this.handleStateHash(message);
@@ -184,6 +262,9 @@
                     return true;
                 case 'MATCH_START':
                     this.resetLog();
+                    // O MATCH_START já traz a contagem do servidor (`state.maos`):
+                    // sem ela o contador mostraria 0 até o COMMAND_LOG chegar.
+                    this.setHandSizes(message.state?.maos);
                     return false;
                 default:
                     return false;
@@ -261,19 +342,24 @@
                 .sort((a, b) => (Number(a?.seq) || 0) - (Number(b?.seq) || 0));
 
             this.pendingResync = false;
-            entries.forEach(entry => {
-                const seq = Number(entry?.seq);
-                if (!Number.isFinite(seq) || seq <= this.lastSeq) return;
-                // F5 duplo: o mesmo COMMAND_LOG pode chegar 2x (reconnect +
-                // abertura). Sem esta checagem o DRAW reaplicava e a mão do
-                // oponente crescia a cada reload.
-                const duplicada = this.commandLog.some(item => Number(item?.seq) === seq);
-                if (duplicada) {
-                    this.lastSeq = Math.max(this.lastSeq, seq);
-                    return;
-                }
-                this.applyEntry(entry);
-            });
+            this.replaying = true;
+            try {
+                entries.forEach(entry => {
+                    const seq = Number(entry?.seq);
+                    if (!Number.isFinite(seq) || seq <= this.lastSeq) return;
+                    // F5 duplo: o mesmo COMMAND_LOG pode chegar 2x (reconnect +
+                    // abertura). Sem esta checagem o DRAW reaplicava e a mão do
+                    // oponente crescia a cada reload.
+                    const duplicada = this.commandLog.some(item => Number(item?.seq) === seq);
+                    if (duplicada) {
+                        this.lastSeq = Math.max(this.lastSeq, seq);
+                        return;
+                    }
+                    this.applyEntry(entry);
+                });
+            } finally {
+                this.replaying = false;
+            }
 
             this.onEvent({ type: 'SYNCED', lastSeq: this.lastSeq });
         }

@@ -71,6 +71,15 @@ DEFAULT_CONFIG = {"initialPv": 200, "initialEnergy": 6}
 # dois clientes reapliquem exatamente a mesma abertura.
 INITIAL_HAND = 5
 DECK_SIZE = 50
+# Limite de mao do motor (`GameStateModel.HAND_LIMIT`). O servidor nao conhece
+# regra de carta, mas a contagem de mao e um invariante de contagem: replica-la e
+# o que impede um assento de exibir "7" enquanto o outro exibe "6".
+HAND_LIMIT = 7
+
+# Deltas de mao que o servidor conhece sozinho (os dois comandos exigem reveal de
+# uma carta que sai da mao; o DRAW e sempre +1). O resto do motor - habilidades
+# que devolvem carta, compras por efeito - chega pelo `HAND_SIZE` do dono.
+HAND_DELTAS = {"DRAW": 1, "SUMMON": -1, "EQUIP": -1}
 
 HELLO_TIMEOUT = 15.0
 
@@ -153,6 +162,10 @@ class Room:
     phase: str = "energy"
     turn: int = 1
     pending_choice: bool = False
+    # Contagem de mao autoritativa por assento. O servidor nao reimplementa
+    # regra de carta: ele guarda o numero que o autor declara em cada COMMAND
+    # (e conta sozinho o DRAW, que e sempre +1) e replica para os dois lados.
+    hand_sizes: dict = field(default_factory=lambda: {seat: 0 for seat in SEATS})
 
     def connected_seats(self):
         return [seat for seat in SEATS if self.seats[seat].connected]
@@ -171,6 +184,7 @@ class Room:
             "jogadorAtual": self.current_player,
             "fase": self.phase,
             "escolhaPendente": self.pending_choice,
+            "maos": dict(self.hand_sizes),
             "assentos": {
                 seat: {
                     "conectado": self.seats[seat].connected,
@@ -234,7 +248,24 @@ class Room:
         self.commands.append(entry)
         self.updated_at = time.time()
         self.apply_to_turn_state(actor, cmd, args)
+        # A contagem resultante entra no proprio ledger: o replay (F5) e a
+        # auditoria em `matches/<roomId>.json` mostram o mesmo numero dos
+        # clientes, sem depender de recontagem local.
+        entry["hand"] = self.apply_hand_size(actor, cmd)
         return entry
+
+    def apply_hand_size(self, actor, cmd):
+        """Atualiza a contagem de mao do ator e devolve o valor resultante.
+
+        So o que o servidor sabe: `DRAW` soma e `SUMMON`/`EQUIP` tiram uma carta
+        (ambos anunciam o reveal da mao). Efeito de carta continua sendo
+        publicado pelo dono via `HAND_SIZE`.
+        """
+        delta = HAND_DELTAS.get(cmd)
+        if delta:
+            atual = self.hand_sizes.get(actor, 0)
+            self.hand_sizes[actor] = max(0, min(atual + delta, HAND_LIMIT))
+        return self.hand_sizes.get(actor, 0)
 
     def apply_to_turn_state(self, actor, cmd, args):
         """Mantem turno/fase declarados no ledger (unico juiz de ordem)."""
@@ -269,6 +300,11 @@ class Room:
             return "Nao e o seu turno"
         if cmd == "SET_PHASE" and args.get("phase") not in PHASES:
             return "Fase invalida"
+        if cmd == "DRAW" and self.hand_sizes.get(seat, 0) >= HAND_LIMIT:
+            # Mao cheia: a compra nao entra no ledger, senao o oponente contaria
+            # uma carta que o dono nunca recebeu (defesa em profundidade: o
+            # cliente ja corta o clique antes de enviar).
+            return f"Mao cheia (limite de {HAND_LIMIT} cartas)"
         if cmd == "SUMMON":
             hand_slot = args.get("handSlot")
             if not isinstance(hand_slot, int) or isinstance(hand_slot, bool) or not 0 <= hand_slot <= 6:
@@ -316,6 +352,7 @@ class Room:
         self.pending_choice = False
         self.started = False
         self.status = "waiting"
+        self.hand_sizes = {seat: 0 for seat in SEATS}
         self.updated_at = time.time()
 
 
@@ -443,6 +480,9 @@ def command_log_payload(room, reason):
         "roomId": room.room_id,
         "lastSeq": room.last_seq,
         "log": list(room.commands),
+        # Contagem de mao do servidor: o cliente pinta o contador antes mesmo de
+        # terminar o replay (e o replay confirma o mesmo numero).
+        "handSizes": dict(room.hand_sizes),
         "reason": reason,
     }
 
@@ -674,7 +714,9 @@ async def handle_command(connection, room, seat, message):
         return
     entry = room.add_command(seat, cmd, args, reveals)
     await persist_room(room)
-    await broadcast(room, {"type": "COMMAND", **entry})
+    # `handSizes` viaja em todo comando aceito: o contador exibido nos dois
+    # navegadores vem daqui, nao de uma recontagem local.
+    await broadcast(room, {"type": "COMMAND", **entry, "handSizes": dict(room.hand_sizes)})
     client_hash = message.get("hash")
     if client_hash:
         await broadcast(
@@ -684,6 +726,31 @@ async def handle_command(connection, room, seat, message):
     log(f"[comando] {room.room_id} #{entry['seq']} {seat} {cmd}")
 
 
+async def handle_hand_size(connection, room, seat, message):
+    """Contagem de mao declarada pelo dono (o servidor nao conhece regra de carta).
+
+    Caminho dos efeitos que mudam a mao do autor (habilidade que devolve carta,
+    compra por efeito). O servidor guarda o numero e replica: o contador exibido
+    nos dois navegadores e sempre o ultimo valor publicado, nunca uma recontagem
+    local de cada lado.
+    """
+    hand = message.get("hand")
+    if not isinstance(hand, int) or isinstance(hand, bool) or not 0 <= hand <= HAND_LIMIT:
+        await send_message(
+            connection, {"type": "ERROR", "reason": f"Contagem de mao invalida: {hand!r}"}
+        )
+        return
+    if not room.started or room.status == "finished":
+        return
+    if room.hand_sizes.get(seat) == hand:
+        return
+    room.hand_sizes[seat] = hand
+    room.updated_at = time.time()
+    await persist_room(room)
+    await broadcast(room, {"type": "HAND_SIZES", "handSizes": dict(room.hand_sizes)})
+    log(f"[mao] {room.room_id} {seat}: {hand} cartas")
+
+
 async def handle_client_message(connection, room, seat, message):
     """Roteia uma mensagem ja desserializada do cliente."""
     kind = message.get("type")
@@ -691,6 +758,8 @@ async def handle_client_message(connection, room, seat, message):
         await handle_command(connection, room, seat, message)
     elif kind == "DICE_REQUEST":
         await handle_dice_request(room, seat, connection)
+    elif kind == "HAND_SIZE":
+        await handle_hand_size(connection, room, seat, message)
     elif kind == "PING":
         await send_message(connection, {"type": "PONG", "at": now_iso()})
     elif kind == "GAME_OVER":

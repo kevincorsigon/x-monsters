@@ -41,6 +41,27 @@
             return document.body?.dataset?.seat || null;
         }
 
+        // Contagem de cartas na mão publicada pelo servidor (websocket). Em PvP
+        // o número exibido é este, não a recontagem do estado local: os dois
+        // navegadores mostram o mesmo valor mesmo se um replay divergir.
+        function pvpContagemDoServidor(player) {
+            const sessao = window.PvpSession?.PvpSession?.current;
+            return sessao && typeof sessao.handSizeOf === 'function' ? sessao.handSizeOf(player) : null;
+        }
+
+        /**
+         * Publica no servidor a contagem local quando ela divergiu da publicada
+         * (`null` = o servidor ainda não mandou nenhuma: bootstrap/fora do PvP).
+         * Só fora do replay/aplicação: no meio deles o estado local está parcial.
+         */
+        function publicarContagemDivergente(player, local, doServidor) {
+            if (player !== assentoLocal()) return;
+            if (!Number.isFinite(doServidor) || doServidor === local) return;
+            const sessao = window.PvpSession?.PvpSession?.current;
+            if (!sessao || sessao.isApplying?.() || sessao.isReplaying?.()) return;
+            sessao.publicarContagemDeMao?.();
+        }
+
         // Sistema de cartas será carregado do JSON
         let cardsDatabase = null;
         let deckBuilder = null;
@@ -224,6 +245,27 @@
             }
         }
 
+        // Feedback do resultado do dado: pulso dourado na energia + o "+N" subindo
+        // do botão. Tudo local e fora do fluxo — o overlay central (`showMessage`)
+        // cobria o tabuleiro e o "+N" em fluxo empurrava a pílula de energia.
+        function animarResultadoDoDado(diceButton, player, diceResult) {
+            const energyElement = document.getElementById(`energy-${player}`);
+            if (energyElement) {
+                // Reflow entre as classes: sem ele a animação não reinicia em usos
+                // seguidos (o dado de p1 e o de p2 no mesmo turno).
+                energyElement.classList.remove('energy-gain-dice');
+                void energyElement.offsetWidth;
+                energyElement.classList.add('energy-gain-dice');
+                setTimeout(() => energyElement.classList.remove('energy-gain-dice'), 900);
+            }
+
+            const flutuante = document.createElement('div');
+            flutuante.textContent = `+${diceResult}`;
+            flutuante.className = 'dice-result-floating';
+            diceButton.appendChild(flutuante);
+            setTimeout(() => flutuante.remove(), 1500);
+        }
+
         function rollDice(player, forcedValue = null) {
             // Em PvP o dado é do servidor: pedimos e só aplicamos no DICE_RESULT.
             if (forcedValue === null && pvpGuard({ cmd: 'ROLL_DICE', args: { player } })) {
@@ -243,7 +285,12 @@
             changeStat('energy', player, -2);
 
             const diceButton = document.getElementById(`dice-${player}`);
-            diceButton.classList.add('dice-animation');
+            diceButton.classList.remove('dice-settled');
+            diceButton.classList.add('dice-rolling');
+            diceButton.title = 'Rolando o dado da sorte…';
+            // Rede de segurança: se o resultado não voltar (queda no meio do roll
+            // no PvP), o dado para de girar em vez de rodar para sempre.
+            setTimeout(() => diceButton.classList.remove('dice-rolling'), 5000);
 
             const aplicarResultado = (diceResult) => {
                 // Guarda contra aplicação dupla (físico + remoto/DICE_RESULT no PvP).
@@ -251,19 +298,16 @@
                 diceButton.dataset.diceRolled = '1';
                 changeStat('energy', player, diceResult);
 
-                // Exibe animação/feedback ao invés de alert
-                showMessage(`🎲 Dado da Sorte! Ganhou ${diceResult} de energia!`, 'info');
-
-                const diceValueEl = document.createElement('div');
-                diceValueEl.textContent = `+${diceResult}`;
-                diceValueEl.className = 'dice-result-floating';
-                diceButton.appendChild(diceValueEl);
-                setTimeout(() => diceValueEl.remove(), 1500);
+                // O resultado fica no próprio dado (face sorteada) com o "+N" e o
+                // pulso da energia: nada de overlay no meio do tabuleiro.
+                diceButton.classList.remove('dice-rolling');
+                diceButton.classList.add('dice-settled');
+                diceButton.textContent = String(diceResult);
+                animarResultadoDoDado(diceButton, player, diceResult);
 
                 gameState.diceUsed[player] = true;
                 diceButton.disabled = true;
-                diceButton.title = 'Dado da sorte já usado nesta partida';
-                diceButton.classList.remove('dice-animation');
+                diceButton.title = `Dado da sorte: ${diceResult} (já usado nesta partida)`;
             };
 
             // Valor do servidor (PvP) aplica na hora; no modo local anima 800ms.
@@ -553,6 +597,10 @@
             } else {
                 clearSummonHighlights();
             }
+
+            // Contadores de zona entram em qualquer repaint: uma carta que puxa do
+            // deck para a mão (Zol) muda o saldo sem passar pelos renderers.
+            ['p1', 'p2'].forEach(player => updateDeckCounter(player));
         }
 
         function updatePhaseInstructions() {
@@ -1090,6 +1138,12 @@
             ['p1', 'p2'].forEach(player => {
                 const diceButton = document.getElementById(`dice-${player}`);
                 if (diceButton) {
+                    // Nova partida: o dado volta a rolar. O `dataset.diceRolled`
+                    // sobrevivia ao reset e engolia o resultado da partida seguinte
+                    // (a guarda de aplicação dupla retornava cedo).
+                    delete diceButton.dataset.diceRolled;
+                    diceButton.classList.remove('dice-rolling', 'dice-settled');
+                    diceButton.textContent = '🎲';
                     diceButton.disabled = false;
                     diceButton.title = 'Dado da Sorte (2 energia)';
                 }
@@ -1218,7 +1272,10 @@
                     handElement.appendChild(renderedCard.element);
                 });
 
+                // A área de saque anda junto: mão e deck são as duas metades do
+                // mesmo movimento (a compra tira 1 do deck e põe 1 na mão).
                 updateHandCounter(player);
+                updateDeckCounter(player);
             });
         }
 
@@ -1237,6 +1294,8 @@
             return mao.findIndex(carta => carta && carta.instanceId === cardId);
         }
         window.renderHandsFromState = renderHandsFromState;
+        // O PvP repinta só os contadores quando o servidor publica `handSizes`.
+        window.updateHandCounter = updateHandCounter;
 
         function renderFieldsFromState() {
             ['p1', 'p2'].forEach(player => {
@@ -1298,23 +1357,33 @@
             const titleElement = document.getElementById(`hand-title-${player}`);
             if (!titleElement) return;
             const playerName = window.GameStateModel.getPlayerName(gameState, player) || (player === 'p1' ? 'Jogador 1' : 'Jogador 2');
-            const count = gameState.cards[player]?.hand?.length ?? 0;
+            // Em PvP vale a contagem do servidor; sem ela (fora do PvP, ou antes
+            // do MATCH_START) cai na contagem do estado local.
+            const doServidor = pvpContagemDoServidor(player);
+            const local = gameState.cards[player]?.hand?.length ?? 0;
+            const count = Number.isFinite(doServidor) ? doServidor : local;
             titleElement.innerText = `Mão - ${playerName} (${count})`;
+            // O badge "N cartas" do CSS vem do atributo (`content: attr(data-count)`).
+            titleElement.setAttribute('data-count', String(count));
+            publicarContagemDivergente(player, local, doServidor);
         }
 
         function addCardToHand(player) {
+            // Mão cheia: o corte vem antes do `pvpGuard` porque em PvP o comando
+            // que não pode ser aplicado aqui também não pode existir no ledger —
+            // o oponente só conta a mão alheia e veria uma carta a mais que o dono.
+            const currentCards = gameState.cards[player]?.hand?.length ?? 0;
+            if (window.GameStateModel.handLimitReached(gameState, player)) {
+                console.log(`❌ Não é possível sacar: limite de ${window.GameStateModel.HAND_LIMIT} cartas na mão atingido (atual: ${currentCards})`);
+                showMessage(`Limite de ${window.GameStateModel.HAND_LIMIT} cartas na mão atingido!`, 'warning');
+                return;
+            }
             // Em PvP quem compra é o autor do comando DRAW: o oponente recebe o
             // comando replicado e só vê a contagem mudar.
             if (pvpGuard({ cmd: 'DRAW', args: { player } })) return;
             // A mão do oponente nunca é renderizada localmente: só o contador.
             if (window.PvpSession?.PvpSession && player !== assentoLocal()) {
                 updateHandCounter(player);
-                return;
-            }
-            const currentCards = gameState.cards[player].hand.length;
-            if (currentCards >= 7) {
-                console.log(`❌ Não é possível sacar: limite de 7 cartas na mão atingido (atual: ${currentCards})`);
-                showMessage('Limite de 7 cartas na mão atingido!', 'warning');
                 return;
             }
             if (typeof drawCardFromDeck === 'function') {
@@ -1324,6 +1393,7 @@
                     newCard.element.classList.add('new-card');
                     document.getElementById(`hand-${player}`).appendChild(newCard.element);
                     updateHandCounter(player);
+                    updateDeckCounter(player);
                     setTimeout(() => { newCard.element.classList.remove('new-card'); }, 800);
                     console.log('📜 Card rendered from gameState:', newCard.id, 'Player:', player);
                     console.log('📜 Total cards in hand:', gameState.cards[player].hand.length);
@@ -1761,6 +1831,11 @@
                 const cardNoCampo = ehVerso
                     ? createCard(gameState.cardInstances[cardId], targetPlayer).element
                     : cardElement;
+                // A seleção é estado da mão: o destaque do clique não viaja para
+                // o campo (senão a carta invocada fica marcada como selecionada
+                // na mesa, com o brilho que ninguém pediu).
+                cardNoCampo.classList.remove('selected');
+                if (gameState.selectedCard === cardId) gameState.selectedCard = null;
                 e.currentTarget.appendChild(cardNoCampo);
                 
                 // Atualizar contador de cartas na mão
@@ -2010,6 +2085,23 @@
                 }
             }
         }
+
+        // Contagem da área de saque: quantas cartas ainda restam no deck para
+        // comprar. O número sai do estado (a zona `deck` é a mesma que o reset
+        // local e o ledger PvP movem em cada compra), então não existe contador
+        // paralelo para divergir do tabuleiro.
+        function updateDeckCounter(player) {
+            const countElement = document.getElementById(`deck-count-${player}`);
+            if (!countElement) return;
+
+            const deck = gameState?.players?.[player]?.zones?.deck;
+            const restantes = Array.isArray(deck) ? deck.length : 0;
+            countElement.textContent = `${restantes} cartas`;
+            countElement.setAttribute('data-count', String(restantes));
+            // Deck vazio muda de cor: é o que decide se ainda dá para comprar.
+            countElement.setAttribute('data-empty', restantes === 0 ? '1' : '0');
+        }
+        window.updateDeckCounter = updateDeckCounter;
 
         function handleCardDoubleClick(cardId, cardData) {
             if (gameState.currentPhase === 'combat') {
@@ -2445,6 +2537,12 @@ Cartas restantes:
                 cardsLoaded = await loadCardSystem();
             }
             
+            // Em PvP o estado nasce do `MATCH_START` e a abertura (mão inicial +
+            // energia do primeiro turno) é do ledger: sem esta guarda o
+            // `startNewMatch`/fallback local e o `initFirstTurn` mandavam um
+            // `DRAW` extra ao servidor a cada load e a mão crescia fora dele.
+            if (window.PvpSession) return;
+
             if (cardsLoaded && typeof startNewMatch === 'function') {
                 startNewMatch();
                 console.log('Jogo iniciado com cartas reais!');

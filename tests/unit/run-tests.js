@@ -1474,7 +1474,255 @@ test('invocação, equipamento e destruição reprojetam todos os campos uma vez
 
     assert.equal(countRenders(functionBody('dropCard', 'findCardData')), 1);
     assert.equal(countRenders(functionBody('equipSupportCard', 'highlightEquippableCreatures')), 1);
-    assert.equal(countRenders(functionBody('destroyCard', 'resetGame')), 1);
+
+    // `destroyCard` tem dois caminhos mutuamente exclusivos (com e sem elemento
+    // no DOM): exatamente uma reprojeção por chamada, nunca duas no mesmo ramo.
+    const destroyBody = functionBody('destroyCard', 'resetGame');
+    assert.equal(countRenders(destroyBody), 2);
+    assert.match(
+        destroyBody,
+        /addEventListener\('animationend', \(\) => \{\s*cardElement\.remove\(\);\s*renderFieldsFromState\(\);/
+    );
+    assert.match(destroyBody, /if \(!hasElement\) \{\s*renderFieldsFromState\(\);\s*\}/);
+});
+
+test('carta invocada entra no campo sem o destaque de seleção', () => {
+    const fonte = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
+    const inicio = fonte.indexOf('function dropCard');
+    const fim = fonte.indexOf('function findCardData', inicio);
+    assert.notEqual(inicio, -1, 'Função dropCard não encontrada');
+    assert.notEqual(fim, -1, 'Limite findCardData não encontrado');
+    const corpo = fonte.slice(inicio, fim);
+
+    // O clique marca a carta na mão (`selected`); ao ser arrastada para o campo,
+    // o destaque e o estado de seleção precisam ficar para trás — senão a carta
+    // invocada aparece marcada na mesa e some só no próximo clique.
+    assert.match(corpo, /cardNoCampo\.classList\.remove\('selected'\)/);
+    assert.match(corpo, /if \(gameState\.selectedCard === cardId\) gameState\.selectedCard = null;/);
+});
+
+test('o destaque de seleção não muda o tamanho da carta (CSS)', () => {
+    const css = fs.readFileSync(path.join(__dirname, '../../src/css/game.css'), 'utf8');
+    const inicio = css.indexOf('.card.selected {');
+    assert.notEqual(inicio, -1, 'Regra .card.selected não encontrada');
+    const bloco = css.slice(inicio, css.indexOf('}', inicio));
+
+    assert.match(bloco, /border-color: var\(--energy-color\);/);
+    assert.match(bloco, /box-shadow:/);
+    // Sem `transform`/`scale`: era daqui que vinha a carta maior no campo — a
+    // última clicada/invocada media 149x199 ao lado das vizinhas de 136x181.
+    assert.doesNotMatch(bloco, /transform/);
+    assert.doesNotMatch(bloco, /scale\(/);
+});
+
+test('fim de partida no PvP: overlay fixo, vencedor e volta ao lobby', () => {
+    const fonte = fs.readFileSync(path.join(__dirname, '../../src/js/pvp-game.js'), 'utf8');
+    const inicio = fonte.indexOf('function tratarFimDePartida');
+    const fim = fonte.indexOf('function enviarFimDePartida', inicio);
+    assert.notEqual(inicio, -1, 'tratarFimDePartida não encontrada');
+    assert.notEqual(fim, -1, 'Limite enviarFimDePartida não encontrado');
+    const corpo = fonte.slice(inicio, fim);
+
+    assert.match(corpo, /overlay\.id = 'pvp-game-over'/);
+    assert.match(corpo, /overlay\.className = 'pvp-overlay'/);
+    assert.match(corpo, /document\.body\.appendChild\(overlay\)/);
+    // A próxima partida nasce no lobby: o `?nova=1` era enfeite (a página do
+    // lobby ignora a query) e o jogador ficava sem caminho claro de volta.
+    assert.match(corpo, /class="pvp-primary-link" href="\/pvp">Voltar ao lobby</);
+    assert.doesNotMatch(corpo, /nova=1/);
+
+    // F5 numa sala já finalizada: o `resultado` do MATCH_START repõe o overlay.
+    const montar = fonte.slice(
+        fonte.indexOf('function montarPartida'),
+        fonte.indexOf('function gerarDeckLocal')
+    );
+    assert.match(
+        montar,
+        /if \(mensagem\.state\?\.resultado\?\.winner\) \{\s*tratarFimDePartida\(\{ \.\.\.mensagem\.state\.resultado \}\);/
+    );
+
+    // O CSS é o que faz o overlay aparecer: `body` tem `overflow: hidden` e o
+    // tabuleiro ocupa 100dvh, então sem `position: fixed` ele cai fora da tela
+    // (existia no DOM e "não aparecia" no PvP).
+    const css = fs.readFileSync(path.join(__dirname, '../../src/css/pvp.css'), 'utf8');
+    const blocoOverlay = css.slice(css.indexOf('.pvp-overlay {'), css.indexOf('.pvp-overlay-card {'));
+    assert.notEqual(blocoOverlay, '', 'regra .pvp-overlay ausente em src/css/pvp.css');
+    assert.match(blocoOverlay, /position: fixed;/);
+    assert.match(blocoOverlay, /inset: 0;/);
+
+    const blocoCard = css.slice(css.indexOf('.pvp-overlay-card {'), css.indexOf('.pvp-overlay-card h1'));
+    assert.match(blocoCard, /background: linear-gradient/);
+    assert.match(blocoCard, /border: 2px solid var\(--primary-color\);/);
+
+    const blocoCta = css.slice(css.indexOf('.pvp-primary-link {'), css.indexOf('.pvp-primary-link:hover'));
+    assert.match(blocoCta, /display: inline-block;/);
+    assert.match(blocoCta, /text-decoration: none;/);
+});
+
+test('a área de sacar mostra as cartas restantes (game.html e pvp.html)', () => {
+    ['game.html', 'pvp.html'].forEach(arquivo => {
+        const html = fs.readFileSync(path.join(__dirname, '../..', arquivo), 'utf8');
+
+        ['p1', 'p2'].forEach(seat => {
+            const numero = seat === 'p1' ? '1' : '2';
+            const inicio = html.indexOf(`class="player${numero}-deck"`);
+            assert.notEqual(inicio, -1, `área de saque de ${seat} não encontrada em ${arquivo}`);
+
+            const contador = html.indexOf(`id="deck-count-${seat}"`, inicio);
+            assert.notEqual(contador, -1, `contador do deck de ${seat} ausente em ${arquivo}`);
+
+            // O contador mora DENTRO da área de saque (entre a abertura do bloco e
+            // o botão de compra), não num canto qualquer do tabuleiro.
+            const trecho = html.slice(inicio, contador);
+            assert.match(trecho, /Clique para sacar/, `contador de ${seat} fora da área de saque em ${arquivo}`);
+            assert.match(html.slice(contador, contador + 80), new RegExp(`class="deck-count"`));
+        });
+    });
+});
+
+test('o contador da área de sacar tem estilo próprio (e alerta no deck vazio)', () => {
+    const css = fs.readFileSync(path.join(__dirname, '../../src/css/game.css'), 'utf8');
+    const inicio = css.indexOf('.deck-count {');
+    const fim = css.indexOf('.deck-count[data-empty="1"]');
+    assert.notEqual(inicio, -1, 'regra .deck-count ausente em src/css/game.css');
+    assert.notEqual(fim, -1, 'regra .deck-count[data-empty] ausente em src/css/game.css');
+
+    const bloco = css.slice(inicio, fim);
+    assert.match(bloco, /font-size: 10px;/);
+    assert.match(bloco, /color: var\(--primary-color\);/);
+
+    const blocoVazio = css.slice(fim, css.indexOf('}', fim));
+    assert.match(blocoVazio, /color: var\(--pv-zero-color\);/);
+});
+
+test('a área de sacar é repintada a partir da zona deck do estado', () => {
+    const fonte = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
+    const inicio = fonte.indexOf('function updateDeckCounter');
+    const fim = fonte.indexOf('function handleCardDoubleClick', inicio);
+    assert.notEqual(inicio, -1, 'updateDeckCounter não encontrada');
+    assert.notEqual(fim, -1, 'Limite handleCardDoubleClick não encontrado');
+    const corpo = fonte.slice(inicio, fim);
+
+    // Sem contador paralelo: o saldo exibido é o tamanho da zona `deck` (o que o
+    // reset local e o ledger PvP movem), e o número vai para o texto e para o
+    // atributo que o CSS usa para o alerta de deck vazio.
+    assert.match(corpo, /const deck = gameState\?\.players\?\.\[player\]\?\.zones\?\.deck;/);
+    assert.match(corpo, /const restantes = Array\.isArray\(deck\) \? deck\.length : 0;/);
+    assert.match(corpo, /countElement\.textContent = `\$\{restantes\} cartas`;/);
+    assert.match(corpo, /countElement\.setAttribute\('data-count', String\(restantes\)\);/);
+    assert.match(corpo, /countElement\.setAttribute\('data-empty', restantes === 0 \? '1' : '0'\);/);
+    assert.match(fonte, /window\.updateDeckCounter = updateDeckCounter;/);
+
+    // Os três momentos em que o saldo muda: boot/replay/compra do ledger
+    // (`renderHandsFromState`), clique na área de saque (`addCardToHand`) e o
+    // repaint geral (`updateUI`), por onde passam os efeitos que puxam do deck.
+    const render = fonte.slice(
+        fonte.indexOf('function renderHandsFromState'),
+        fonte.indexOf('function createCardBack')
+    );
+    assert.match(render, /updateHandCounter\(player\);\s*updateDeckCounter\(player\);/);
+
+    const compra = fonte.slice(
+        fonte.indexOf('function addCardToHand'),
+        fonte.indexOf('function toggleGearMenu')
+    );
+    assert.match(compra, /updateHandCounter\(player\);\s*updateDeckCounter\(player\);/);
+
+    const ui = fonte.slice(
+        fonte.indexOf('function updateUI'),
+        fonte.indexOf('function updatePhaseInstructions')
+    );
+    assert.match(ui, /\['p1', 'p2'\]\.forEach\(player => updateDeckCounter\(player\)\);/);
+});
+
+test('em PvP o contador do deck é repintado na sincronização de contagens', () => {
+    const fonte = fs.readFileSync(path.join(__dirname, '../../src/js/pvp-game.js'), 'utf8');
+    const inicio = fonte.indexOf('function atualizarContadoresDeMao');
+    const fim = fonte.indexOf('function atualizarNomeNaTela', inicio);
+    assert.notEqual(inicio, -1, 'atualizarContadoresDeMao não encontrada');
+    const corpo = fonte.slice(inicio, fim);
+
+    // A mão do oponente é só contagem publicada, e a área de saque dele anda no
+    // mesmo repaint: o deck oculto encolhe a cada DRAW replicado no ledger.
+    assert.match(corpo, /window\.updateHandCounter\?\.\(player\);/);
+    assert.match(corpo, /window\.updateDeckCounter\?\.\(player\);/);
+});
+
+test('o botão do dado é filho direto da pílula de energia (game.html e pvp.html)', () => {
+    ['game.html', 'pvp.html'].forEach(arquivo => {
+        const html = fs.readFileSync(path.join(__dirname, '../..', arquivo), 'utf8');
+
+        ['p1', 'p2'].forEach(seat => {
+            const valor = html.indexOf(`id="energy-${seat}"`);
+            const botao = html.indexOf(`id="dice-${seat}"`);
+            assert.notEqual(valor, -1, `energia de ${seat} não encontrada em ${arquivo}`);
+            assert.notEqual(botao, -1, `botão do dado de ${seat} ausente em ${arquivo}`);
+
+            // Nem wrapper nem margem: o `.stat` é `align-items: center`, então o
+            // dado se alinha pela pílula. O `.control-buttons` tinha `margin-top`
+            // e o botão um `margin-top: 4px` inline — os dois desalinhavam.
+            const trecho = html.slice(valor, botao);
+            assert.doesNotMatch(trecho, /control-buttons/, `wrapper .control-buttons ainda envolve o dado de ${seat} em ${arquivo}`);
+            assert.doesNotMatch(trecho, /<\/?div/, `o dado de ${seat} ficou fora da pílula de energia em ${arquivo}`);
+
+            const depoisDoBotao = html.slice(botao, botao + 220);
+            assert.doesNotMatch(depoisDoBotao, /margin-top/, `margin-top inline desalinha o dado de ${seat} em ${arquivo}`);
+            assert.match(depoisDoBotao, /<\/div>/, `a pílula de energia de ${seat} não fecha depois do dado em ${arquivo}`);
+        });
+    });
+});
+
+test('CSS do dado: rolagem, resultado e "+N" fora do fluxo', () => {
+    const css = fs.readFileSync(path.join(__dirname, '../../src/css/game.css'), 'utf8');
+
+    // O flutuante precisa ser absoluto dentro do botão: em fluxo ele empurrava a
+    // pílula de energia (o `+N` era um div filho do `<button>`).
+    const flutuante = css.slice(css.indexOf('.dice-result-floating {'), css.indexOf('}', css.indexOf('.dice-result-floating {')));
+    assert.notEqual(css.indexOf('.dice-result-floating {'), -1, 'regra .dice-result-floating ausente');
+    assert.match(flutuante, /position: absolute;/);
+    assert.match(flutuante, /pointer-events: none;/);
+    assert.match(flutuante, /animation: diceResultFloat 1\.4s ease-out forwards;/);
+
+    const botao = css.slice(css.indexOf('.dice-button {'), css.indexOf('}', css.indexOf('.dice-button {')));
+    assert.match(botao, /position: relative;/);
+
+    assert.match(css, /\.dice-button\.dice-rolling \{\s*animation: diceTumble 0\.4s linear infinite;/);
+    assert.match(css, /\.dice-button\.dice-settled \{\s*animation: diceSettle 0\.45s cubic-bezier/);
+    assert.match(css, /\.energy-value\.energy-gain-dice \{\s*animation: energyGainDice 0\.9s ease-out;/);
+    ['diceTumble', 'diceSettle', 'diceResultFloat', 'energyGainDice'].forEach(nome => {
+        assert.match(css, new RegExp(`@keyframes ${nome} \\{`), `@keyframes ${nome} ausente`);
+    });
+
+    // O wrapper e a animação antiga saíram de cena.
+    assert.doesNotMatch(css, /\.control-buttons/);
+    assert.doesNotMatch(css, /\.dice-animation/);
+    assert.doesNotMatch(css, /@keyframes diceRoll \{/);
+});
+
+test('rollDice mostra a face sorteada sem overlay e o reset devolve o dado', () => {
+    const fonte = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
+    const inicio = fonte.indexOf('function animarResultadoDoDado');
+    assert.notEqual(inicio, -1, 'animarResultadoDoDado não encontrada');
+
+    const animacao = fonte.slice(inicio, fonte.indexOf('function rollDice', inicio));
+    assert.match(animacao, /energyElement\.classList\.add\('energy-gain-dice'\);/);
+    assert.match(animacao, /flutuante\.className = 'dice-result-floating';/);
+    assert.match(animacao, /diceButton\.appendChild\(flutuante\);/);
+
+    const roll = fonte.slice(fonte.indexOf('function rollDice', inicio), fonte.indexOf('function playSound'));
+    assert.match(roll, /diceButton\.classList\.add\('dice-rolling'\);/);
+    assert.match(roll, /diceButton\.classList\.remove\('dice-rolling'\);\s*diceButton\.classList\.add\('dice-settled'\);/);
+    assert.match(roll, /diceButton\.textContent = String\(diceResult\);/);
+    assert.match(roll, /animarResultadoDoDado\(diceButton, player, diceResult\);/);
+    // O feedback saiu do centro da tela para o próprio dado.
+    assert.doesNotMatch(roll, /showMessage\(`🎲 Dado da Sorte/);
+
+    // Reset de partida: face, classes e o guard `dataset.diceRolled` — que
+    // sobrevivia ao reset e engolia o resultado da partida seguinte.
+    const reset = fonte.slice(fonte.indexOf('function resetGame'), fonte.indexOf('function renderHandsFromState'));
+    assert.match(reset, /delete diceButton\.dataset\.diceRolled;/);
+    assert.match(reset, /diceButton\.classList\.remove\('dice-rolling', 'dice-settled'\);/);
+    assert.match(reset, /diceButton\.textContent = '🎲';/);
 });
 
 test('Núcleo de Energia Pura aceita dragão ou elite e aplica somente +5/+5', () => {
@@ -4274,6 +4522,420 @@ test('pvp-session pede replay quando o hash do servidor diverge', () => {
         hash: PvpProtocol.stateHash(state)
     });
     assert.strictEqual(sent.length, enviosAntes);
+});
+
+// ── ponte de UI PvP (game.js + pvp-game.js), sem DOM ─────────────────────
+
+/**
+ * `pvp-game.js` referencia `window` no load e os seus helpers de UI tocam o DOM:
+ * nos testes headless o global do Node faz o papel de `window` (window ===
+ * globalThis) e um stub mínimo cobre `document`/`location`.
+ */
+function carregarPontePvp() {
+    global.window = globalThis;
+    if (typeof global.document === 'undefined') {
+        // `pathname` fora de `/pvp/<sala>/<assento>`: o auto-bootstrap do board
+        // online não dispara e o teste dirige o ledger comando a comando.
+        global.location = { pathname: '/game.html' };
+        global.document = {
+            body: { dataset: {} },
+            querySelectorAll: () => [],
+            querySelector: () => null,
+            getElementById: () => null,
+            addEventListener: () => {}
+        };
+    }
+    require('../../src/js/pvp-protocol.js');
+    require('../../src/js/pvp-state.js');
+    return require('../../src/js/pvp-game.js');
+}
+
+// 13. pvp-game: a compra do ledger é decidida pelo assento e pelo dedupe
+test('pvp-game decide a compra por assento e ignora seq já aplicada', () => {
+    const PvpGame = carregarPontePvp();
+    const compra = { seq: 7, cmd: 'DRAW', actor: 'p2', args: { player: 'p2' }, reveals: [] };
+
+    assert.strictEqual(PvpGame.decidirCompra(compra, { seat: 'p2' }), 'mao-local');
+    assert.strictEqual(PvpGame.decidirCompra(compra, { seat: 'p1' }), 'contagem-oponente');
+    // Replay/F5: a seq já está no log da sessão, então não compra de novo...
+    assert.strictEqual(
+        PvpGame.decidirCompra(compra, { seat: 'p2', commandLog: [{ seq: 7, cmd: 'DRAW' }] }),
+        'ignorar'
+    );
+    // ...mas uma seq nova compra normalmente.
+    assert.strictEqual(
+        PvpGame.decidirCompra(compra, { seat: 'p2', commandLog: [{ seq: 6, cmd: 'DRAW' }] }),
+        'mao-local'
+    );
+});
+
+// 14. rodada completa: só os DRAW do ledger mudam a mão (e o replay não infla)
+test('rodada completa em PvP: só os DRAW do ledger mudam a mão', () => {
+    const PvpGame = carregarPontePvp();
+    const PvpSession = require('../../src/js/pvp-session.js').PvpSession;
+    const indice = player => (player === 'p1' ? 0 : 1);
+
+    // Espelha a ponte de UI: o assento local compra por `addCardToHand` (que no
+    // browser chama `drawCardFromDeck`); a mão alheia só avança a contagem.
+    const montarPartidaDeTeste = () => {
+        const state = GameStateModel.createInitialGameState();
+        GameStateModel.resetMatchState(state, {
+            p1: Array.from({ length: 8 }, () => ({ ...repeatedDefinition })),
+            p2: Array.from({ length: 8 }, () => ({ ...repeatedDefinition }))
+        }, { idFactory: createIdFactory() });
+
+        const comprasLocais = [];
+        window.gameState = state;
+        window.GameStateModel = GameStateModel;
+        window.renderHandsFromState = () => {};
+        window.addCardToHand = player => {
+            comprasLocais.push(player);
+            GameStateModel.drawCard(state, player);
+        };
+        window.setPhase = phase => { state.currentPhase = phase; };
+        window.endTurn = () => {
+            state.currentPlayer = state.currentPlayer === 'p1' ? 'p2' : 'p1';
+            state.currentPhase = 'energy';
+        };
+
+        return {
+            state,
+            comprasLocais,
+            maos: () => [
+                state.players.p1.zones.hand.length,
+                state.players.p2.zones.hand.length
+            ]
+        };
+    };
+
+    PvpGame.setSeat('p2');
+
+    const rodada = [
+        { seq: 1, cmd: 'ROLL_DICE', actor: 'p1', args: { value: 3 }, reveals: [] },
+        { seq: 2, cmd: 'SET_PHASE', actor: 'p1', args: { phase: 'invocation' }, reveals: [] },
+        { seq: 3, cmd: 'END_TURN', actor: 'p1', args: {}, reveals: [] },
+        // O assento que abre o turno envia o próprio DRAW; o servidor replica.
+        { seq: 4, cmd: 'DRAW', actor: 'p2', args: { player: 'p2' }, reveals: [] },
+        { seq: 5, cmd: 'SET_PHASE', actor: 'p2', args: { phase: 'invocation' }, reveals: [] },
+        { seq: 6, cmd: 'END_TURN', actor: 'p2', args: {}, reveals: [] },
+        { seq: 7, cmd: 'DRAW', actor: 'p1', args: { player: 'p1' }, reveals: [] },
+        { seq: 8, cmd: 'SET_PHASE', actor: 'p1', args: { phase: 'invocation' }, reveals: [] }
+    ];
+
+    const aoVivo = montarPartidaDeTeste();
+    rodada.forEach(entry => {
+        const antes = aoVivo.maos();
+        PvpGame.applyCommand(entry);
+        if (entry.cmd === 'DRAW') {
+            const esperado = antes.slice();
+            esperado[indice(entry.actor)] += 1;
+            assert.deepStrictEqual(aoVivo.maos(), esperado, `DRAW ${entry.seq} compra só para ${entry.actor}`);
+        } else {
+            assert.deepStrictEqual(aoVivo.maos(), antes, `${entry.cmd} ${entry.seq} não mexe na mão`);
+        }
+    });
+    assert.deepStrictEqual(aoVivo.maos(), [1, 1], 'um DRAW por assento na rodada');
+    assert.deepStrictEqual(aoVivo.comprasLocais, ['p2'], 'só o assento local rende a mão');
+
+    // F5/reconexão: o estado é remontado e o `COMMAND_LOG` inteiro chega de novo
+    // (duas vezes). Nenhum DRAW pode comprar duas vezes.
+    const replay = montarPartidaDeTeste();
+    const sessao = new PvpSession({
+        transportSend: () => {},
+        gameState: replay.state,
+        seat: 'p2',
+        applyCommand: entry => PvpGame.applyCommand(entry)
+    });
+    sessao.handleMessage({ type: 'COMMAND_LOG', log: rodada });
+    sessao.handleMessage({ type: 'COMMAND_LOG', log: rodada });
+    assert.deepStrictEqual(replay.maos(), [1, 1], 'replay do log não infla a mão');
+    assert.deepStrictEqual(replay.comprasLocais, ['p2'], 'replay não compra de novo');
+});
+
+// 15. game.js: nenhuma compra automática de carta com a sessão PvP ativa
+test('game.js não compra carta automática com a sessão PvP ativa', () => {
+    const fonte = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
+    const functionBody = (name, nextName) => {
+        const start = fonte.indexOf(`function ${name}`);
+        const end = fonte.indexOf(`function ${nextName}`, start);
+        assert.notEqual(start, -1, `Função ${name} não encontrada`);
+        assert.notEqual(end, -1, `Limite ${nextName} não encontrado`);
+        return fonte.slice(start, end);
+    };
+
+    // `endTurn` sai antes do timer que compra e troca a fase (isso é do ledger).
+    const endTurnBody = functionBody('endTurn', 'setPhase');
+    const saidaPvp = endTurnBody.indexOf('if (window.PvpSession) {');
+    const compraAutomatica = endTurnBody.indexOf('addCardToHand(gameState.currentPlayer);');
+    assert.notEqual(saidaPvp, -1, 'endTurn precisa sair cedo no PvP');
+    assert.notEqual(compraAutomatica, -1, 'o hotseat continua comprando no fim do turno');
+    assert.ok(saidaPvp < compraAutomatica, 'no PvP o timer de compra não pode rodar');
+
+    // A abertura do hotseat (mão inicial + energia do 1º turno) também não roda
+    // em PvP: `MATCH_START` monta o estado e o DRAW do servidor compra.
+    const bootstrap = fonte.slice(fonte.indexOf("document.addEventListener('DOMContentLoaded'"));
+    const guardaAbertura = bootstrap.indexOf('if (window.PvpSession) return;');
+    assert.notEqual(guardaAbertura, -1, 'a abertura local precisa sair cedo no PvP');
+    assert.ok(guardaAbertura < bootstrap.indexOf('initFirstTurn();'), 'initFirstTurn não roda em PvP');
+    assert.ok(guardaAbertura < bootstrap.indexOf('startNewMatch();'), 'startNewMatch local não roda em PvP');
+
+    // O clique no deck é comando: em PvP quem compra é o servidor.
+    const addBody = functionBody('addCardToHand', 'toggleGearMenu');
+    assert.match(addBody, /if \(pvpGuard\(\{ cmd: 'DRAW', args: \{ player \} \}\)\) return;/);
+});
+
+// 16. game.html é hotseat e pvp.html carrega a camada online
+test('game.html não carrega a camada PvP; pvp.html carrega', () => {
+    const lerPagina = arquivo => fs.readFileSync(path.join(__dirname, '../../', arquivo), 'utf8');
+    const modulosPvp = fonte => fonte.match(/src="src\/js\/pvp-[^"]+\.js"/g) || [];
+
+    assert.deepStrictEqual(modulosPvp(lerPagina('game.html')), [],
+        'game.html é hotseat e nunca define window.PvpSession');
+    assert.equal(modulosPvp(lerPagina('pvp.html')).length, 4,
+        'pvp.html carrega protocol/session/state/game');
+});
+
+// 17. pvp-game: o replay do log não reenvia a abertura do turno local
+test('pvp-game não reenvia DRAW no replay do COMMAND_LOG', () => {
+    const PvpGame = carregarPontePvp();
+    const PvpSession = require('../../src/js/pvp-session.js').PvpSession;
+
+    const state = GameStateModel.createInitialGameState();
+    GameStateModel.resetMatchState(state, {
+        p1: Array.from({ length: 8 }, () => ({ ...repeatedDefinition })),
+        p2: Array.from({ length: 8 }, () => ({ ...repeatedDefinition }))
+    }, { idFactory: createIdFactory() });
+
+    window.gameState = state;
+    window.GameStateModel = GameStateModel;
+    window.renderHandsFromState = () => {};
+    window.addCardToHand = player => { GameStateModel.drawCard(state, player); };
+    window.setPhase = phase => { state.currentPhase = phase; };
+    window.endTurn = () => {
+        state.currentPlayer = state.currentPlayer === 'p1' ? 'p2' : 'p1';
+        state.currentPhase = 'energy';
+    };
+    PvpGame.setSeat('p2');
+
+    const enviados = [];
+    const sessao = new PvpSession({
+        transportSend: mensagem => enviados.push(mensagem),
+        gameState: state,
+        seat: 'p2',
+        applyCommand: entry => PvpGame.aplicarComandoDoLedger(entry)
+    });
+    PvpGame.setSession(sessao);
+
+    // F5: o `COMMAND_LOG` inteiro chega de novo com a sessão em replay.
+    sessao.handleMessage({ type: 'COMMAND_LOG', log: [
+        { seq: 1, cmd: 'END_TURN', actor: 'p1', args: {}, reveals: [] },
+        { seq: 2, cmd: 'DRAW', actor: 'p2', args: { player: 'p2' }, reveals: [] }
+    ] });
+    assert.deepStrictEqual(enviados, [], 'replay não reenvia a abertura do turno');
+    assert.strictEqual(sessao.isReplaying(), false, 'o flag de replay volta ao normal');
+    assert.strictEqual(state.players.p2.zones.hand.length, 1, 'o DRAW do log compra uma vez');
+
+    // Ao vivo, a virada para o assento local abre o turno com DRAW + SET_PHASE.
+    sessao.handleMessage({ type: 'COMMAND', seq: 3, cmd: 'END_TURN', actor: 'p1', args: {}, reveals: [] });
+    assert.deepStrictEqual(enviados, [], 'turno ainda do oponente: nada é enviado');
+
+    sessao.handleMessage({ type: 'COMMAND', seq: 4, cmd: 'END_TURN', actor: 'p2', args: {}, reveals: [] });
+    assert.deepStrictEqual(enviados.map(mensagem => mensagem.cmd), ['DRAW', 'SET_PHASE']);
+});
+
+// 18. mão cheia: a compra para no limite nos dois lados do ledger
+test('limite da mão corta a compra do dono e a contagem do oponente', () => {
+    const PvpGame = carregarPontePvp();
+
+    const state = GameStateModel.createInitialGameState();
+    GameStateModel.resetMatchState(state, {
+        p1: Array.from({ length: 12 }, () => ({ ...repeatedDefinition })),
+        p2: Array.from({ length: 12 }, () => ({ ...repeatedDefinition }))
+    }, { idFactory: createIdFactory() });
+
+    // Mão do dono: a compra do assento local passa por este mesmo `drawCard`.
+    for (let i = 0; i < GameStateModel.HAND_LIMIT; i += 1) {
+        assert.ok(GameStateModel.drawCard(state, 'p2'), `compra ${i + 1} de p2`);
+    }
+    assert.strictEqual(GameStateModel.HAND_LIMIT, 7);
+    assert.ok(GameStateModel.handLimitReached(state, 'p2'), 'a mão de p2 está cheia');
+    assert.strictEqual(GameStateModel.drawCard(state, 'p2'), null, 'a 8ª compra é recusada');
+    assert.strictEqual(state.players.p2.zones.hand.length, GameStateModel.HAND_LIMIT);
+    assert.strictEqual(state.players.p2.zones.deck.length, 12 - GameStateModel.HAND_LIMIT);
+    assert.strictEqual(GameStateModel.handLimitReached(state, 'p1'), false, 'a outra mão segue livre');
+
+    // Mão alheia (só contagem): o DRAW replicado também para no limite, senão a
+    // perspectiva do oponente mostraria uma carta que o dono nunca recebeu.
+    window.gameState = state;
+    window.GameStateModel = GameStateModel;
+    window.renderHandsFromState = () => {};
+    PvpGame.setSeat('p1');
+    PvpGame.setSession(null);
+
+    PvpGame.applyCommand({ seq: 1, cmd: 'DRAW', actor: 'p2', args: { player: 'p2' }, reveals: [] });
+    assert.strictEqual(state.players.p2.zones.hand.length, GameStateModel.HAND_LIMIT,
+        'a compra recusada não vira verso na mão do oponente');
+
+    // Com espaço na mão, a mesma compra continua valendo para os dois lados.
+    // (Aqui p1 é a mão alheia: o assento local passou a ser p2.)
+    PvpGame.setSeat('p2');
+    PvpGame.applyCommand({ seq: 2, cmd: 'DRAW', actor: 'p1', args: { player: 'p1' }, reveals: [] });
+    assert.strictEqual(state.players.p1.zones.hand.length, 1,
+        'com espaço na mão a compra do oponente avança a contagem');
+});
+
+// 19. contagem de mão: o servidor publica, o cliente exibe o que recebeu
+test('sessão PvP publica e carrega a contagem de mão exibida', () => {
+    const PvpSession = require('../../src/js/pvp-session.js').PvpSession;
+
+    const state = GameStateModel.createInitialGameState();
+    GameStateModel.resetMatchState(state, {
+        p1: Array.from({ length: 6 }, () => ({ ...repeatedDefinition })),
+        p2: Array.from({ length: 6 }, () => ({ ...repeatedDefinition }))
+    }, { idFactory: createIdFactory() });
+    for (let i = 0; i < 3; i += 1) GameStateModel.drawCard(state, 'p1');
+
+    const enviados = [];
+    const sessao = new PvpSession({
+        transportSend: mensagem => enviados.push(mensagem),
+        gameState: state,
+        seat: 'p1',
+        applyCommand: () => {}
+    });
+
+    assert.strictEqual(sessao.handSizeOf('p1'), null, 'sem servidor não há contagem publicada');
+
+    // O MATCH_START já traz a contagem da abertura (`state.maos`).
+    sessao.handleMessage({ type: 'MATCH_START', state: { maos: { p1: 5, p2: 5 } } });
+    assert.strictEqual(sessao.handSizeOf('p1'), 5);
+    assert.strictEqual(sessao.handSizeOf('p2'), 5, 'a mão alheia também vem do servidor');
+
+    // O broadcast do comando e o log da reconexão reafirmam a contagem.
+    sessao.handleMessage({
+        type: 'COMMAND', seq: 1, cmd: 'DRAW', actor: 'p1', args: {}, reveals: [],
+        handSizes: { p1: 6, p2: 5 }
+    });
+    assert.strictEqual(sessao.handSizeOf('p1'), 6, 'o COMMAND carrega a contagem');
+
+    sessao.handleMessage({ type: 'HAND_SIZES', handSizes: { p1: 4, p2: 5 } });
+    assert.strictEqual(sessao.handSizeOf('p1'), 4, 'HAND_SIZES do dono atualiza o contador');
+
+    // Valor inválido nunca sobrescreve o que o servidor já publicou.
+    sessao.handleMessage({ type: 'HAND_SIZES', handSizes: { p1: -1, p2: 'muitas' } });
+    assert.strictEqual(sessao.handSizeOf('p1'), 4);
+    assert.strictEqual(sessao.handSizeOf('p2'), 5);
+
+    // Publicação do dono: só quando a contagem local muda de fato.
+    enviados.length = 0;
+    assert.strictEqual(sessao.publicarContagemDeMao(), true);
+    assert.deepStrictEqual(enviados, [{ type: 'HAND_SIZE', hand: 3 }]);
+    assert.strictEqual(sessao.publicarContagemDeMao(), false, 'repetir não gera tráfego');
+    assert.strictEqual(enviados.length, 1);
+
+    GameStateModel.drawCard(state, 'p1');
+    assert.strictEqual(sessao.publicarContagemDeMao(), true);
+    assert.deepStrictEqual(enviados[1], { type: 'HAND_SIZE', hand: 4 });
+});
+
+// 20. o contador exibido em PvP é a contagem publicada pelo servidor
+test('contador de mão exibido usa a contagem publicada pelo servidor', () => {
+    const gameSource = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
+    const attributes = new Map();
+    const titulo = {
+        id: 'hand-title-p2',
+        innerText: '',
+        setAttribute(nome, valor) { attributes.set(nome, String(valor)); },
+        getAttribute(nome) { return attributes.has(nome) ? attributes.get(nome) : null; }
+    };
+    const publicacoes = [];
+    let maosDoServidor = { p1: 4, p2: 6 };
+    const fakeWindow = {
+        GameStateModel,
+        GameEngine,
+        CardRules,
+        cardAbilities: { attachEngine() {}, onCardSummoned() {}, onCardEquipped() {} },
+        PvpSession: {
+            PvpSession: {
+                current: {
+                    handSizeOf: player => maosDoServidor[player],
+                    isApplying: () => false,
+                    isReplaying: () => false,
+                    publicarContagemDeMao: () => { publicacoes.push('publicou'); return true; }
+                }
+            }
+        }
+    };
+    const fakeDocument = {
+        addEventListener() {},
+        getElementById: id => (id === titulo.id ? titulo : null),
+        querySelector: () => null,
+        querySelectorAll: () => [],
+        createElement: () => ({
+            style: {},
+            dataset: {},
+            classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+            appendChild() {},
+            setAttribute() {},
+            getAttribute: () => null,
+            querySelector: () => null,
+            querySelectorAll: () => [],
+            addEventListener() {}
+        }),
+        body: { dataset: { seat: 'p2' }, appendChild() {}, removeChild() {} },
+        documentElement: { style: {} }
+    };
+
+    new Function('window', 'document', gameSource)(fakeWindow, fakeDocument);
+    const state = fakeWindow.gameState;
+    GameStateModel.resetMatchState(state, {
+        p1: Array.from({ length: 12 }, () => ({ ...repeatedDefinition })),
+        p2: Array.from({ length: 12 }, () => ({ ...repeatedDefinition }))
+    }, { idFactory: createIdFactory() });
+    for (let i = 0; i < 6; i += 1) GameStateModel.drawCard(state, 'p2');
+
+    fakeWindow.updateHandCounter('p2');
+    assert.match(titulo.innerText, /\(6\)/, 'sem divergência exibe a contagem do servidor');
+    assert.strictEqual(attributes.get('data-count'), '6', 'o badge "N cartas" segue o título');
+    assert.deepStrictEqual(publicacoes, [], 'contagem igual não publica nada');
+
+    // Efeito que o servidor não conhece tirou uma carta da mão local: o contador
+    // segue mostrando o número do servidor e o dono publica a contagem nova.
+    const descartada = state.players.p2.zones.hand[0];
+    GameStateModel.moveCard(state, descartada.instanceId, 'discard', 'p2');
+    fakeWindow.updateHandCounter('p2');
+    assert.match(titulo.innerText, /\(6\)/, 'o número exibido é o do servidor, não a recontagem local');
+    assert.strictEqual(publicacoes.length, 1, 'a divergência publica HAND_SIZE');
+
+    // Fora do PvP (ou antes do MATCH_START) volta a valer o estado local.
+    maosDoServidor = { p1: null, p2: null };
+    fakeWindow.updateHandCounter('p2');
+    assert.match(titulo.innerText, /\(5\)/, 'sem contagem do servidor a UI usa a local');
+});
+
+// 21. leque do oponente: a contagem publicada decide quantos versos desenhar
+test('resizeHiddenZone ajusta o leque do oponente à contagem do servidor', () => {
+    const PvpState = require('../../src/js/pvp-state.js');
+
+    const state = GameStateModel.createInitialGameState();
+    GameStateModel.resetMatchState(state, { p1: [], p2: [] }, { idFactory: createIdFactory() });
+    PvpState.installHiddenZones(state, 'p1', { deck: 5, hand: 0 });
+    const ids = () => state.players.p1.zones.hand.map(carta => carta.instanceId);
+
+    assert.strictEqual(PvpState.resizeHiddenZone(state, 'p1', 'hand', 3), 3, 'cresce até a contagem');
+    assert.strictEqual(state.players.p1.zones.hand.length, 3);
+    assert.deepStrictEqual(ids(), ['hidden_p1_5', 'hidden_p1_6', 'hidden_p1_7'],
+        'os placeholders novos não colidem com o deck oculto');
+    assert.ok(state.players.p1.zones.hand.every(carta =>
+        PvpState.isHiddenInstance(carta) && carta.definitionId === null),
+    'o cliente nunca inventa identidade de carta');
+    ids().forEach(id => assert.ok(state.cardInstances[id], `cardInstances registra ${id}`));
+
+    assert.strictEqual(PvpState.resizeHiddenZone(state, 'p1', 'hand', 3), 0, 'contagem que já bate não mexe');
+    assert.strictEqual(PvpState.resizeHiddenZone(state, 'p1', 'hand', 1), -2, 'encolhe até a contagem');
+    assert.strictEqual(state.players.p1.zones.hand.length, 1);
+    assert.strictEqual(state.cardInstances['hidden_p1_6'], undefined, 'o excesso sai de cardInstances');
+    assert.strictEqual(state.cards.p1.hand, state.players.p1.zones.hand, 'o alias legado segue apontando');
+    assert.strictEqual(PvpState.resizeHiddenZone(state, 'p1', 'hand', -1), 0, 'alvo inválido é ignorado');
 });
 
 

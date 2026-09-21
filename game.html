@@ -26,6 +26,7 @@
         <div class="player2-deck" onclick="addCardToHand('p2')">
             <div>Deck Player 2</div>
             <div style="font-size: 12px; color: var(--primary-color); margin-top: 5px;">Clique para sacar</div>
+            <div id="deck-count-p2" class="deck-count">0 cartas</div>
         </div>
         
         <!-- Player 2 Stats and Field -->
@@ -38,10 +39,8 @@
             </div>
             <div class="stat">
                 <span class="stat-label">Energia:</span>
-            <span class="stat-value energy-value" id="energy-p2" style="cursor: default;">6</span>
-            <div class="control-buttons">
-                <button class="mini-button dice-button" id="dice-p2" onclick="rollDice('p2')" title="Dado da Sorte (2 energia)" style="margin-top: 4px;">🎲</button>
-            </div>
+                <span class="stat-value energy-value" id="energy-p2" style="cursor: default;">6</span>
+                <button class="mini-button dice-button" id="dice-p2" onclick="rollDice('p2')" title="Dado da Sorte (2 energia)">🎲</button>
             </div>
         </div>
         
@@ -81,10 +80,8 @@
             </div>
             <div class="stat">
                 <span class="stat-label">Energia:</span>
-            <span class="stat-value energy-value" id="energy-p1" style="cursor: default;">6</span>
-            <div class="control-buttons">
-                <button class="mini-button dice-button" id="dice-p1" onclick="rollDice('p1')" title="Dado da Sorte (2 energia)" style="margin-top: 4px;">🎲</button>
-            </div>
+                <span class="stat-value energy-value" id="energy-p1" style="cursor: default;">6</span>
+                <button class="mini-button dice-button" id="dice-p1" onclick="rollDice('p1')" title="Dado da Sorte (2 energia)">🎲</button>
             </div>
         </div>
         
@@ -96,6 +93,7 @@
         <div class="player1-deck" onclick="addCardToHand('p1')">
             <div>Deck Player 1</div>
             <div style="font-size: 12px; color: var(--primary-color); margin-top: 5px;">Clique para sacar</div>
+            <div id="deck-count-p1" class="deck-count">0 cartas</div>
         </div>
         
         <div class="player1-hand">
@@ -174,11 +172,6 @@
     <script src="src/js/card-abilities.js"></script>
     <script src="src/js/deck_system.js"></script>
     <script src="src/js/manual_abilities.js"></script>
-    <!-- Módulos PVP -->
-    <script src="src/js/pvp-protocol.js"></script>
-    <script src="src/js/pvp-session.js"></script>
-    <script src="src/js/pvp-state.js"></script>
-    <script src="src/js/pvp-game.js"></script>
     <script src="src/js/game.js"></script>
 </body>
 </html>

@@ -93,7 +93,36 @@ applyEntry(entry) {
 ```
 
 The server owns order and randomness; it validates seat/turn/phase declared in
-the ledger and never reimplements card rules:
+the ledger and never reimplements card rules — except the hand count, which both
+screens display:
+
+```python
+# server.py
+HAND_DELTAS = {"DRAW": 1, "SUMMON": -1, "EQUIP": -1}   # o que o servidor sabe
+
+entry["hand"] = self.apply_hand_size(actor, cmd)       # contagem apos o comando
+```
+
+```javascript
+// src/js/pvp-session.js — o dono publica o que so o motor sabe
+publicarContagemDeMao() {
+    const hand = this.localHandSize();
+    if (!Number.isFinite(hand) || hand === this.ultimaContagemPublicada) return false;
+    this.ultimaContagemPublicada = hand;
+    this.transportSend({ type: 'HAND_SIZE', hand });
+    return true;
+}
+```
+
+```javascript
+// src/js/game.js — o contador exibido prefere o valor do websocket
+const doServidor = pvpContagemDoServidor(player);
+const local = gameState.cards[player]?.hand?.length ?? 0;
+const count = Number.isFinite(doServidor) ? doServidor : local;
+titleElement.setAttribute('data-count', String(count));
+```
+
+Validation of the declared order stays on the server:
 
 ```python
 # server.py
@@ -117,7 +146,9 @@ def validate_command(self, seat, cmd, args):
 ```python
 entry = room.add_command(seat, cmd, args, reveals)   # seq = ++last_seq
 await persist_room(room)
-await broadcast(room, {"type": "COMMAND", **entry})
+# `handSizes` viaja em todo comando aceito: o contador exibido nos dois clientes
+# vem daqui, nao de uma recontagem local.
+await broadcast(room, {"type": "COMMAND", **entry, "handSizes": dict(room.hand_sizes)})
 ```
 
 Divergence detection hashes a fixed projection (no key-iteration dependence):
@@ -153,6 +184,13 @@ function stateHash(state) {
 - Messages and error reasons are in pt-BR, like every other user-facing string.
 - `DICE_RESULT` carries the ledger `seq` so the dice enters the same ordering as
   any other command; the client never rolls locally in PvP.
+- The hand count displayed by the UI is also a websocket value, not a local
+  recount: the server keeps `hand_sizes` (its own deltas for `DRAW`/`SUMMON`/
+  `EQUIP`, plus whatever the owner publishes with `HAND_SIZE`) and ships it as
+  `handSizes` on every accepted `COMMAND`, on `COMMAND_LOG`, on `HAND_SIZES`
+  and as `state.maos` on `MATCH_START`/`ROOM_STATE`. `game.js
+  updateHandCounter` prefers `handSizeOf(player)`; the local recount is only the
+  non-PvP fallback. Never infer the opponent count from the DOM.
 - Hash mismatch requests a replay (`COMMAND_LOG_REQUEST`) instead of patching
   state silently; the session emits `SYNCED`, `REJECTED`, `DIVERGENCE` and
   `APPLY_ERROR` events for the UI.
@@ -169,6 +207,11 @@ File: `src/js/pvp-session.js`
 File: `server.py`
 `handle_command` (reject → `add_command` → `persist_room` → `broadcast`) and
 `handle_dice_request` (`random.randint(1, 6)` recorded in the ledger).
+
+File: `server.py`
+`handle_hand_size` — the owner's own count (`HAND_SIZE`) is stored in
+`Room.hand_sizes` and rebroadcast as `HAND_SIZES`; `apply_hand_size` covers the
+commands the server can count alone (`DRAW`/`SUMMON`/`EQUIP`).
 <!-- vibeflow:auto:end -->
 
 ## Anti-patterns

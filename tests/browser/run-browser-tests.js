@@ -22,6 +22,8 @@ const CONSOLE_SCRIPTS = [
     'tests/browser/test_attack_calculation.js',
     'tests/browser/test_mago_arcano.js',
     'tests/browser/test_tobinha.js',
+    'tests/browser/test_deck_count.js',
+    'tests/browser/test_dice_roll.js',
 ];
 
 // Scripts de console PVP (precisam de pvp.html carregado)
@@ -29,6 +31,10 @@ const PVP_CONSOLE_SCRIPTS = [
     'tests/browser/test_pvp_protocol.js',
     'tests/browser/test_pvp_session.js',
     'tests/browser/test_pvp_state.js',
+    'tests/browser/test_pvp_draw.js',
+    'tests/browser/test_field_card_size.js',
+    'tests/browser/test_pvp_game_over.js',
+    'tests/browser/test_pvp_deck_count.js',
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }

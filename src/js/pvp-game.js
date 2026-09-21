@@ -46,11 +46,29 @@
         return seat === 'p1' ? 'p2' : 'p1';
     }
 
+    /** Fixa o assento local: bootstrap PvP e teste headless usam o mesmo ponto. */
+    function setSeat(seat) {
+        seatLocal = seat;
+    }
+
+    /** Fixa a sessão ativa (mesmo ponto de escrita do bootstrap). */
+    function setSession(instancia) {
+        session = instancia;
+    }
+
     const api = {
         parseSeat,
         parseRoomId,
         applyCommand,
         bootstrap,
+        decidirCompra,
+        setSeat,
+        setSession,
+        atualizarContadoresDeMao,
+        // Expostos para o teste headless do fim de partida (overlay do vencedor).
+        montarPartida,
+        tratarFimDePartida,
+        handSizeOf: player => session?.handSizeOf?.(player) ?? null,
         getSeat: () => seatLocal,
         getRoomId: () => roomIdLocal,
         getSession: () => session
@@ -121,20 +139,38 @@
         }
     }
 
-    function aplicarCompra(entry) {
-        const player = entry.actor;
-        // Idempotência do replay/F5: COMMAND_LOG repete DRAWs já aplicados.
-        // `applyEntry` só avança `lastSeq` depois de aplicar, então dedupe aqui
-        // pelo log da sessão antes de comprar de novo.
+    /**
+     * Decide o destino de um `DRAW` do ledger, sem tocar na UI:
+     *   - `ignorar`: seq já aplicada (replay/F5 do `COMMAND_LOG`);
+     *   - `mao-local`: o assento local rende a própria mão;
+     *   - `contagem-oponente`: a mão alheia só avança a contagem.
+     * Pura de propósito: em PvP só o `DRAW` do servidor compra carta, e o teste
+     * headless da rodada usa exatamente esta decisão.
+     */
+    function decidirCompra(entry, contexto = {}) {
         const seq = Number(entry?.seq);
-        const jaAplicado = session?.commandLog?.some(item => Number(item?.seq) === seq);
-        if (Number.isFinite(seq) && jaAplicado) return;
-        if (player === seatLocal) {
-            window.addCardToHand?.(player);
+        const log = Array.isArray(contexto.commandLog) ? contexto.commandLog : [];
+        const jaAplicado = Number.isFinite(seq)
+            && log.some(item => Number(item?.seq) === seq);
+        if (jaAplicado) return 'ignorar';
+        return entry?.actor === contexto.seat ? 'mao-local' : 'contagem-oponente';
+    }
+
+    function aplicarCompra(entry) {
+        // Idempotência do replay/F5: `COMMAND_LOG` repete DRAWs já aplicados e
+        // `applyEntry` só avança `lastSeq` depois de aplicar, então o dedupe
+        // entra antes de comprar de novo.
+        const decisao = decidirCompra(entry, {
+            seat: seatLocal,
+            commandLog: session?.commandLog
+        });
+        if (decisao === 'ignorar') return;
+        if (decisao === 'mao-local') {
+            window.addCardToHand?.(entry.actor);
             return;
         }
         // Mão alheia: só a contagem avança (o placeholder anda de deck para mão).
-        window.GameStateModel.drawCard(window.gameState, player);
+        window.GameStateModel.drawCard(window.gameState, entry.actor);
         window.renderHandsFromState?.();
     }
 
@@ -180,6 +216,42 @@
         window.applyMigratedAbilityLocally(rule, cardId, entry.args.targetIds || [], null);
     }
 
+    /**
+     * Repinta os contadores de mão com a contagem publicada pelo websocket e
+     * ajusta o leque do oponente para a mesma quantidade.
+     *
+     * A mão local é a verdade do dono (quem publica é ele); a mão alheia é só
+     * contagem, então o número do servidor é o que decide quantos versos
+     * desenhar — sem isso o título diria 5 e o leque mostraria 6.
+     */
+    function atualizarContadoresDeMao(mensagem) {
+        if (!mensagem) return;
+        const publicada = Boolean(mensagem.handSizes) || Boolean(mensagem.state?.maos);
+        if (!publicada) return;
+        // No MATCH_START a mão do oponente ainda nasce vazia: quem a constrói é o
+        // COMMAND_LOG da abertura (replay dos DRAW). Ajustar aqui somaria os
+        // versos do log em cima dos que a contagem criou.
+        if (mensagem.type === 'MATCH_START') {
+            ['p1', 'p2'].forEach(player => window.updateHandCounter?.(player));
+            return;
+        }
+
+        const sessao = session || window.PvpSession?.PvpSession?.current;
+        const assento = seatLocal || document.body?.dataset?.seat;
+        const oponente = outroAssento(assento);
+        const alvo = sessao?.handSizeOf?.(oponente);
+        if (Number.isFinite(alvo) && window.gameState && window.PvpState?.resizeHiddenZone) {
+            const ajuste = window.PvpState.resizeHiddenZone(window.gameState, oponente, 'hand', alvo);
+            if (ajuste !== 0) window.renderHandsFromState?.();
+        }
+        ['p1', 'p2'].forEach(player => {
+            window.updateHandCounter?.(player);
+            // A área de saque viaja junto: o deck oculto encolhe a cada DRAW
+            // replicado no ledger, e o dono conta o deck privado no mesmo repaint.
+            window.updateDeckCounter?.(player);
+        });
+    }
+
     function atualizarNomeNaTela(playerId, nome) {
         const classe = playerId === 'p1' ? '.player1-stats' : '.player2-stats';
         const elemento = document.querySelector(`${classe} .player-name`);
@@ -199,7 +271,7 @@
     function bootstrap() {
         if (typeof document === 'undefined' || typeof WebSocket === 'undefined') return null;
 
-        seatLocal = parseSeat(location.pathname);
+        setSeat(parseSeat(location.pathname));
         roomIdLocal = parseRoomId(location.pathname);
         if (!seatLocal || !roomIdLocal) {
             console.warn('pvp-game: assento PvP não identificado na URL');
@@ -221,7 +293,7 @@
             atualizarBadges('falha de conexão');
         });
 
-        session = new window.PvpSession.PvpSession({
+        setSession(new window.PvpSession.PvpSession({
             transportSend: (mensagem) => {
                 if (socket && socket.readyState === WebSocket.OPEN) {
                     socket.send(JSON.stringify(mensagem));
@@ -232,7 +304,7 @@
             applyCommand: aplicarComandoDoLedger,
             onEvent: tratarEventoDeSessao,
             onGameOver: tratarFimDePartida
-        });
+        }));
         // O construtor de PvpSession registra a instancia em PvpSession.current;
         // window.PvpSession segue sendo o modulo UMD ({ PvpSession: class }).
 
@@ -283,12 +355,17 @@
             case 'COMMAND':
             case 'COMMAND_LOG':
             case 'DICE_RESULT':
+            case 'HAND_SIZES':
             case 'STATE_HASH':
             case 'REJECTED':
                 break;
             default:
                 console.warn('pvp-game: mensagem desconhecida', mensagem.type);
         }
+
+        // Contagem de mão vinda do websocket: repinta o contador sem esperar um
+        // re-render completo das mãos.
+        atualizarContadoresDeMao(mensagem);
     }
 
     function tratarEstadoDaSala(mensagem) {
@@ -312,7 +389,7 @@
     function montarPartida(mensagem) {
         const assento = mensagem.seat || seatLocal;
         const oponente = mensagem.opponentSeat || outroAssento(assento);
-        seatLocal = assento;
+        setSeat(assento);
 
         // F5/replay: o MATCH_START chega de novo (a sessão reseta o log e o
         // servidor reenvia a abertura). Remontar por cima do estado antigo
@@ -359,6 +436,13 @@
         window.updateUI?.();
         restringirFuncoesGlobais(assento);
         atualizarBloqueioPorTurno();
+
+        // F5/reconexão depois do fim: o `public_state` do MATCH_START carrega o
+        // `resultado` da sala e não vem um GAME_OVER novo — sem isto o overlay
+        // do fim de partida não voltava para quem recarregou a página.
+        if (mensagem.state?.resultado?.winner) {
+            tratarFimDePartida({ ...mensagem.state.resultado });
+        }
     }
 
 // ── deck privado, badges e restrições de UI ──────────────────────────────
@@ -540,15 +624,24 @@
         applyCommand(entry);
         atualizarBloqueioPorTurno();
 
-        if (entry.cmd === 'END_TURN' && window.gameState.currentPlayer === seatLocal && session) {
-            session.sendCommand('DRAW', {});
+        // Só um `END_TURN` ao vivo abre o turno local: no replay do
+        // `COMMAND_LOG` (F5/resync) o DRAW da virada já está no log e reenviar
+        // compraria uma carta fora da partida (o servidor aceita DRAW no turno).
+        if (entry.cmd === 'END_TURN' && session && !session.isReplaying?.()
+            && window.gameState.currentPlayer === seatLocal) {
+            // Mão cheia: a compra do turno não existe — nem entra no ledger,
+            // senão o oponente contaria um verso que o dono nunca recebeu.
+            if (!window.GameStateModel?.handLimitReached?.(window.gameState, seatLocal)) {
+                session.sendCommand('DRAW', {});
+            }
             session.sendCommand('SET_PHASE', { phase: 'invocation' });
         }
     }
 
     /**
      * Fim de partida decidido pelo servidor: overlay único com o vencedor e o
-     * link para uma sala nova (spec parte 5, DoD 1 e 3).
+     * botão de volta ao lobby, onde a próxima sala é criada (spec parte 5,
+     * DoD 1 e 3). O visual vem das classes `pvp-overlay*` de `src/css/pvp.css`.
      */
     function tratarFimDePartida(mensagem) {
         estadoDaPartida = 'finalizada';
@@ -562,20 +655,34 @@
         if (document.getElementById('pvp-game-over')) return;
 
         const vencedor = mensagem?.winner;
-        const euVenci = vencedor === seatLocal;
-        const nomeVencedor = vencedor === 'p1' ? 'Jogador 1' : vencedor === 'p2' ? 'Jogador 2' : '—';
+        const vencedorConhecido = vencedor === 'p1' || vencedor === 'p2';
+        const nomeVencedor = nomeDoAssento(vencedor);
+        const titulo = vencedorConhecido ? `${nomeVencedor} venceu!` : 'Partida finalizada';
+        const resultado = vencedorConhecido
+            ? (vencedor === seatLocal ? 'Você venceu a partida.' : 'Você perdeu a partida.')
+            : '';
+        const detalhe = [`Sala ${roomIdLocal || '—'}`, `turno ${mensagem?.turn ?? '—'}`]
+            .concat(mensagem?.reason ? [mensagem.reason] : [])
+            .join(' · ');
 
         const overlay = document.createElement('div');
         overlay.id = 'pvp-game-over';
         overlay.className = 'pvp-overlay';
         overlay.innerHTML = `
             <div class="pvp-overlay-card">
-                <h1>${euVenci ? 'Vitória!' : 'Derrota'}</h1>
-                <p>Vencedor: ${nomeVencedor}${mensagem?.reason ? ` (${mensagem.reason})` : ''}</p>
-                <p class="pvp-overlay-detail">Sala ${roomIdLocal} · turno ${mensagem?.turn ?? '—'}</p>
-                <a class="pvp-primary-link" href="/pvp?nova=1">Nova partida</a>
+                <h1>${titulo}</h1>
+                ${resultado ? `<p>${resultado}</p>` : ''}
+                <p class="pvp-overlay-detail">${detalhe}</p>
+                <a class="pvp-primary-link" href="/pvp">Voltar ao lobby</a>
             </div>`;
         document.body.appendChild(overlay);
+    }
+
+    /** Nome exibido do assento (o mesmo da mesa), com fallback fixo. */
+    function nomeDoAssento(assento) {
+        if (assento !== 'p1' && assento !== 'p2') return '—';
+        return window.GameStateModel?.getPlayerName?.(window.gameState, assento)
+            || (assento === 'p1' ? 'Jogador 1' : 'Jogador 2');
     }
 
     /** Informa o resultado ao servidor (decisão do motor local). */

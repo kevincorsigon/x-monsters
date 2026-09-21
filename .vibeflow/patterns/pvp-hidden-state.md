@@ -163,6 +163,22 @@ window.PvpState.installHiddenZones(window.gameState, oponente, {
   sees real instances.
 - `applyReveals` never aborts the replay for a bad reveal: it logs
   (`pvp-state: reveal ignorado — ...`) and continues.
+- The opponent hand is informative, not a play area: the seat that is not
+  local renders backs in the top row only. `src/css/pvp.css` recesses it
+  (`body[data-seat="p1"] .player2-hand`, `body[data-seat="p2"] .player1-hand`
+  — the mirrored seat swaps which class is on top):
+  `overflow: hidden` (hard guarantee that the fan never reaches the board,
+  and it also drops the item's automatic minimum size), `z-index: 0` so the
+  field paints over it, `pointer-events: none` (no hover/drag on backs), the
+  fan lifted `translateY(-58%) scale(0.82)` off the top edge, and
+  `.hand-title` at `z-index: 26` so the count stays readable above the backs.
+  The local hand keeps `z-index: 20`, `overflow: visible` and its drag/hover
+  behaviour untouched.
+- The opponent fan and its counter never disagree: when the server publishes a
+  hand count that differs from the local hidden zone, `PvpState.resizeHiddenZone`
+  completes the zone with identity-less placeholders (or drops the excess from
+  the end) and the hand is re-rendered. The client never invents a definition, it
+  only draws the number of backs the websocket announced.
 
 ## Examples from this codebase
 File: `src/js/pvp-state.js`

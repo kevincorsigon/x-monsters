@@ -532,7 +532,10 @@ function drawCardFromDeck(player) {
 
     const cardInstance = window.GameStateModel.drawCard(gameState, player);
     if (!cardInstance) {
-        console.log(`Deck do ${player} está vazio!`);
+        // Duas recusas possíveis: deck vazio ou mão no limite (`HAND_LIMIT`).
+        console.log(window.GameStateModel.handLimitReached(gameState, player)
+            ? `Mão do ${player} cheia (limite de ${window.GameStateModel.HAND_LIMIT} cartas)!`
+            : `Deck do ${player} está vazio!`);
         return null;
     }
 

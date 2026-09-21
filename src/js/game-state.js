@@ -10,6 +10,12 @@
     const PLAYER_IDS = ['p1', 'p2'];
     const ZONE_NAMES = ['deck', 'hand', 'field', 'equipment', 'discard'];
 
+    // Limite de cartas na mão: a regra vive no modelo, não no handler de UI.
+    // Em PvP o assento local compra pelo `drawCard` e a mão alheia só avança a
+    // contagem pelo mesmo caminho: um corte em um lado só divergiria as duas
+    // perspectivas (e o `stateHash`).
+    const HAND_LIMIT = 7;
+
     let nextInstanceSequence = 1;
 
     function createInstanceId(definition, ownerId) {
@@ -244,9 +250,18 @@
         return instance;
     }
 
+    /** Verdadeiro quando a mão do jogador já está no limite (`HAND_LIMIT`). */
+    function handLimitReached(state, playerId) {
+        const hand = state?.players?.[playerId]?.zones?.hand;
+        return Array.isArray(hand) && hand.length >= HAND_LIMIT;
+    }
+
     function drawCard(state, playerId) {
         const deck = state.players[playerId]?.zones.deck;
         if (!deck || deck.length === 0) return null;
+        // Mão cheia: a compra não move nada (efeitos de carta que trazem do deck
+        // para a mão usam MOVE_CARD e seguem a regra própria de cada carta).
+        if (handLimitReached(state, playerId)) return null;
 
         return moveCard(state, deck[0].instanceId, 'hand', playerId);
     }
@@ -293,6 +308,8 @@
     return {
         PLAYER_IDS,
         ZONE_NAMES,
+        HAND_LIMIT,
+        handLimitReached,
         attachLegacyAliases,
         createInitialGameState,
         createCardInstance,
