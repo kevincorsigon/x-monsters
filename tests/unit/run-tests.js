@@ -1933,6 +1933,7 @@ test('Apelino permite vários ataques e volta ao limite base ao sair', () => {
 test('Beluga ataca diretamente pela metade mesmo com defensor', () => {
     const fixture = createCombatFixture({ attackerAttack: 33, targetDefense: 100, targetAttack: 0 });
     fixture.attacker.definitionId = 'card_063';
+    fixture.state.turn = 2; // Beluga requer turno >= 2 para ataque direto
     CardRules.install(fixture.engine);
 
     assert.equal(CardRules.canDirectAttack(fixture.state, fixture.attacker.instanceId), true);
@@ -1965,6 +1966,7 @@ test('fontes de dois ataques não acumulam acima de dois e Apelino prevalece', (
 test('Beluga usa bypass direto uma vez e mantém ataque adicional contra criatura', () => {
     const fixture = createCombatFixture({ attackerAttack: 33, targetDefense: 100, targetAttack: 0 });
     fixture.attacker.definitionId = 'card_063';
+    fixture.state.turn = 2; // Beluga requer turno >= 2 para ataque direto
     CardRules.install(fixture.engine);
     installAttackEquipment(fixture, 'card_100');
 

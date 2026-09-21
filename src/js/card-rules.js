@@ -439,7 +439,17 @@
         card_054: { feedback: 'Lorde Sanguinário transfere até 10 PV após derrotar.' },
         card_071: { feedback: 'Dragão de Jade causa 10 de dano ao atacante.' },
         card_047: { feedback: 'Tobias: segundo ataque pela metade.' },
-        card_063: { feedback: 'Beluga: ataque direto pela metade.' },
+        card_063: {
+            feedback: 'Beluga: ataque direto pela metade.',
+            modifiers: [
+                dynamicModifier(
+                    'attackLimit',
+                    GameEngine.MODIFIER_OPERATIONS.SET,
+                    () => 2,
+                    () => true
+                )
+            ]
+        },
         card_084: { feedback: 'Imperial X: dois ataques por turno.' }
     });
 
@@ -1590,15 +1600,23 @@
         const opponentId = attacker.controllerId === 'p1' ? 'p2' : 'p1';
         const hasDefenders = state.players[opponentId].zones.field
             .some(card => ['criatura', 'evolução'].includes(card.data.type));
+        // Sem defensores: permite apenas a partir do turno 2
         if (!hasDefenders) return state.turn > 1;
+        // Beluga: bypass direto inerente, porém limitado a um uso por turno
         if (attacker.definitionId === 'card_063') {
+            if (state.turn <= 1) return false;
             const usage = attacker.usage?.combatAttacks;
             const directAttacks = usage?.turnNumber === state.turn
                 ? usage.directAttacks || 0
                 : 0;
             return directAttacks < 1;
         }
-        if (DIRECT_ATTACK_DEFINITION_IDS.includes(attacker.definitionId)) return true;
+        // Com defensores: cartas com ataque direto inerente exigem turno >= 2
+        if (DIRECT_ATTACK_DEFINITION_IDS.includes(attacker.definitionId)) {
+            if (state.turn <= 1) return false;
+            return true;
+        }
+        // Apenas permitir se houver permissão temporária de equipamento/efeito
         return state.effects.some(effect =>
             effect.effectType === 'DIRECT_ATTACK_PERMISSION' &&
             effect.targetId === attackerId
