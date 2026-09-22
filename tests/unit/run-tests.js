@@ -1462,7 +1462,7 @@ test('criaturas de corpo humano trazem a trait humanoide', () => {
     // empunhar arma. Aplicado por nome + hability + imagem da carta.
     const humanoides = [
         'card_003', 'card_025', 'card_026', 'card_031', 'card_040',
-        'card_043', 'card_045', 'card_046', 'card_047', 'card_054', 'card_055', 'card_056',
+        'card_043', 'card_045', 'card_047', 'card_054', 'card_055', 'card_056',
         'card_058', 'card_059', 'card_061', 'card_062', 'card_066', 'card_067', 'card_068',
         'card_072', 'card_076', 'card_077', 'card_085', 'card_086'
     ];
@@ -1477,13 +1477,19 @@ test('humanoide exige corpo de humano: nunca junto de corpo não humano', () => 
     // Corpos claramente não humanos (dragão, máquina, peixe, planta, espectro)
     // não podem ser humanoide, mesmo em bípedes que empunham arma.
     const corposNaoHumanos = ['dragao', 'robotico', 'aquatico', 'planta', 'fantasma'];
+    // Exceções do autor (2026-09-22): dois corpos carregam as duas naturezas —
+    // K-023 (`card_033`) é um chassi mecânico de forma humana e Tlantidu
+    // (`card_038`) é um humano aquático (sereia/povo do mar) que empunha arma.
+    const corposDual = ['card_033', 'card_038'];
     const conflitos = [];
     cardsDatabase.cards
         .filter(c => c.type === 'criatura' || c.type === 'evolução')
         .forEach(carta => {
             if (!carta.traits.includes('humanoide')) return;
             const corpo = carta.traits.filter(t => corposNaoHumanos.includes(t));
-            if (corpo.length) conflitos.push(`${carta.id}: humanoide + ${corpo.join(',')}`);
+            if (corpo.length && !corposDual.includes(carta.id)) {
+                conflitos.push(`${carta.id}: humanoide + ${corpo.join(',')}`);
+            }
         });
     assert.deepEqual(conflitos, []);
     // Superior é um dragão de duas cabeças: corpo de dragão, não de humano.
@@ -1512,8 +1518,11 @@ test('lobisomens de corpo humano são humanoides; a família Lobo não é', () =
     // Licantropos com corpo de humano (O Lica, Marik, Marik 2) mantêm humanoide;
     // a família Lobo (Alfa/Beta/Omega/Latex/Gamma) é canina e fica apenas com
     // `lobisomem`, que ali é trait temática de grupo — não corpo de humano.
+    // Reclassificação do autor (2026-09-22): Latex (`card_081`) trocou `lobisomem`
+    // por `robotico` — é o único do grupo que não carrega a trait de matilha.
     const licantroposHumanos = ['card_059', 'card_077', 'card_085'];
     const familiaLobo = ['card_078', 'card_079', 'card_080', 'card_081', 'card_082'];
+    const foraDaMatilha = ['card_081'];
     const licantroposSemHumanoide = licantroposHumanos.filter(id => {
         const carta = cardsDatabase.cards.find(c => c.id === id);
         return !carta || !carta.traits.includes('humanoide');
@@ -1523,7 +1532,7 @@ test('lobisomens de corpo humano são humanoides; a família Lobo não é', () =
         [],
         'licantropos de corpo humano deveriam ter humanoide'
     );
-    const lobosInvalidos = familiaLobo.filter(id => {
+    const lobosInvalidos = familiaLobo.filter(id => !foraDaMatilha.includes(id)).filter(id => {
         const carta = cardsDatabase.cards.find(c => c.id === id);
         return !carta ||
             !carta.traits.includes('lobisomem') ||
@@ -1626,7 +1635,8 @@ test('matriz de equipamento: Flecha de Prata (humanoide/besta) e Estaca (guerrei
     assert.equal(permite(flecha, natalino), false, 'Natalino virou planta');
     assert.equal(permite(flecha, rayi), false, 'robotico não é humanoide nem besta');
     assert.equal(permite(flecha, superior), false, 'dragão não é humanoide nem besta');
-    assert.equal(permite(flecha, hidra), false, 'aquatico puro não entra');
+    assert.equal(permite(flecha, hidra), true,
+        'Hidra virou besta em 2026-09-22: entra na Flecha de Prata');
 
     // card_102 — guerreiro OU humanoide
     assert.equal(permite(estaca, guerreiro), true);
@@ -1668,11 +1678,12 @@ test('elite marca ATK > 50 e uma lista fechada de chefes com ATK menor', () => {
     // (implicação de mão única). `elite` também marca chefes nomeados com
     // ATK <= 50 — lista fechada, descoberta na auditoria dos traits:
     // 036 Rei das Feras, 054 Lorde Sanguinário, 061 Alquimista Guardião,
-    // 067 Paladino Alvorada, 068 Paladino Crepuscular e 076 Condessa Carmilla.
+    // 067 Paladino Alvorada, 068 Paladino Crepuscular, 075 Turtol Maximus
+    // (evolução-fortaleza do autor em 2026-09-22) e 076 Condessa Carmilla.
     const criaturas = cardsDatabase.cards
         .filter(c => c.type === 'criatura' || c.type === 'evolução');
     const CHEFES_SEM_ATK_ALTO = ['card_036', 'card_054', 'card_061', 'card_067',
-        'card_068', 'card_076'];
+        'card_068', 'card_075', 'card_076'];
 
     const semElite = criaturas
         .filter(c => c.attack > 50 && !c.traits.includes('elite'))
@@ -1747,39 +1758,44 @@ test('inventário de traits do catálogo é fechado (lista por trait)', () => {
     // uma trait em qualquer carta quebra este teste. É o que segura as 60 cartas
     // que ainda não passaram por conferência visual — mudanças de trait passam
     // por aqui de propósito, obrigando a atualizar o inventário e o relatório.
+    // Reclassificação do autor (2026-09-22) aplicada: Kirb virou `magico`,
+    // Gulosinho voltou a `humanoide`, Salatiel virou dragão/voador, Latex virou
+    // `robotico` e o corpo duplo entrou em K-023, Tlantidu, Turtol e Cacton.
     const INVENTARIO = {
-        besta: ['card_011', 'card_013', 'card_014', 'card_016', 'card_017', 'card_019',
-            'card_021', 'card_022', 'card_029', 'card_036', 'card_039', 'card_041',
-            'card_044', 'card_048', 'card_049', 'card_050', 'card_053', 'card_063',
-            'card_069', 'card_070', 'card_073', 'card_075', 'card_078', 'card_079',
-            'card_080', 'card_081', 'card_082'],
-        humanoide: ['card_003', 'card_025', 'card_026', 'card_031', 'card_040',
-            'card_043', 'card_045', 'card_046', 'card_047', 'card_054', 'card_055',
-            'card_056', 'card_058', 'card_059', 'card_061', 'card_062', 'card_066',
-            'card_067', 'card_068', 'card_072', 'card_076', 'card_077', 'card_085',
-            'card_086'],
-        elite: ['card_036', 'card_054', 'card_061', 'card_067', 'card_068', 'card_076',
-            'card_078', 'card_079', 'card_080', 'card_081', 'card_082', 'card_083',
-            'card_084', 'card_085', 'card_086', 'card_087'],
-        dragao: ['card_020', 'card_035', 'card_037', 'card_051', 'card_052',
-            'card_065', 'card_071', 'card_087'],
+        besta: ['card_013', 'card_014', 'card_016', 'card_017', 'card_019', 'card_021',
+            'card_022', 'card_029', 'card_030', 'card_032', 'card_034', 'card_035',
+            'card_036', 'card_039', 'card_044', 'card_048', 'card_049', 'card_050',
+            'card_051', 'card_053', 'card_057', 'card_060', 'card_063', 'card_069',
+            'card_070', 'card_073', 'card_074', 'card_075', 'card_078', 'card_079',
+            'card_080', 'card_081', 'card_082', 'card_083'],
+        humanoide: ['card_003', 'card_025', 'card_026', 'card_031', 'card_033',
+            'card_038', 'card_040', 'card_041', 'card_043', 'card_045', 'card_047',
+            'card_049', 'card_054', 'card_055', 'card_056', 'card_058', 'card_059',
+            'card_061', 'card_062', 'card_066', 'card_067', 'card_068', 'card_072',
+            'card_074', 'card_076', 'card_077', 'card_085', 'card_086'],
+        elite: ['card_036', 'card_054', 'card_061', 'card_067', 'card_068', 'card_075',
+            'card_076', 'card_078', 'card_079', 'card_080', 'card_081', 'card_082',
+            'card_083', 'card_084', 'card_085', 'card_086', 'card_087'],
+        dragao: ['card_020', 'card_035', 'card_037', 'card_046', 'card_051',
+            'card_052', 'card_065', 'card_070', 'card_071', 'card_083', 'card_087'],
         lobisomem: ['card_059', 'card_077', 'card_078', 'card_079', 'card_080',
-            'card_081', 'card_082', 'card_085'],
-        guerreiro: ['card_043', 'card_046', 'card_047', 'card_056', 'card_072',
-            'card_077', 'card_085'],
+            'card_082', 'card_085'],
+        guerreiro: ['card_043', 'card_047', 'card_056', 'card_062', 'card_066',
+            'card_072', 'card_077', 'card_085'],
         robotico: ['card_018', 'card_023', 'card_027', 'card_033', 'card_064',
-            'card_065', 'card_084'],
+            'card_065', 'card_081', 'card_084'],
         voador: ['card_003', 'card_010_1', 'card_010_2', 'card_010_3', 'card_035',
-            'card_044', 'card_078'],
-        aquatico: ['card_032', 'card_034', 'card_038', 'card_063', 'card_074',
-            'card_083'],
+            'card_037', 'card_044', 'card_046', 'card_069', 'card_078'],
+        aquatico: ['card_032', 'card_034', 'card_038', 'card_048', 'card_063',
+            'card_075', 'card_083'],
         demonio: ['card_010_1', 'card_010_2', 'card_010_3', 'card_024', 'card_060'],
-        magico: ['card_031', 'card_045', 'card_055', 'card_061'],
+        magico: ['card_011', 'card_023', 'card_031', 'card_045', 'card_055',
+            'card_058', 'card_061'],
         vampiro: ['card_054', 'card_062', 'card_076'],
-        fogo: ['card_057', 'card_080'],
+        fogo: ['card_057', 'card_069', 'card_080'],
         paladino: ['card_067', 'card_068'],
         planta: ['card_012', 'card_030'],
-        fantasma: ['card_042']
+        fantasma: ['card_024', 'card_042']
     };
     const divergentes = [];
     Object.entries(INVENTARIO).forEach(([trait, esperados]) => {
@@ -1834,7 +1850,12 @@ test('toda criatura com ATK maior que 50 tem a trait elite', () => {
 test('evoluções herdam os traits da forma base', () => {
     const turtol = cardsDatabase.cards.find(c => c.id === 'card_048');
     const maximus = cardsDatabase.cards.find(c => c.id === 'card_075');
-    assert.deepEqual(maximus.traits, turtol.traits);
+    turtol.traits.forEach(trait => {
+        assert.ok(maximus.traits.includes(trait),
+            `Turtol Maximus deve herdar ${trait} de Turtol`);
+    });
+    assert.deepEqual(maximus.traits.filter(t => !turtol.traits.includes(t)), ['elite'],
+        'a evolução só soma `elite` ao corpo da base (decisão do autor, 2026-09-22)');
 
     const marik = cardsDatabase.cards.find(c => c.id === 'card_077');
     const marik2 = cardsDatabase.cards.find(c => c.id === 'card_085');
@@ -5701,14 +5722,15 @@ test('cada deck e coeso: a maioria das criaturas carrega as traits do tema', () 
 
 test('cada deck tem no maximo 3 cartas fora do tema (excecoes estruturais)', () => {
     // O criterio ignora `elite`: ela e trait de tema nos nove presets, entao
-    // considera-la faria qualquer elite "casar" com qualquer deck. As tres
-    // excecoes que sobram sao limite do catalogo, nao desleixo de montagem:
-    //  - Legiao Robotica: o catalogo tem 7 criaturas `robotico` e o deck precisa
-    //    de 24 criaturas — Turtol x2 (muralha) e Fantom x1 (evasao) fecham a conta;
+    // considera-la faria qualquer elite "casar" com qualquer deck. As duas
+    // excecoes que sobram sao decisao de design/limite do catalogo
+    // (rebalanceamento de 2026-09-22, depois da reclassificacao das traits):
+    //  - Legiao Robotica: virou "maquinas e mecha-dragoes" (traits robotico +
+    //    dragao) e nao tem mais nenhuma carta fora do tema;
     //  - Banquete de Apelino: as elites de faccoes diferentes (Superior, Imperial X
     //    e Sentinela Solar) ficam por decisao de design do "banquete";
-    //  - Mare Profunda: as duas unicas cartas `planta` (Natalino e Cacton) nao tem
-    //    arquetipo dono — uma copia de cada segue como vegetacao do pantano.
+    //  - Mare Profunda: Natalino e a unica carta `planta` do deck, sem arquetipo
+    //    dono — segue como vegetacao do pantano (Cacton virou `besta`).
     decksDatabase.decks.forEach(deck => {
         const traitsDoTema = deck.traits.filter(trait => trait !== 'elite');
         const criaturas = deck.cartas.map(cartaPorId)

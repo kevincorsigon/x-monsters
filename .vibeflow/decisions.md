@@ -1,6 +1,149 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-22 — Legião Robótica: dois Latex no lugar do Superior
+
+Pedido: "prefiro dois latex que um superior".
+
+`card_081` Latex sobe para x2 e `card_087` Superior sai da Legião (volta a ficar
+só com seus donos: Corte Dracônica x1 e Banquete x1). O Latex é `robotico/elite/
+besta` — segue 100% no tema, o par de lobos mecânicos (55/59, custo 11) dá mais
+consistência que um 59/59 solitário e a média cai para 4,68. Números finais da
+Legião: 19 distintas / 2,11 cópias / 24 criaturas / 0 fora do tema; hosts do
+Núcleo (dragão/elite): 11. Descrição do preset atualizada ("dois chefes de 59/59
+ao lado do par de lobos mecânicos"). Validação: 258/258 unit +
+`deck_synergy_audit --check`.
+
+
+Pedido: "legião robotica é o pior deck em distribuição... turtol faz o que ali?
+Analise todas as cartas e pense em mudar o tema desse deck, manter o robotico e as
+cartas roboticas que tem ali, mas acrescentar mais alguma coisa, olhe pra cartas
+pouco usadas em outros decks".
+
+Diagnóstico: 18 distintas com 2,22 cópias/carta (pior do catálogo), x3 até do chefe
+de custo 12 e o Turtol como exceção estrutural fora do tema. Eixos candidatos ao
+segundo tema: `magico` (via Raylaser) foi rejeitado — roubaria os hospedeiros
+`magico` do Círculo Arcano; `dragao` venceu — o Iron Dragon já é `dragao/robotico`
+(a ponte), o Núcleo de Energia Pura equipa dragão/elite e sobravam dragões pouco
+usados. `data/decks.json`: `tema` vira "Máquinas e Mecha-Dragões" e `traits` vira
+`[robotico, dragao, elite]`.
+
+| fica (robôs) | entra | sai |
+| --- | --- | --- |
+| Cp-2 x3, Raylaser x3, K-023 x3, Iron Dragon x3, Bilugatron x2, Gamaa x2, Latex x1 | Dragão de Cobre x2 (uso global 2) | Turtol x2 (muralha fora do tema; Cp-2 x3 segura) |
+| Imperial X x2 (era x3) | Dino Elétrico x2 (uso 2; descarga em área) | Espada x1, Machado x1, Botas x1 |
+|  | Superior x1 (uso 2; 59/59 que ataca 2x e recicla o cemitério) | — |
+|  | Núcleo de Energia Pura x3 (hosts dragão/elite 6 → 11) e Bilugação Astral x1 (par do Bilugatron, "Biluga Biluga") | — |
+
+Resultado: 20 distintas / 2,00 cópias / 24 criaturas / **0 fora do tema** / média
+4,70 — a Legião deixou de ser exceção estrutural no teste "cada deck tem no
+maximo 3 cartas fora do tema" (sobram Banquete e Maré). Hospedeiros de robô
+(Dispositivo/Couraça/Escudo): 19. Nada saiu dos outros decks: as cópias novas
+(Cobre, Dino Elétrico, Superior, Bilugação) são cópias extras, os decks donos
+mantêm as suas. Validação: 258/258 unit + `deck_synergy_audit --check`.
+
+
+Pedido: "arcano deve ter o zé mulherzinha, volte ele".
+
+`card_025` Zé Mulherzinha (c3 15/10, `humanoide`, "não pode ser alvo direto
+enquanto houver aliados") volta a `arcano` x1 — casa com o tema do deck
+("Magia, intocabilidade e compras"). Slots preservados por troca 1:1 dentro do
+eixo humanoide: `cacadores` devolve Zé (x3 → x2) e recebe `card_003` ETC (x1 →
+x2, c1, também `humanoide`), que sai de `arcano`.
+
+Por que o ETC e não o Mexica: a descrição do Arcano cita "um asteca de custo 7"
+(`card_066` Mexica), "um goblin armado em duplas" (`card_043`) e o senhor vampiro
+elite (`card_054`) como linha de frente terceirizada — tirar o Mexica invalidaria
+o texto. O ETC é a carta de menor custo do deck e segue `humanoide`, então entra
+nos Caçadores sem virar slot fora do tema.
+
+Números: `arcano` 28 distintas / 1,43 cópias / 24 criaturas / 0 fora do tema
+(média 4,03); `cacadores` 24 / 1,67 / 28 / 0 (média 4,50). Cobertura 110/110,
+curva, teto de cópias e hospedeiros intactos (`deck_synergy_audit --check`,
+258/258 unit).
+
+
+Pedido: "apelino é pra deixar de proposito um deck forte".
+
+O Banquete é o deck de maior teto de dano do catálogo por design (Apelino Pão e
+Vinho + hospedeiro = ataques ilimitados no turno), então o rebalanceamento da
+entrada anterior foi revisado para **reforçar** a receita em vez de diluí-la. O
+único slot que saiu por regra foi o Gulosinho (a reclassificação para `humanoide`
+o tornaria um quarto slot fora do tema; o teto do teste é 3).
+
+Receita nova (`data/decks.json`, 40 cartas, 27 criaturas, média 4,70):
+
+| entra | sai |
+| --- | --- |
+| Tiranossauro x3 (50/20, fura 10 de DEF — o hospedeiro mais barato em dano) | Garras Afiadas x1 |
+| Puma da Selva x3 (ignora defesa: com o Apelino cada ataque é dano cheio) | Roller x1 (volta à mão, não é hospedeiro) |
+| Lorde Sanguinário x2 (vampiro elite: dreno de 10 PV por abate) | Botas da Rapidez -1 (redundante no hospedeiro: o Apelino prevalece) |
+| Pena do Gigante x1 (bloqueia um ataque **mesmo** de criatura imune a habilidades — protege o hospedeiro) | Manoplas de Gelo x1 e Olho de Águia x1 (techs situacionais) |
+
+Resultado: 27 distintas / 1,48 cópias / 27 criaturas / média 4,70 / 3 slots fora
+do tema (as três elites de 59/59, intocadas) — a curva, o teto de cópias, os
+hospedeiros do Núcleo e da Aura e a cobertura 110/110 seguem verdes
+(`node scripts/deck_synergy_audit.js --check`, 258/258 unit).
+
+Lever documentado caso o autor queira mais: dobrar as elites de facção (x2 cada)
+levaria o deck a 6 slots fora do tema e exige uma exceção explícita no teste
+"cada deck tem no maximo 3 cartas fora do tema". A média de custo também é teto
+duro (4,8) — qualquer carta mais caro entra pagando outra.
+
+
+Pedido: "analise outras sinergias de cartas que fariam ou não serem movimentadas
+entre os decks existentes... rebalanceie elas entre os decks agora, vendo o que
+mais faz sentido, aproximando tipos e distribuindo melhor as cartas".
+
+O autor reclassificou traits no catálogo (`data/cards_database.json`): Kirb
+`besta → magico`, Gulosinho `besta → humanoide`, Salatiel `humanoide/guerreiro →
+dragao/voador`, Latex `lobisomem → robotico`, K-023/Tlantidu ganharam `humanoide`
+sobre corpo não humano, Cacton/Turtol/Quimera/Hipool/Medusa/Grifo/Dino/Hidra
+ganharam `besta`, Turtol Maximus e Hidra ganharam `elite`, entre outras. Os
+presets ficaram defasados: `alcateia` e `apelino` com 4 slots fora do tema (o
+teste permite 3) e cartas em decks onde a trait nova não casa.
+
+Movimentações (troca 1:1, 40 cartas por deck, tudo travado por
+`node scripts/deck_synergy_audit.js --check`):
+
+| deck | entra | sai |
+| --- | --- | --- |
+| `robotico` | Latex (a 8ª carta `robotico`: canino mecânico 55/59) | Fantom (→ `arcano`, tema `fantasma`) |
+| `furia` | Dino Elétrico, Tiranossauro +1, Rei das Feras +1 | Kirb x2, Gulosinho |
+| `draconico` | Salatiel x3 | ETC -1, Grifo Real -1, Dino Elétrico -1 |
+| `cacadores` | ETC, Gulosinho, Zé Mulherzinha, Little Big Shimbard +1 | Salatiel x2, Olho de Águia -1 |
+| `alcateia` | Grifo Real, Quimera +1, O Lica +1, Tobinha +1, Garras Afiadas +1 | Kirb x3, Gulosinho, Latex |
+| `apelino` | Beluga +1 (ataque direto = hospedeiro do Apelino) | Gulosinho, Tiranossauro -1 |
+| `mare` | Turtol +1 (fecha o "duas de cada" aquática) | Kirb |
+| `arcano` | Kirb x2 (hospedeiro `magico` do Cajado/Tomo), Fantom +1 | Salatiel, Zé Mulherzinha, Little Big Shimbard |
+
+Critério: trait nova manda na casa da criatura (magico no Círculo Arcano, humanoide
+na Ordem dos Caçadores, dragão/voador na Corte Dracônica, robô na Legião),
+hospedeiro de suporte conta como sinergia (Beluga recebe o Apelino; Kirb alimenta
+Cajado/Tomo) e a distribuição preserva a identidade de cada preset (Fúria segue a
+mais variada, Maré com duas de cada aquática, Alcateia pesada).
+
+Resultado: 6 slots fora do tema em 360 (1,7%, era 8) — 2 estruturais na Legião
+Robótica (Turtol x2, muralha) e 3 no Banquete (elites de facções diferentes), 1 na
+Maré (Natalino, `planta`). Cobertura 110/110, curva, teto de cópias e hospedeiros
+intactos. Números por preset: `robotico` 18/2,22/24/2 · `furia` 31/1,29/25/0 ·
+`draconico` 21/1,90/26/0 · `cacadores` 24/1,67/28/0 · `alcateia` 22/1,82/26/0 ·
+`apelino` 30/1,33/25/3 · `mare` 29/1,38/25/1 · `arcano` 28/1,43/24/0 · `sangue`
+21/1,90/24/0.
+
+Consequências de dados: o fallback `TRAITS_BY_DEFINITION` (`src/js/card-rules.js`)
+foi sincronizado com o catálogo em 7 cartas (023, 033, 057, 062, 075, 081, 083) e
+as fotos de trait dos testes foram atualizadas — inventário por trait, lista de
+humanoides (Salatiel saiu), exceções de corpo duplo (card_033 e card_038), lista
+fechada de `elite` com ATK ≤ 50 (entrou card_075), família Lobo sem o Latex
+(`robotico`) e herança da evolução (Turtol Maximus soma `elite` à base). Testes:
+258/258 unit + `deck_synergy_audit --check`.
+
+Tooling novo: `scripts/deck_synergy_audit.js` (read-only) imprime catálogo × decks,
+slot fora de tema, hospedeiros por suporte, curva e cópias; com `--check` falha se
+qualquer invariante de preset sair da régua.
+
+
 ## 2026-09-22 — Descrições dos decks reescritas sem nomes de criaturas
 
 Pedido: "depois atualizar as descrições dos decks sem citar nomes de criaturas".

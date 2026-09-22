@@ -262,10 +262,73 @@ tema): `robotico` 18 / 2,22 / 24 / 3 · `furia` 32 / 1,25 / 25 / 0 · `draconico
 / 24 / 0 · `sangue` 21 / 1,90 / 24 / 0. As descrições dos seis decks mexidos
 acompanham a nova receita.
 
+### F.1 Rebalanceamento após a reclassificação das traits — 2026-09-22
+
+O autor reclassificou as traits no catálogo (Kirb virou `magico`, Gulosinho voltou
+a `humanoide`, Salatiel virou dragão/voador, Latex virou `robotico`, o corpo duplo
+entrou em K-023/Tlantidu/Turtol/Cacton, Hidra e Quimera ganharam `besta`,
+Turtol Maximus ganhou `elite`, entre outras). Com os presets defasados, os slots
+fora de tema voltaram a 6+ e a distribuição das criaturas deixou de acompanhar os
+arquétipos. Movimentações aplicadas (troca 1:1, 40 cartas por deck):
+
+| deck | o que entrou | o que saiu |
+| --- | --- | --- |
+| `robotico` | Latex x1 (8ª carta `robotico`: canino mecânico de custo 11) | Fantom x1 (voltou ao Círculo Arcano, tema `fantasma`) |
+| `furia` | Dino Elétrico x1, Tiranossauro +1, Rei das Feras +1 (todos `besta`) | Kirb x2 (agora `magico`) e Gulosinho x1 (agora `humanoide`) |
+| `draconico` | Salatiel x3 (dragão/voador que paga energia para ignorar DEF) | ETC -1 (foi para os Caçadores), Grifo Real -1 e Dino Elétrico -1 (foram para a matilha) |
+| `cacadores` | ETC x2, Gulosinho x1, Little Big Shimbard +1 (todos `humanoide`/`guerreiro`) | Salatiel x2 (virou dragão), Zé Mulherzinha x1, Olho de Águia -1 |
+| `alcateia` | Grifo Real x1, Quimera de Fogo +1, O Lica +1, Tobinha +1, Garras Afiadas +1 | Kirb x3, Gulosinho x1 e Latex x1 (reclassificados) |
+| `apelino` | Beluga +1 (hospedeiro de ataque direto), Tiranossauro +1, Puma +1, Lorde +1 e Pena do Gigante (proteção do hospedeiro) | Gulosinho x1 (virou humanoide), Garras, Roller, Botas -1, Manoplas e Olho de Águia |
+| `mare` | Turtol +1 (fecha o "duas de cada" aquática) | Kirb x1 (agora `magico`) |
+| `arcano` | Kirb x2 (hospedeiro `magico` para Cajado/Tomo), Zé Mulherzinha x1 e Fantom +1 | Salatiel x1, ETC x1, Little Big Shimbard x1 |
+
+Números finais (distintas / cópias por carta / criaturas / fora do tema):
+`robotico` 19 / 2,11 / 24 / 0 · `furia` 31 / 1,29 / 25 / 0 · `draconico` 21 / 1,90
+/ 26 / 0 · `cacadores` 24 / 1,67 / 28 / 0 · `alcateia` 22 / 1,82 / 26 / 0 ·
+`apelino` 27 / 1,48 / 27 / 3 · `mare` 29 / 1,38 / 25 / 1 · `arcano` 28 / 1,43 /
+24 / 0 · `sangue` 21 / 1,90 / 24 / 0 → **4 slots fora do tema** em 360 (1,1%),
+todos estruturais. Cobertura 110/110, curva e teto de cópias preservados; a régua
+executável é `node scripts/deck_synergy_audit.js --check`.
+
+### F.2 Reboot da Legião Robótica: "máquinas e mecha-dragões" — 2026-09-22
+
+A Legião era o pior deck em distribuição: 18 distintas com 2,22 cópias por carta,
+x3 de tudo (inclusive do chefe de custo 12) e o Turtol como muralha fora do
+tema — uma exceção estrutural que o usuário mandou eliminar ("o Turtol faz o que
+ali?"). O eixo `magico` (Raylaser) foi rejeitado porque roubaria os hospedeiros
+do Círculo Arcano; o `dragao` venceu: o Iron Dragon já é `dragao`/`robotico` (a
+ponte perfeita), o Núcleo de Energia Pura equipa dragão/elite e o catálogo tem
+dragões pouco usados em outros decks.
+
+Receita nova (24 criaturas, 0 fora do tema, média 4,70):
+
+| fica (robôs) | entra (dragões de outro decks) | sai |
+| --- | --- | --- |
+| Cp-2 x3, Raylaser x3, K-023 x3, Iron Dragon x3 | Dragão de Cobre x2 (uso 2) — escamas de cobre, 10 PV após derrotar | Turtol x2 (a muralha fora do tema; o Cp-2 x3 já segura) |
+| Bilugatron x2, Gamaa x2, Latex x1 → **x2** | Dino Elétrico x2 (uso 2) — descarga de choque em área | Imperial X x3 → x2 (fim da pilha do chefe) |
+| Imperial X x2 | Núcleo de Energia Pura x2 → x3 (hosts de dragão/elite: 6 → 11) e Bilugação Astral x1 (uso 2; par do Bilugatron) | Superior x1 (uso 2) — o autor preferiu dois Latex ao Superior —, Espada -1, Machado -1, Botas x1 (redundante com chefes que já atacam 2x) |
+
+Números: 19 distintas / 2,11 cópias / 24 criaturas / **0 fora do tema** (era 2) /
+média 4,68 (a Legião deixou de ser exceção estrutural do teste de tema).
+
+O **Banquete de Apelino é, por decisão de design, o deck mais forte do catálogo**
+(teto de dano com o Apelino equipado). O rebalanceamento **reforçou** a receita em
+vez de diluí-la: o brutamontes de 50 de ataque voltou para x3, o ignorador de
+defesa foi para x3, o vampiro elite que drena abate foi para x2 e o pacote de
+proteção do hospedeiro ganhou Pena do Gigante (bloqueia um ataque mesmo de
+criatura imune a habilidades) — tudo pago com as cartas de menor teto (Garras,
+Roller, a segunda Botas da Rapidez, Manoplas de Gelo e Olho de Águia), mantendo a
+média em 4,70 e os três corpos de 59/59 das elites de facções. Só o Gulosinho
+saiu, porque a reclassificação dele para `humanoide` o tornaria um quarto slot
+fora do tema (o teto do teste é 3).
+
+O fallback `TRAITS_BY_DEFINITION` (`src/js/card-rules.js`) foi sincronizado com o
+catálogo (7 cartas) e as fotos de trait dos testes (`inventário…`, listas de
+humanoides, lista fechada de `elite`, herança da evolução) foram atualizadas.
+
 O `card_089` Apelino Pão e Vinho é **única por deck** (o ataque ilimitado não
 empilha): o teto vive em `DeckBuilder` (`LIMITES_DE_COPIA`, padrão 3 para as demais
-cartas) e vale para presets, hotseat, PvP pela seed e o fallback local — no
-Banquete o slot liberado virou o terceiro Tiranossauro.
+cartas) e vale para presets, hotseat, PvP pela seed e o fallback local.
 
 ## Como reproduzir
 
@@ -273,8 +336,9 @@ Banquete o slot liberado virou o terceiro Tiranossauro.
 py -3 scripts/generate_trait_review_sheets.py   # reports/trait-review/folha_00..08.jpg (3x3, id+nome+traits)
 py -3 scripts/analyze_card_art_features.py      # fila de triagem textual + CSV (paleta exige Pillow)
 py -3 -m http.server 8080                       # pré-requisito da suíte de browser (raiz do projeto)
-node tests/unit/run-tests.js                    # 257/257 (seções A, E, D e o alinhamento deck × tema da seção F)
-node tests/browser/run-browser-tests.js         # 20/20 com o servidor no ar (aborta se a porta estiver morta)
+node tests/unit/run-tests.js                    # 258/258 (seções A, E, D, F e F.1)
+node scripts/deck_synergy_audit.js --check      # régua do alinhamento deck × tema (sem browser)
+node tests/browser/run-browser-tests.js         # 26/26 com o servidor no ar (aborta se a porta estiver morta)
 py -3 tests/pvp/smoke_match.py                  # servidor + 2 clientes WS (sobe a própria porta)
 ```
 

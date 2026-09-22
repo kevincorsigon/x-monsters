@@ -167,11 +167,11 @@ Selvagem, Corte Dracônica, Ordem dos Caçadores, Alcateia Lunar, Banquete de
 Apelino, Maré Profunda, Círculo Arcano e Lua de Sangue — todos com 40 cartas,
 balanceados por curva de custo e montados por sinergia de traits (cada um usa no
 máximo 3 cópias da mesma carta, e a maioria no máximo 2), além do **deck
-aleatório**. Juntos, os nove usam **todas as 110 cartas** do catálogo. Três
-presets guardam até três cartas fora do tema, sempre por limite do catálogo — a
-Legião Robótica (só existem sete robôs no catálogo), o Banquete de Apelino (as
-elites de facções diferentes, por decisão de design) e a Maré Profunda (as duas
-únicas cartas `planta`); um teste de unidade trava esse teto.
+aleatório**. Juntos, os nove usam **todas as 110 cartas** do catálogo. Apenas dois
+presets guardam cartas fora do tema, por decisão de design — o Banquete de Apelino
+(as elites de facções diferentes) e a Maré Profunda (a única carta `planta`); a
+Legião Robótica virou "máquinas e mecha-dragões" (`robotico` + `dragao`) e está
+100% no tema. Um teste de unidade trava o teto de três.
 
 O **Apelino Pão e Vinho** (`card_089`) é **única por deck** — o ataque ilimitado
 não empilha. O teto mora em `deck_system.js` (`LIMITES_DE_COPIA`, padrão 3 para
