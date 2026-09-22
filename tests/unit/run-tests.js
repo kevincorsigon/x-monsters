@@ -5625,8 +5625,45 @@ test('o catalogo de decks traz ao menos 3 presets de 40 cartas com ids do catalo
         assert.ok(maxCopias <= 3, `${deck.nome}: no maximo 3 copias por carta (achei ${maxCopias})`);
         Object.keys(copias).forEach(id => {
             assert.ok(cartaPorId(id), `${deck.nome}: ${id} existe em cards_database.json`);
+            assert.ok(copias[id] <= DeckSystem.limiteDeCopias(id),
+                `${deck.nome}: ${id} respeita o teto de copias do deck_system ` +
+                `(${copias[id]} > ${DeckSystem.limiteDeCopias(id)})`);
         });
     });
+});
+
+test('o Apelino Pao e Vinho e unico por deck (preset e aleatorio)', () => {
+    // O ataque ilimitado nao empilha: `LIMITES_DE_COPIA` baixa o teto do card_089
+    // para 1 e vale para o preset, para o deck aleatorio do hotseat e para o deck
+    // sorteado pela seed no PvP (o `deck_factory.js` usa este mesmo DeckBuilder).
+    assert.equal(DeckSystem.LIMITES_DE_COPIA.card_089, 1, 'o teto do Apelino vive no deck_system');
+    assert.equal(DeckSystem.limiteDeCopias('card_089'), 1, 'o helper devolve o teto da carta');
+    assert.equal(DeckSystem.limiteDeCopias('card_001'), 3, 'as outras cartas seguem o teto padrao');
+
+    decksDatabase.decks.forEach(deck => {
+        const copias = deck.cartas.filter(id => id === 'card_089').length;
+        assert.ok(copias <= 1, `${deck.nome}: no maximo uma copia do Apelino (achei ${copias})`);
+    });
+
+    for (let seed = 1; seed <= 30; seed++) {
+        const builder = new DeckBuilder(cardsDatabase, { rng: mulberry32(seed) });
+        const decks = builder.createMatchDecks(DeckSystem.DECK_SIZE);
+        [decks.player1, decks.player2].forEach(cartas => {
+            const apelinos = cartas.filter(carta => carta.id === 'card_089').length;
+            assert.ok(apelinos <= 1, `seed ${seed}: no maximo uma copia do Apelino (achei ${apelinos})`);
+        });
+    }
+
+    // A regra e do gerador, nao do pool atual: a segunda copia e recusada mesmo
+    // se o pool entregar a carta de novo.
+    const apelino = cartaPorId('card_089');
+    const builder = new DeckBuilder(cardsDatabase);
+    assert.equal(builder.podeIncluir([], apelino), true, 'a primeira copia entra');
+    assert.equal(builder.podeIncluir([apelino], apelino), false, 'a segunda copia e barrada');
+    assert.equal(builder.podeIncluir([apelino], cartaPorId('card_001')), true,
+        'o teto do Apelino nao afeta as outras cartas');
+    assert.deepStrictEqual(builder.adicionarRespeitandoLimite([], [apelino, apelino]), 1,
+        'so uma copia e adicionada quando a lista traz duas');
 });
 
 test('todo deck respeita a curva de custo e a proporcao de criaturas', () => {
@@ -5659,6 +5696,29 @@ test('cada deck e coeso: a maioria das criaturas carrega as traits do tema', () 
             const portadoras = criaturas.filter(carta => (carta.traits || []).includes(trait));
             assert.ok(portadoras.length >= 1, `${deck.nome}: ${trait} precisa de portadora no deck`);
         });
+    });
+});
+
+test('cada deck tem no maximo 3 cartas fora do tema (excecoes estruturais)', () => {
+    // O criterio ignora `elite`: ela e trait de tema nos nove presets, entao
+    // considera-la faria qualquer elite "casar" com qualquer deck. As tres
+    // excecoes que sobram sao limite do catalogo, nao desleixo de montagem:
+    //  - Legiao Robotica: o catalogo tem 7 criaturas `robotico` e o deck precisa
+    //    de 24 criaturas — Turtol x2 (muralha) e Fantom x1 (evasao) fecham a conta;
+    //  - Banquete de Apelino: as elites de faccoes diferentes (Superior, Imperial X
+    //    e Sentinela Solar) ficam por decisao de design do "banquete";
+    //  - Mare Profunda: as duas unicas cartas `planta` (Natalino e Cacton) nao tem
+    //    arquetipo dono — uma copia de cada segue como vegetacao do pantano.
+    decksDatabase.decks.forEach(deck => {
+        const traitsDoTema = deck.traits.filter(trait => trait !== 'elite');
+        const criaturas = deck.cartas.map(cartaPorId)
+            .filter(carta => carta.type === 'criatura' || carta.type === 'evolução');
+        const foraDoTema = criaturas.filter(carta =>
+            !(carta.traits || []).some(trait => traitsDoTema.includes(trait)));
+
+        assert.ok(foraDoTema.length <= 3,
+            `${deck.nome}: no maximo 3 cartas fora do tema (achei ${foraDoTema.length}: ` +
+            `${[...new Set(foraDoTema.map(carta => carta.name))].join(', ')})`);
     });
 });
 

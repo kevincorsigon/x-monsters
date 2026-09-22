@@ -4,7 +4,7 @@ Escopo: cruzar o campo `traits` de `data/cards_database.json` (79 criaturas +
 evoluções com traits, de 110 cartas) contra a arte impressa em
 `assets/cards/*.png`.
 
-Status: **suíte verde (221/221 unit, 20/20 browser)** com as **sugestões
+Status: **suíte verde (257/257 unit, 20/20 browser)** com as **sugestões
 aplicadas** (seções A e E) e as 79 cartas **validadas em tudo que é verificável
 sem visão** (seção D): inventário de traits travado por teste, invariantes de
 corpo, integridade das 110 artes e triagem textual — hoje com **zero divergência
@@ -240,13 +240,40 @@ Consequências de jogo assumidas:
 Contagem de `humanoide` no catálogo: 31 → **24**; `besta` vai a 26, `voador` a
 7, `magico` a 4, `aquatico` a 6 e `planta` a 2.
 
+## F. Alinhamento deck × tema (`data/decks.json`) — 2026-09-22
+
+Auditoria complementar à das traits: aqui o cruzamento é **criatura × tema do
+preset** (não × arte). Critério: a criatura está no tema quando alguma trait dela
+(exceto `elite`) aparece no `traits` do deck; `elite` fica fora porque está nos
+nove presets e faria qualquer elite casar com qualquer arquétipo.
+
+Baseline: **43 slots fora de tema** em 360 (11,9%) — `sangue` e `apelino` com
+58% das criaturas no tema, `arcano` 63%, `robotico` 71%, `mare` 76%, `draconico`
+96% e `furia`/`cacadores`/`alcateia` 100%. Depois das movimentações 1:1 (40
+cartas por deck preservadas): **8 slots fora** — 3 na Legião Robótica (Turtol x2
+e Fantom x1, limites do catálogo), 3 no Banquete de Apelino (as elites de facções
+diferentes, decisão de design) e 2 na Maré Profunda (as duas únicas cartas
+`planta` sobrevivem com uma cópia cada para manter a cobertura 110/110).
+
+Números finais por preset (distintas / cópias por carta / criaturas / fora do
+tema): `robotico` 18 / 2,22 / 24 / 3 · `furia` 32 / 1,25 / 25 / 0 · `draconico`
+20 / 2,00 / 26 / 0 · `cacadores` 24 / 1,67 / 26 / 0 · `alcateia` 24 / 1,67 / 26 /
+0 · `apelino` 31 / 1,29 / 25 / 3 · `mare` 30 / 1,33 / 25 / 2 · `arcano` 30 / 1,33
+/ 24 / 0 · `sangue` 21 / 1,90 / 24 / 0. As descrições dos seis decks mexidos
+acompanham a nova receita.
+
+O `card_089` Apelino Pão e Vinho é **única por deck** (o ataque ilimitado não
+empilha): o teto vive em `DeckBuilder` (`LIMITES_DE_COPIA`, padrão 3 para as demais
+cartas) e vale para presets, hotseat, PvP pela seed e o fallback local — no
+Banquete o slot liberado virou o terceiro Tiranossauro.
+
 ## Como reproduzir
 
 ```powershell
 py -3 scripts/generate_trait_review_sheets.py   # reports/trait-review/folha_00..08.jpg (3x3, id+nome+traits)
 py -3 scripts/analyze_card_art_features.py      # fila de triagem textual + CSV (paleta exige Pillow)
 py -3 -m http.server 8080                       # pré-requisito da suíte de browser (raiz do projeto)
-node tests/unit/run-tests.js                    # 221/221 (seções A, E e a validação da seção D)
+node tests/unit/run-tests.js                    # 257/257 (seções A, E, D e o alinhamento deck × tema da seção F)
 node tests/browser/run-browser-tests.js         # 20/20 com o servidor no ar (aborta se a porta estiver morta)
 py -3 tests/pvp/smoke_match.py                  # servidor + 2 clientes WS (sobe a própria porta)
 ```

@@ -1,6 +1,98 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-22 — Descrições dos decks reescritas sem nomes de criaturas
+
+Pedido: "depois atualizar as descrições dos decks sem citar nomes de criaturas".
+
+Os nove `descricao` de `data/decks.json` passaram a descrever **plano de jogo e
+tema**, nunca criaturas por nome: os efeitos entram no texto pelo que fazem
+("quem ignora 10 de DEF", "a criatura solar de custo 12", "o licantropo de corpo
+humano") e as traits/custos continuam explícitos (matilha, lobos elementais,
+elite, custo 2 a 12). Nomes de **suporte** seguem citados onde a regra de
+equipamento é a informação útil (Estaca do Caçador, Flecha de Prata, Lâmina
+Sagrada, Cajado da Ilusão, Tomo de Feitiços Ancestrais, Núcleo de Energia Pura,
+Dispositivo de Sincronia, Escudo de Energia Estável, Manto da Luz Solar, Aura de
+Vingança, Pena do Gigante, Estrela Mágica, Apelino Pão e Vinho) — o pedido
+alcançava as criaturas.
+
+Verificação: script de auditoria cruzando `cards_database.json` (`type !=
+suporte`) contra as nove descrições com match por palavra inteira → **0 nomes de
+criatura citados**. Nenhum teste trava o texto (as descrições são dado de tema
+exibido pelo seletor), então a suíte seguiu verde: 258/258 unit, 26/26 browser e
+`tests/pvp/smoke_match.py` OK.
+
+
+## 2026-09-22 — Apelino Pão e Vinho: uma cópia por deck (preset e aleatório)
+
+Pedido: "a carta apelino pão e vinho deve ter uma restrição de somente uma por
+deck, isso inclusive pro randomico".
+
+Regra: `LIMITES_DE_COPIA = { card_089: 1 }` em `src/js/deck_system.js`, com teto
+padrão de 3 para o resto do catálogo. `DeckBuilder.podeIncluir` +
+`adicionarRespeitandoLimite` aplicam o teto dentro de `createBalancedDeck`, o único
+gerador de baralho do jogo — logo vale para o hotseat (`createMatchDecks`), para o
+deck sorteado pela seed no PvP (`server.py` delega a `scripts/deck_factory.js`, que
+instancia o mesmo `DeckBuilder`) e para o fallback `pvp-game.js#gerarDeckLocal`.
+`LIMITES_DE_COPIA`/`limiteDeCopias` também vão para `window` (a UI e os testes de
+browser enxergam a mesma regra) e para `module.exports`. O sorteio já não repetia
+cartas; o filtro passa a ser explícito, então qualquer mudança futura no gerador
+continua barrando a segunda cópia.
+
+Preset: o Banquete de Apelino levava `card_089` x2 (o motor de ataques
+ilimitados). Agora é x1 e o slot foi para `card_070` Tiranossauro x3 — o hospedeiro
+citado na descrição do deck — mantendo a média alta (4,70) e a curva (17 cartas de
+custo ≤3, 12 entre 4–6, 11 em 7+). O deck segue com 40 cartas, 31 distintas, 25
+criaturas e 3 fora do tema (as elites de facções, por decisão de design).
+
+Testes: o teste de presets agora valida `copias[id] <= DeckSystem.limiteDeCopias(id)`
+e um teste novo ("o Apelino Pao e Vinho e unico por deck") cobre o preset, 30 seeds
+do deck aleatório e a recusa explícita da segunda cópia em `podeIncluir`/
+`adicionarRespeitandoLimite`. Validação: 258/258 unit, 26/26 browser e
+`tests/pvp/smoke_match.py` OK.
+
+
+## 2026-09-22 — Auditoria deck × tema: presets alinhados ao arquétipo (43 → 8 slots fora)
+
+Pedido: "auditar e corrigir o alinhamento entre traits das cartas e o tema/traits
+esperados em `data/decks.json`, movendo criaturas fora de tema para decks
+apropriados".
+
+Critério: criatura "no tema" quando alguma trait dela (exceto `elite`) está no
+`traits` do preset — `elite` sai do critério porque está nos nove decks e faria
+qualquer elite casar com qualquer arquétipo. Baseline: 43 slots fora de tema em
+360 (11,9%), com `sangue` e `apelino` em 58% das criaturas.
+
+Movimentações (troca 1:1, 40 cartas por deck; `data/cards_database.json` e
+`src/js/card-rules.js` intocados, porque as traits já estavam auditadas):
+
+| deck | antes | depois | o que mudou |
+| --- | --- | --- | --- |
+| `robotico` | 7 fora | 3 | saíram ETC, Natalino x2 e Little Big Shimbard x2; Gamaa/Iron Dragon/Imperial X a x3 e entraram Feitiço de Teletransporte e Botas da Rapidez |
+| `draconico` | 1 fora | 0 | saiu o Invocador das Trevas (fica no Círculo Arcano, onde é tema) e o ETC subiu a x3 |
+| `apelino` | 10 fora | 3 | saíram ETC x2, Mago Arcano, Minotauro, Mexica, Gigante da Marreta e Nucles; entraram Rei das Feras x2, Beluga, Roller, Gárgula a x3, Gulosinho e Puma |
+| `mare` | 6 fora | 2 | saíram Little Big Shimbard e Fantom; entraram Kirb, Puma, Aladar e Rei das Feras; Natalino e Cacton ficaram com uma cópia cada |
+| `arcano` | 9 fora | 0 | saíram Diabretes x2, Zol x2, Tobinha, Gobra, Scoul, Entola e Tranca Rua; entraram ETC, Goblin Mestre de Armas x2, Lorde Sanguinário x2, Paladino Alvorada, Sentinela Solar, Condessa Carmilla e Mexica (hospedeiros do Núcleo de Energia Pura: 3 → 6) |
+| `sangue` | 10 fora | 0 | saíram Zol, Tobinha, Baltz, Bufaboi, Zé Mulherzinha, Sabota Copos e o Invocador; Diabretes (três artes), Slipul, Fantom, Lorde, Tranca Rua, Alucard e Condessa a x3 |
+
+Exceções estruturais (travadas pelo teste novo "cada deck tem no máximo 3 cartas
+fora do tema"):
+
+- **Legião Robótica**: o catálogo tem sete criaturas `robotico` e o deck precisa
+  de 24 criaturas — Turtol x2 (muralha imune a habilidades de custo baixo) e
+  Fantom x1 fecham a conta com 21 robôs (87,5% no tema).
+- **Banquete de Apelino**: as elites de facções diferentes (Superior, Imperial X
+  e Sentinela Solar) continuam por decisão de design do "banquete"; os outros
+  sete slots fora do tema foram realocados para bestas e vampiros.
+- **Maré Profunda**: `planta` não é tema de nenhum arquétipo; Natalino e Cacton
+  ficam com uma cópia cada (sem eles a cobertura cai para 108/110).
+
+Resultado: off-theme 43 → 8 slots; cobertura 110/110; `furia`, `cacadores` e
+`alcateia` intocados; variedade alta preservada (`furia` 32, `apelino` 31,
+`mare` 30 e `arcano` 30 distintas com ≤1,5 cópia). Descrições dos seis decks
+reescritas em `data/decks.json`. Validação: 257/257 unit.
+
+
 ## 2026-09-21 — Seleção de decks (hotseat + lobby PvP) e traits no modal da carta
 
 Pedido: "tela de seleção de decks assim que o usuário ingressar na tela da partida",

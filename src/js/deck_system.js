@@ -5,6 +5,20 @@
 // unidade trava a sincronia dos três.
 const DECK_SIZE = 40;
 
+// Teto de cópias por carta nos baralhos (o preset aceita até 3 no catálogo). As
+// exceções vivem aqui e valem para TODO caminho que monta deck: presets de
+// `data/decks.json`, o deck aleatório do hotseat (`createMatchDecks`), o deck
+// pela seed do PvP (`scripts/deck_factory.js` usa este mesmo `DeckBuilder`) e o
+// fallback `pvp-game.js#gerarDeckLocal`. `card_089` Apelino Pão e Vinho é única
+// por deck — o ataque ilimitado não empilha.
+const LIMITES_DE_COPIA = Object.freeze({ card_089: 1 });
+const TETO_PADRAO_DE_COPIAS = 3;
+
+/** Teto de cópias de uma carta (3 por padrão; `LIMITES_DE_COPIA` reduz casos). */
+function limiteDeCopias(definitionId) {
+    return LIMITES_DE_COPIA[definitionId] || TETO_PADRAO_DE_COPIAS;
+}
+
 // Catálogo de decks pré-montados (data/decks.json). O arquivo guarda só ids de
 // carta: as definições continuam vindo exclusivamente de cards_database.json.
 const DECKS_PATH = 'data/decks.json';
@@ -36,16 +50,16 @@ class DeckBuilder {
         
         // Adicionar criaturas balanceadas por custo
         const criaturasSelecionadas = this.selectBalancedByMana(criaturas, numCriaturas);
-        deck.push(...criaturasSelecionadas);
+        this.adicionarRespeitandoLimite(deck, criaturasSelecionadas);
         
         // Adicionar suportes
         const suportesSelecionados = this.shuffleArray([...suportes]).slice(0, numSuportes);
-        deck.push(...suportesSelecionados);
+        this.adicionarRespeitandoLimite(deck, suportesSelecionados);
         
         // Adicionar evoluções (se houver)
         if (numEvolucoes > 0) {
             const evolucoesSelecionadas = this.shuffleArray([...evolucoes]).slice(0, numEvolucoes);
-            deck.push(...evolucoesSelecionadas);
+            this.adicionarRespeitandoLimite(deck, evolucoesSelecionadas);
         }
         
         // Preencher o resto com criaturas se necessário
@@ -57,10 +71,36 @@ class DeckBuilder {
         );
         while (deck.length < deckSize && criaturasDisponiveis.length > 0) {
             const cartaExtra = criaturasDisponiveis.pop();
-            deck.push(cartaExtra);
+            this.adicionarRespeitandoLimite(deck, [cartaExtra]);
         }
         
         return this.shuffleArray(deck).slice(0, deckSize);
+    }
+
+    /** Cópias de uma carta já presentes no deck em construção. */
+    copiasNoDeck(deck, definitionId) {
+        return deck.reduce((total, carta) => total + (carta.id === definitionId ? 1 : 0), 0);
+    }
+
+    /**
+     * Uma carta só entra no baralho se ainda houver espaço no teto dela
+     * (`LIMITES_DE_COPIA`, padrão 3). O sorteio atual não repete cartas, mas a
+     * regra fica explícita e barra qualquer caminho que um dia queira repetir —
+     * o Apelino Pão e Vinho nunca aparece duas vezes no mesmo deck.
+     */
+    podeIncluir(deck, carta) {
+        return !carta || this.copiasNoDeck(deck, carta.id) < limiteDeCopias(carta.id);
+    }
+
+    /** Adiciona as cartas que respeitam o teto e devolve quantas entraram. */
+    adicionarRespeitandoLimite(deck, cartas) {
+        let adicionadas = 0;
+        cartas.forEach(carta => {
+            if (!this.podeIncluir(deck, carta)) return;
+            deck.push(carta);
+            adicionadas++;
+        });
+        return adicionadas;
     }
     
     // Selecionar cartas balanceadas por custo de mana
@@ -249,6 +289,10 @@ if (typeof window !== 'undefined') {
     // O seletor de decks (deck-select.js) exibe o tamanho do baralho antes da
     // partida existir: a constante precisa estar no escopo global.
     window.DECK_SIZE = DECK_SIZE;
+    // Teto de cópias por carta (o Apelino Pão e Vinho é única por deck): a UI e os
+    // testes de browser enxergam a mesma regra que o gerador de baralho.
+    window.LIMITES_DE_COPIA = LIMITES_DE_COPIA;
+    window.limiteDeCopias = limiteDeCopias;
     // `pvp-game.js` monta o deck privado e embaralha o deck do servidor pela
     // classe: sem esta exposição o fallback "cliente gera pela seed" avisava
     // "sem DeckBuilder" e devolvia null.
@@ -733,6 +777,8 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         DECK_SIZE,
         DECKS_PATH,
+        LIMITES_DE_COPIA,
+        limiteDeCopias,
         DeckBuilder,
         loadCardSystem,
         loadDeckCatalog,

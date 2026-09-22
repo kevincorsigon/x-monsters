@@ -75,6 +75,13 @@
   (exported as `window.DECK_SIZE`); `src/js/pvp-game.js` and `server.py` keep
   the same constant, and `scripts/deck_factory.js` defaults to `--size=40`. A
   unit test locks the four together.
+- Per-card copy ceilings live in `src/js/deck_system.js`: `LIMITES_DE_COPIA`
+  (default 3; `card_089` Apelino Pão e Vinho = 1, because the unlimited attack
+  does not stack). `DeckBuilder.podeIncluir`/`adicionarRespeitandoLimite` enforce
+  it inside `createBalancedDeck`, so every deck the game builds obeys — the
+  hotseat random deck, the PvP seed deck (`scripts/deck_factory.js` reuses the
+  same `DeckBuilder`) and the `pvp-game.js#gerarDeckLocal` fallback; the presets
+  in `data/decks.json` are locked by a unit test.
 - Table rules that live in more than one place are locked by test: `INITIAL_PV =
   300` (`src/js/game.js`, `server.py DEFAULT_CONFIG`, `index.html`, the painted
   `#pv-p1/#pv-p2` spans of `game.html`/`pvp.html`) and the opening restriction

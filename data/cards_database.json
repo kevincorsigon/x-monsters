@@ -145,7 +145,7 @@
       "hability": "Copia habilidades de monstros com menos de 4 de custo.",
       "id": "card_011",
       "traits": [
-        "besta"
+        "magico"
       ],
       "image": "assets/cards/kirb.png"
     },
@@ -298,7 +298,8 @@
       "hability": "Causa 15 de dano direto ao inimigo ao ser invocado.",
       "id": "card_023",
       "traits": [
-        "robotico"
+        "robotico",
+        "magico"
       ],
       "image": "assets/cards/raylaser.png"
     },
@@ -311,7 +312,8 @@
       "hability": "Caso sozinho em campo, ganha 5 de ataque e defesa para cada criatura do oponente.",
       "id": "card_024",
       "traits": [
-        "demonio"
+        "demonio",
+        "fantasma"
       ],
       "image": "assets/cards/slipul.png"
     },
@@ -386,7 +388,8 @@
       "hability": "Devolve metade do dano ao atacante.",
       "id": "card_030",
       "traits": [
-        "planta"
+        "planta",
+        "besta"
       ],
       "image": "assets/cards/cacton.png"
     },
@@ -413,7 +416,8 @@
       "hability": "Caso a defesa da criatura for menor que esta carta causa 10 pontos extras de dano.",
       "id": "card_032",
       "traits": [
-        "aquatico"
+        "aquatico",
+        "besta"
       ],
       "image": "assets/cards/hipool.png"
     },
@@ -426,7 +430,8 @@
       "hability": "Sincronia Robótica: Quando está em campo com outro monstro robô, ambos os monstros ganham +5 de Ataque.",
       "id": "card_033",
       "traits": [
-        "robotico"
+        "robotico",
+        "humanoide"
       ],
       "image": "assets/cards/k-023.png"
     },
@@ -439,7 +444,8 @@
       "hability": "Paralisa um inimigo por 1 turno.",
       "id": "card_034",
       "traits": [
-        "aquatico"
+        "aquatico",
+        "besta"
       ],
       "image": "assets/cards/medusa_de_lama.png"
     },
@@ -453,7 +459,8 @@
       "id": "card_035",
       "traits": [
         "voador",
-        "dragao"
+        "dragao",
+        "besta"
       ],
       "image": "assets/cards/ptera.png"
     },
@@ -480,7 +487,8 @@
       "hability": "Fica mais forte em 10 pontos de ataque e defesa com dragões em campo.",
       "id": "card_037",
       "traits": [
-        "dragao"
+        "dragao",
+        "voador"
       ],
       "image": "assets/cards/scoul.png"
     },
@@ -493,7 +501,8 @@
       "hability": "Ao morrer pode procurar um monstro aquático no deck.",
       "id": "card_038",
       "traits": [
-        "aquatico"
+        "aquatico",
+        "humanoide"
       ],
       "image": "assets/cards/tlantidu.png"
     },
@@ -506,7 +515,7 @@
       "hability": "Pode voltar a mão e depois ser invocado sem custo uma vez por partida.",
       "id": "card_039",
       "traits": [
-        "besta"
+        "besta"        
       ],
       "image": "assets/cards/trox.png"
     },
@@ -532,7 +541,7 @@
       "hability": "Huumm Gulosinho: uma vez por turno caso o jogador abdique de atacar ganha 5 pontos de ataque e defesa.",
       "id": "card_041",
       "traits": [
-        "besta"
+        "humanoide"
       ],
       "image": "assets/cards/gulosinho.png"
     },
@@ -600,8 +609,8 @@
       "hability": "Pode pagar 3 pontos de energia para ignorar a defesa de uma criatura.",
       "id": "card_046",
       "traits": [
-        "humanoide",
-        "guerreiro"
+        "dragao",
+        "voador"
       ],
       "image": "assets/cards/salatiel.png"
     },
@@ -628,7 +637,8 @@
       "hability": "Imune a habilidades de monstros com custo menor que 4.",
       "id": "card_048",
       "traits": [
-        "besta"
+        "besta",
+        "aquatico"
       ],
       "image": "assets/cards/turtol.png"
     },
@@ -641,7 +651,8 @@
       "hability": "Guela atolada: Escolhe uma criatura oponente por turno que não pode atacar.",
       "id": "card_049",
       "traits": [
-        "besta"
+        "besta",
+        "humanoide"
       ],
       "image": "assets/cards/entola_guela.png"
     },
@@ -667,7 +678,8 @@
       "hability": "Descarga de Choque: Uma vez por turno, pode causar 10 de dano a todos os monstros do oponente.",
       "id": "card_051",
       "traits": [
-        "dragao"
+        "dragao",
+        "besta"
       ],
       "image": "assets/cards/dino_elétrico.png"
     },
@@ -749,7 +761,8 @@
       "hability": "Sopro Triplo: Uma vez por turno, pode escolher até três monstros do oponente. Cada um deles recebe 5 de dano direto.",
       "id": "card_057",
       "traits": [
-        "fogo"
+        "fogo",
+        "besta"
       ],
       "image": "assets/cards/quimera_de_fogo.png"
     },
@@ -762,7 +775,8 @@
       "hability": "Se ele for o único monstro em seu campo, pode usar sua habilidade de evasão para não ser alvo de ataques de monstros com custo 4 ou menos",
       "id": "card_058",
       "traits": [
-        "humanoide"
+        "humanoide",
+        "magico"
       ],
       "image": "assets/cards/sábio_da_montanha.png"
     },
@@ -789,7 +803,8 @@
       "hability": "Caso existam outras criaturas em campo só ele pode ser atacado.",
       "id": "card_060",
       "traits": [
-        "demonio"
+        "demonio",
+        "besta"
       ],
       "image": "assets/cards/tranca_rua.png"
     },
@@ -818,7 +833,8 @@
       "id": "card_062",
       "traits": [
         "vampiro",
-        "humanoide"
+        "humanoide",
+        "guerreiro"
       ],
       "image": "assets/cards/alucard.png"
     },
@@ -872,7 +888,8 @@
       "hability": "Primeiro ataque causa o dobro de pontos.",
       "id": "card_066",
       "traits": [
-        "humanoide"
+        "humanoide",
+        "guerreiro"
       ],
       "image": "assets/cards/mexica.png"
     },
@@ -915,7 +932,9 @@
       "hability": "Retorna à mão ao morrer, mas custando um ponto a mais de custo toda vez que retornar.",
       "id": "card_069",
       "traits": [
-        "besta"
+        "besta",
+        "fogo",
+        "voador"
       ],
       "image": "assets/cards/roller.png"
     },
@@ -928,7 +947,8 @@
       "hability": "Rugido Assustador: O primeiro ataque de Tiranossauro ignora 10 de Defesa do monstro adversário.",
       "id": "card_070",
       "traits": [
-        "besta"
+        "besta",
+        "dragao"
       ],
       "image": "assets/cards/tiranossauro.png"
     },
@@ -981,7 +1001,8 @@
       "hability": "Ignora 10 pontos do ataque inimigo.",
       "id": "card_074",
       "traits": [
-        "aquatico"
+        "humanoide",
+        "besta"
       ],
       "image": "assets/cards/nucles.png"
     },
@@ -995,7 +1016,9 @@
       "id": "card_075",
       "image": "assets/cards/turtol_maximus.png",
       "traits": [
-        "besta"
+        "besta",
+        "aquatico",
+        "elite"
       ]
     },
     {
@@ -1084,7 +1107,7 @@
       "hability": "Ataca todos os monstros adversários, causando metade do ATK.",
       "id": "card_081",
       "traits": [
-        "lobisomem",
+        "robotico",
         "elite",
         "besta"
       ],
@@ -1115,7 +1138,9 @@
       "id": "card_083",
       "traits": [
         "aquatico",
-        "elite"
+        "elite",
+        "besta",
+        "dragao"
       ],
       "image": "assets/cards/hidra_das_profundezas.png"
     },

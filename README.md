@@ -167,7 +167,17 @@ Selvagem, Corte Dracônica, Ordem dos Caçadores, Alcateia Lunar, Banquete de
 Apelino, Maré Profunda, Círculo Arcano e Lua de Sangue — todos com 40 cartas,
 balanceados por curva de custo e montados por sinergia de traits (cada um usa no
 máximo 3 cópias da mesma carta, e a maioria no máximo 2), além do **deck
-aleatório**. Juntos, os nove usam **todas as 110 cartas** do catálogo.
+aleatório**. Juntos, os nove usam **todas as 110 cartas** do catálogo. Três
+presets guardam até três cartas fora do tema, sempre por limite do catálogo — a
+Legião Robótica (só existem sete robôs no catálogo), o Banquete de Apelino (as
+elites de facções diferentes, por decisão de design) e a Maré Profunda (as duas
+únicas cartas `planta`); um teste de unidade trava esse teto.
+
+O **Apelino Pão e Vinho** (`card_089`) é **única por deck** — o ataque ilimitado
+não empilha. O teto mora em `deck_system.js` (`LIMITES_DE_COPIA`, padrão 3 para
+as demais cartas) e vale para todo caminho que monta baralho: presets, deck
+aleatório do hotseat, sorteio pela seed no PvP e o fallback local
+(`DeckBuilder.podeIncluir`).
 
 - **Hotseat (`game.html`)**: um modal abre assim que a partida carrega e a mesa
   só é montada depois da escolha (o oponente local entra com um deck sorteado).
