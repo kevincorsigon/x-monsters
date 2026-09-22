@@ -835,9 +835,9 @@
         }
 
         function updateHandVisibility() {
-            // Em PvP a mao alheia e sempre N versos + contagem (renderHandsFromState):
-            // o esconderijo de hotseat por turno nao se aplica.
-            if (window.PvpSession) return;
+            // Em PvP (e PvM) a mao alheia e sempre N versos + contagem
+            // (renderHandsFromState): o esconderijo de hotseat por turno nao se aplica.
+            if (window.PvpSession || window.__pvm) return;
             const player1Hand = document.querySelector('.player1-hand');
             const player2Hand = document.querySelector('.player2-hand');
             
@@ -856,8 +856,8 @@
         }
 
         function peekHand(player) {
-            // Em PvP a mão alheia é segredo: nunca há o que espiar.
-            if (window.PvpSession && player !== assentoLocal()) {
+            // Em PvP/PvM a mão alheia é segredo: nunca há o que espiar.
+            if ((window.PvpSession || window.__pvm) && player !== assentoLocal()) {
                 showMessage('A mão do oponente é secreta nesta partida.', 'warning');
                 return;
             }
@@ -1496,6 +1496,8 @@
 
                 const isLocalHand = player === assentoLocal();
                 const emPvp = Boolean(window.PvpSession);
+                // PvM: a mão da máquina também fica em verso (como o oponente no PvP).
+                const emPvm = Boolean(window.__pvm);
 
                 gameState.cards[player].hand.forEach(cardInstance => {
                     // Mão do jogador local: nunca é card-back (perspectiva PvP).
@@ -1506,7 +1508,7 @@
                     // local tenha identidade (reveal pendente de movimento,
                     // retorno à mão por efeito de combate/turno): contagem sim,
                     // identidade nunca (spec parte 3).
-                    if (emPvp && !isLocalHand) {
+                    if ((emPvp || emPvm) && !isLocalHand) {
                         handElement.appendChild(createCardBack(cardInstance));
                         return;
                     }
@@ -1627,9 +1629,23 @@
             // Em PvP quem compra é o autor do comando DRAW: o oponente recebe o
             // comando replicado e só vê a contagem mudar.
             if (pvpGuard({ cmd: 'DRAW', args: { player } })) return;
-            // A mão do oponente nunca é renderizada localmente: só o contador.
-            if (window.PvpSession?.PvpSession && player !== assentoLocal()) {
-                updateHandCounter(player);
+            // A mão do oponente nunca é renderizada de frente.
+            const oculto = (window.PvpSession?.PvpSession || window.__pvm) && player !== assentoLocal();
+            if (oculto) {
+                if (window.__pvm) {
+                    // PvM: a máquina compra de verdade, mas a carta entra em verso.
+                    const drawnCard = typeof drawCardFromDeck === 'function'
+                        ? drawCardFromDeck(player)
+                        : null;
+                    if (drawnCard) {
+                        document.getElementById(`hand-${player}`).appendChild(createCardBack(drawnCard));
+                        updateHandCounter(player);
+                        updateDeckCounter(player);
+                    }
+                } else {
+                    // PvP: quem compra é o autor do DRAW; aqui só a contagem avança.
+                    updateHandCounter(player);
+                }
                 return;
             }
             if (typeof drawCardFromDeck === 'function') {
@@ -1964,9 +1980,15 @@
                     return;
                 }
             }
+            summonCard(cardId, targetPlayer);
+        }
+
+        // Invocação programática: extraída do `dropCard` para que a máquina (PvM)
+        // invoque sem drag-and-drop. O humano continua passando por `dropCard`.
+        function summonCard(cardId, targetPlayer) {
             const cardData = findCardData(cardId);
 
-            if (!cardData || cardData.player !== targetPlayer) return;
+            if (!cardData || cardData.player !== targetPlayer) return false;
 
             if (cardData.data.type === 'suporte') {
                 const supportRejection = getSupportEquipRejection(cardData);
@@ -1974,19 +1996,19 @@
                     supportRejection || 'Cartas de suporte devem ser equipadas em uma criatura, não no campo.',
                     'warning'
                 );
-                return;
+                return false;
             }
 
             // Verificar se é a fase correta
             if (gameState.currentPhase !== 'invocation') {
                 showMessage('Você só pode invocar cartas na Fase de Invocação!');
-                return;
+                return false;
             }
 
             // Verificar se é o turno do jogador
             if (gameState.currentPlayer !== targetPlayer) {
                 showMessage('Não é o seu turno!');
-                return;
+                return false;
             }
 
             // Verificar energia
@@ -1994,7 +2016,7 @@
             const summonCost = getEffectiveCardCost(cardId, cardData.data);
             if (currentEnergy < summonCost) {
                 showMessage('Energia insuficiente para invocar esta carta!');
-                return;
+                return false;
             }
 
             let evolutionBaseInstanceId = null;
@@ -2005,7 +2027,7 @@
                 );
                 if (!evolutionCheck.valid) {
                     showMessage(evolutionCheck.reason, 'warning');
-                    return;
+                    return false;
                 }
                 evolutionBaseInstanceId = evolutionCheck.baseInstanceId;
                 evolutionBaseAttachmentIds = (
@@ -2070,11 +2092,12 @@
                 playSound('energySound');
                 
                 // Remover da mão e adicionar ao campo.
-                // PvP: na mão alheia a carta era um verso (identidade oculta);
+                // PvP/PvM: na mão oculta a carta era um verso (identidade oculta);
                 // o campo é público, então o verso é trocado pelo card de frente.
-                const ehVerso = cardElement.classList.contains('card-back');
-                cardElement.remove();
-                const cardNoCampo = ehVerso
+                const cardElement = document.getElementById(cardId);
+                const ehVerso = cardElement && cardElement.classList.contains('card-back');
+                if (cardElement) cardElement.remove();
+                const cardNoCampo = (ehVerso || !cardElement)
                     ? createCard(gameState.cardInstances[cardId], targetPlayer).element
                     : cardElement;
                 // A seleção é estado da mão: o destaque do clique não viaja para
@@ -2082,7 +2105,7 @@
                 // na mesa, com o brilho que ninguém pediu).
                 cardNoCampo.classList.remove('selected');
                 if (gameState.selectedCard === cardId) gameState.selectedCard = null;
-                e.currentTarget.appendChild(cardNoCampo);
+                document.getElementById('field-' + targetPlayer).appendChild(cardNoCampo);
                 
                 // Atualizar contador de cartas na mão
                 updateHandCounter(targetPlayer);
@@ -2118,8 +2141,10 @@
                         updatePhaseInstructions();
                     }
                 }, 2000);
+                return true;
             } else {
                 showMessage(summonResult.reason, 'warning');
+                return false;
             }
         }
 
@@ -2481,8 +2506,9 @@
         function showDeckInfo() {
             // Em PvP o deck do oponente é secreto (spec parte 4, decisão 6):
             // a estatística de deck alheio seria vazamento de informação.
-            if (window.PvpSession?.PvpSession) {
-                showMessage('O deck do oponente é secreto nesta partida.', 'warning');
+            // Em PvM a máquina também não revela o próprio deck.
+            if (window.PvpSession?.PvpSession || window.__pvm) {
+                mostrarInfoDeckProprio('p1');
                 return;
             }
             if (!gameState.decks || !window.deckBuilder) {
