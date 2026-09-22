@@ -6,6 +6,7 @@ const GameEngine = require('../../src/js/game-engine.js');
 const CardRules = require('../../src/js/card-rules.js');
 // Adiciona os módulos necessários para os novos testes da Parte 2
 const PvpProtocol = require('../../src/js/pvp-protocol.js');
+const PvmAi = require('../../src/js/pvm-ai.js');
 const { DeckBuilder, mulberry32 } = require('../../scripts/deck_factory.js');
 const cardsDatabase = require('../../data/cards_database.json');
 
@@ -6179,6 +6180,129 @@ test('o F5 de partida em andamento consulta o status e nao refaz a escolha de de
         'na reconexão o HELLO vai sem deck (o servidor já resolveu)');
     assert.ok(bootstrap.indexOf('await escolherDeckDeEntrada()') > bootstrap.indexOf('await salaEmAndamento(roomIdLocal)'),
         'a escolha só acontece quando a sala NÃO está em andamento');
+});
+
+// ── PvM: inteligência da máquina ───────────────────────────────────────────
+
+function criarFixturePvm(options = {}) {
+    const state = GameStateModel.createInitialGameState({ initialPv: 300, initialEnergy: 6 });
+    const engine = GameEngine.createEngine(state);
+    CardRules.install(engine);
+    state.currentPlayer = options.currentPlayer || 'p2';
+    state.currentPhase = options.phase || 'invocation';
+    state.players.p2.energy = options.energia ?? 10;
+    state.players.p2.maxEnergy = options.energia ?? 10;
+    if (options.turn) state.turn = options.turn;
+    return { state, engine };
+}
+
+function adicionarNaMao(state, playerId, id, options = {}) {
+    const card = GameStateModel.createCardInstance({
+        id,
+        name: options.name || id,
+        type: options.type || 'criatura',
+        cost: options.cost ?? 3,
+        attack: options.attack ?? 1,
+        defense: options.defense ?? 1
+    }, playerId, { instanceId: `${id}_${playerId}_test` });
+    GameStateModel.registerCard(state, card, 'hand', playerId);
+    return card;
+}
+
+function adicionarNoCampo(state, playerId, id, options = {}) {
+    const card = GameStateModel.createCardInstance({
+        id,
+        name: options.name || id,
+        type: options.type || 'criatura',
+        cost: options.cost ?? 3,
+        attack: options.attack ?? 1,
+        defense: options.defense ?? 1
+    }, playerId, { instanceId: `${id}_${playerId}_test` });
+    GameStateModel.registerCard(state, card, 'field', playerId);
+    return card;
+}
+
+const OPCOES_PVM = () => ({ rules: CardRules, rng: () => 0.5 });
+
+test('IA invoca a criatura acessível de melhor custo-benefício', () => {
+    const { state, engine } = criarFixturePvm({ phase: 'invocation' });
+    const barata = adicionarNaMao(state, 'p2', 'barata', { cost: 2, attack: 2, defense: 3 });
+    adicionarNaMao(state, 'p2', 'cara', { cost: 9, attack: 9, defense: 9 });
+    adicionarNaMao(state, 'p2', 'inalcancavel', { cost: 12, attack: 5, defense: 5 });
+
+    const comando = PvmAi.decidirJogada(state, engine, 'p2', OPCOES_PVM());
+    assert.equal(comando.type, 'summon');
+    assert.equal(comando.cardId, barata.instanceId);
+});
+
+test('IA equipa suporte que soma atributos na criatura própria', () => {
+    const { state, engine } = criarFixturePvm({ phase: 'invocation' });
+    const criatura = adicionarNoCampo(state, 'p2', 'criatura', { attack: 5, defense: 5 });
+    const suporte = adicionarNaMao(state, 'p2', 'suporte', { type: 'suporte', cost: 1, attack: 2, defense: 0 });
+
+    const comando = PvmAi.decidirJogada(state, engine, 'p2', OPCOES_PVM());
+    assert.equal(comando.type, 'equip');
+    assert.equal(comando.cardId, suporte.instanceId);
+    assert.equal(comando.creatureId, criatura.instanceId);
+});
+
+test('IA ativa habilidade mirando a criatura inimiga mais forte', () => {
+    const { state, engine } = criarFixturePvm({ phase: 'combat' });
+    const fonte = adicionarNoCampo(state, 'p2', 'card_026', { attack: 10, defense: 10 });
+    adicionarNoCampo(state, 'p1', 'inimigo_fraco', { attack: 2, defense: 2 });
+    const inimigoForte = adicionarNoCampo(state, 'p1', 'inimigo_forte', { attack: 8, defense: 8 });
+
+    const comando = PvmAi.decidirJogada(state, engine, 'p2', OPCOES_PVM());
+    assert.equal(comando.type, 'ability');
+    assert.equal(comando.cardId, fonte.instanceId);
+    assert.deepEqual(comando.targetIds, [inimigoForte.instanceId]);
+});
+
+test('IA ativa habilidade em área quando há inimigos', () => {
+    const { state, engine } = criarFixturePvm({ phase: 'combat' });
+    const fonte = adicionarNoCampo(state, 'p2', 'card_051', { attack: 5, defense: 5 });
+    adicionarNoCampo(state, 'p1', 'inimigo', { attack: 2, defense: 2 });
+
+    const comando = PvmAi.decidirJogada(state, engine, 'p2', OPCOES_PVM());
+    assert.equal(comando.type, 'ability');
+    assert.equal(comando.cardId, fonte.instanceId);
+    assert.deepEqual(comando.targetIds, []);
+});
+
+test('IA não reativa habilidade já usada no turno', () => {
+    const { state, engine } = criarFixturePvm({ phase: 'combat', turn: 2 });
+    const fonte = adicionarNoCampo(state, 'p2', 'card_026', { attack: 0, defense: 10 });
+    adicionarNoCampo(state, 'p1', 'inimigo', { attack: 1, defense: 20 });
+
+    fonte.usage['sabotar_copo'] = { matchCount: 0, turnCounts: { 2: 1 } };
+
+    const comando = PvmAi.decidirJogada(state, engine, 'p2', OPCOES_PVM());
+    assert.equal(comando, null);
+});
+
+test('IA ataca direto quando não há defensor nem troca favorável', () => {
+    const { state, engine } = criarFixturePvm({ phase: 'combat', turn: 3 });
+    const atacante = adicionarNoCampo(state, 'p2', 'atacante', { attack: 5, defense: 5 });
+
+    const comando = PvmAi.decidirJogada(state, engine, 'p2', OPCOES_PVM());
+    assert.equal(comando.type, 'direct_attack');
+    assert.equal(comando.attackerId, atacante.instanceId);
+});
+
+
+test('game.html liga o modo PvM (pvm-ai + pvm-game) depois da UI', () => {
+    const html = readSourceText('game.html');
+    const posGame = html.indexOf('src/js/game.js');
+    const posAi = html.indexOf('src/js/pvm-ai.js');
+    const posDriver = html.indexOf('src/js/pvm-game.js');
+    assert.ok(posGame !== -1 && posAi !== -1 && posDriver !== -1, 'os três módulos estão na página');
+    assert.ok(posAi > posGame && posDriver > posAi, 'a IA e o driver carregam depois da UI');
+
+    const driver = readSourceText('src/js/pvm-game.js');
+    assert.match(driver, /window\.__pvm = true/, 'o driver marca o modo PvM');
+    assert.match(driver, /window\.summonCard\?\./, 'a máquina invoca pela função extraída');
+    assert.match(driver, /window\.applyMigratedAbilityLocally\?\./, 'a máquina ativa habilidade pela ponte existente');
+    assert.match(driver, /window\.equipSupportCard\?\./, 'a máquina equipa suporte pelo handler existente');
 });
 
 let failures = 0;

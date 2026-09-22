@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>X Monsters - Jogo PVP</title>
+    <title>X Monsters - Jogador vs Máquina</title>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="src/css/game.css">
     <link rel="stylesheet" href="src/css/deck-select.css">
@@ -19,7 +19,7 @@
         </div>
         
         <div class="player2-hand">
-            <div class="hand-title" id="hand-title-p2" data-count="0">Mão - Jogador 2</div>
+            <div class="hand-title" id="hand-title-p2" data-count="0">Mão - Computador</div>
             <div id="hand-p2"></div>
             <button class="peek-hand-btn" onclick="peekHand('p2')" onmouseleave="stopPeeking('p2')">👁️ Espiar Mão</button>
         </div>
@@ -33,7 +33,7 @@
         <!-- Player 2 Stats and Field -->
         <div class="player2-stats">
             <div class="player-avatar">P2</div>
-            <div class="player-name" onclick="editName('p2')" style="color: var(--primary-color); cursor: pointer; margin: 5px 0;">Jogador 2</div>
+            <div class="player-name" onclick="editName('p2')" style="color: var(--primary-color); cursor: pointer; margin: 5px 0;">Computador</div>
             <div class="stat">
                 <span class="stat-label">PV:</span>
                 <span class="stat-value pv-value" id="pv-p2" onclick="editStatValue('pv', 'p2')" style="cursor: pointer;">300</span>
@@ -199,5 +199,8 @@
     <script src="src/js/deck-select.js"></script>
     <script src="src/js/manual_abilities.js"></script>
     <script src="src/js/game.js"></script>
+    <!-- Modo PvM: a máquina pilota o jogador 2 -->
+    <script src="src/js/pvm-ai.js"></script>
+    <script src="src/js/pvm-game.js"></script>
 </body>
 </html>

@@ -2182,3 +2182,35 @@
 .gear-dropdown button:hover {
     background: rgba(255, 215, 0, 0.1);
 }
+
+/* Verso de carta oculta (oponente da IA no PvM): assets/verso.jpeg com
+   gradiente de fallback caso a imagem não carregue. Mesma regra do pvp.css. */
+.card-back {
+    background: url('../../assets/verso.jpeg') center / cover no-repeat,
+        linear-gradient(135deg, #1a1e28 0%, #11151e 100%);
+    border: 2px solid var(--primary-color);
+    border-radius: var(--border-radius);
+    min-width: 70px;
+    min-height: 100px;
+}
+
+
+/* PvM: a mão da máquina (oponente no topo) fica discreta — encolhida,
+   translúcida e sem capturar ponteiro — para não cobrir o campo da máquina
+   (mesma ideia do PvP em body[data-seat="p1"]). */
+body[data-seat="p1"] .player2-hand {
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+body[data-seat="p1"] .player2-hand #hand-p2 {
+    transform: translateY(-70%) scale(0.78);
+    transform-origin: center top;
+    opacity: 0.85;
+}
+
+body[data-seat="p1"] .player2-hand .hand-title {
+    z-index: 26;
+}
+
