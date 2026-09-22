@@ -69,6 +69,16 @@ Decisões de arquitetura:
   do ledger, e o novo `tests/pvp/turn_timer.py` sobe o servidor com 2s e verifica
   o estouro, a replicação e o espelho). UI: `#turn-timer` no painel central das
   duas telas, com aviso nos últimos 10s (`.turn-timer-warning`) e pulso em 0.
+- **Fix (UI): Fantom não ficava mais preso em campo ao voltar à mão** — o retorno
+  (evasão fantasmagórica) movia a carta para a mão no estado, mas o elemento do
+  campo nunca era removido: o `renderFieldsFromState` pula qualquer `.card` com a
+  classe `.destroying` (guard de animação de morte), e o bloco de retorno-à-mão só
+  animava e reprojetava a mão. O Fantom não morre (nada chama `destroyCard`), então
+  a classe ficava para sempre e a carta "fantasma" permanecia no campo. Corrigido
+  espelhando a limpeza do `destroyCard`: `animationend` (com fallback de 400ms
+  guardado por geração) remove o elemento e reprojeta o campo. Travado por teste de
+  unidade (source-scan do bloco) e pelo novo `tests/browser/test_fantom_return.js`
+  (combate real da UI: sai do campo, permanece na mão, reprojeção não ressuscita).
 - **Ataque direto proibido no primeiro turno de CADA jogador**: antes a trava era
   `state.turn <= 1` (turno 1 global), então p2 atacava direto no seu primeiro turno
   e uma permissão de equipamento (`Atravessava`/`Rego Freitas`) furava a regra até

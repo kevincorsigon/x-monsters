@@ -1160,10 +1160,27 @@
                     if (cardElement && !cardElement.classList.contains('destroying')) {
                         cardElement.classList.add('destroying');
                         cardElement.style.animation = 'cardReturnToHand 0.3s ease-out forwards';
+                        // Fantom (e qualquer retorno à mão) precisa SAIR do campo depois
+                        // da animação: sem isto o elemento ficava preso com `.destroying`
+                        // para sempre, e o `renderFieldsFromState` nunca o removia (o
+                        // guard de animação tratava a carta como se ainda estivesse
+                        // morrendo). Espelha a limpeza do `destroyCard`.
+                        const aoTerminar = () => {
+                            if (!cardElement.isConnected) return;
+                            cardElement.remove();
+                            renderFieldsFromState();
+                        };
+                        cardElement.addEventListener('animationend', aoTerminar, { once: true });
+                        const generation = window.matchGeneration;
+                        setTimeout(() => {
+                            if (generation !== window.matchGeneration) return;
+                            aoTerminar();
+                        }, 400);
                     }
                 });
                 renderHandsFromState();
-                // renderFieldsFromState será chamado pelo destroyCard se houver derrotadas
+                // O Fantom não morre: nenhum `destroyCard` roda, então o campo é
+                // reprojetado aqui para tirar o verso do Fantom que voltou à mão.
             }
 
             // Efeitos de morte que puxam carta do deck para a mão (Tlantidu) mudam o

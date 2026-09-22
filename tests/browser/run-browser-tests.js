@@ -27,6 +27,7 @@ const CONSOLE_SCRIPTS = [
     'tests/browser/test_dice_roll.js',
     'tests/browser/test_turn_timer.js',
     'tests/browser/test_tlantidu_death.js',
+    'tests/browser/test_fantom_return.js',
 ];
 
 // Scripts de console PVP (precisam de pvp.html carregado)

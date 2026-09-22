@@ -4741,9 +4741,9 @@ test('timers de fim de turno, de vitória e do dado respeitam a geração da par
     const interfaceSource = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
     const generationGuards = interfaceSource.match(/generation !== window\.matchGeneration/g) || [];
     // endGame (fim de turno/vitória), a compra do deck, o resultado do dado da
-    // sorte e o relógio de turno — um timer pendente nunca pode cair na partida
-    // seguinte.
-    assert.equal(generationGuards.length, 4);
+    // sorte, o relógio de turno e o retorno à mão do Fantom — um timer pendente
+    // nunca pode cair na partida seguinte.
+    assert.equal(generationGuards.length, 5);
 });
 
 /**
@@ -6148,6 +6148,19 @@ test('o relogio de turno (45s) esta no cliente, no servidor e nas duas telas', (
     const css = readSourceText('src/css/game.css');
     assert.match(css, /\.turn-timer \{/, 'o contador tem estilo proprio');
     assert.match(css, /\.turn-timer\.turn-timer-warning/, 'e aviso nos ultimos segundos');
+});
+test('o retorno à mão (Fantom) remove a carta do campo depois da animação', () => {
+    const fonte = readSourceText('src/js/game.js');
+    const inicio = fonte.indexOf('const returnedToHand');
+    const fim = fonte.indexOf('// O Fantom não morre', inicio);
+    const bloco = fonte.slice(inicio, fim !== -1 ? fim : inicio + 2000);
+
+    assert.ok(inicio !== -1, 'o bloco de retorno à mão existe no combate');
+    assert.match(bloco, /cardElement\.addEventListener\('animationend', aoTerminar, \{ once: true \}\)/,
+        'a limpeza acontece quando a animação termina');
+    assert.match(bloco, /cardElement\.remove\(\)/, 'o elemento sai do DOM');
+    assert.match(bloco, /renderFieldsFromState\(\);/, 'e o campo é reprojetado');
+    assert.match(bloco, /generation !== window\.matchGeneration/, 'com a guarda de geração da partida');
 });
 
 let failures = 0;
