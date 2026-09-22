@@ -41,6 +41,7 @@ const PVP_CONSOLE_SCRIPTS = [
     'tests/browser/test_pvp_deck_count.js',
     'tests/browser/test_pvp_dice_state.js',
     'tests/browser/test_pvp_deck_entry.js',
+    'tests/browser/test_pvp_reconnect.js',
 ];
 
 // Scripts de console do lobby (precisam de pvp-lobby.html carregado)

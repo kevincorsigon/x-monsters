@@ -6162,6 +6162,24 @@ test('o retorno à mão (Fantom) remove a carta do campo depois da animação', 
     assert.match(bloco, /renderFieldsFromState\(\);/, 'e o campo é reprojetado');
     assert.match(bloco, /generation !== window\.matchGeneration/, 'com a guarda de geração da partida');
 });
+test('o F5 de partida em andamento consulta o status e nao refaz a escolha de deck', () => {
+    const pvpGame = readSourceText('src/js/pvp-game.js');
+    assert.match(pvpGame, /async function salaEmAndamento\(roomId\)/,
+        'o bootstrap consulta a sala antes de decidir');
+    assert.match(pvpGame, /fetch\(`\/api\/matches\/\$\{roomId\}`\)/, 'via GET /api/matches/<id>');
+    assert.match(pvpGame, /sala\.status === 'playing' \|\| sala\.status === 'finished' \|\| Boolean\(sala\.resultado\)/,
+        'sala em andamento/finalizada = reconexão');
+
+    const bootstrap = pvpGame.slice(
+        pvpGame.indexOf('async function bootstrap'),
+        pvpGame.indexOf('async function escolherDeckDeEntrada')
+    );
+    assert.match(bootstrap, /await salaEmAndamento\(roomIdLocal\)/);
+    assert.match(bootstrap, /deckEscolhido = null;/,
+        'na reconexão o HELLO vai sem deck (o servidor já resolveu)');
+    assert.ok(bootstrap.indexOf('await escolherDeckDeEntrada()') > bootstrap.indexOf('await salaEmAndamento(roomIdLocal)'),
+        'a escolha só acontece quando a sala NÃO está em andamento');
+});
 
 let failures = 0;
 

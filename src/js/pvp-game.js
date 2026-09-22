@@ -270,6 +270,25 @@
         return `${protocolo}://${location.host}/ws`;
     }
 
+    /**
+     * Pergunta ao servidor se a sala já está em andamento (ou finalizada). É o que
+     * distingue "entrar numa sala nova" de "F5 numa partida em andamento": no
+     * segundo caso o servidor já resolveu os decks e o seletor não deve reaparecer.
+     */
+    async function salaEmAndamento(roomId) {
+        try {
+            const resposta = await fetch(`/api/matches/${roomId}`);
+            if (!resposta.ok) return false;
+            const sala = await resposta.json();
+            return sala.status === 'playing' || sala.status === 'finished' || Boolean(sala.resultado);
+        } catch (error) {
+            // Sem servidor (ex.: page estática nos testes headless): segue o fluxo
+            // normal de primeira entrada.
+            console.warn('pvp-game: não foi possível consultar o status da sala', error);
+            return false;
+        }
+    }
+
     async function bootstrap() {
         if (typeof document === 'undefined' || typeof WebSocket === 'undefined') return null;
 
@@ -283,10 +302,17 @@
         marcarAssento();
         restringirFuncoesGlobais(seatLocal);
 
-        // A escolha do deck acontece aqui, antes de qualquer socket: o `HELLO` já
-        // nasce com o id confirmado (a partida espera os dois assentos, então
-        // ninguém é empurrado para uma mesa sem o outro ter escolhido).
-        await escolherDeckDeEntrada();
+        // A escolha do deck só acontece na ENTRADA de uma sala nova: o `HELLO`
+        // nasce com o id confirmado. Num F5/reconexão de uma partida em andamento o
+        // servidor já tem os decks resolvidos — consulta o status e segue direto
+        // (o `MATCH_START`/`COMMAND_LOG` remontam tudo como estava).
+        const reconectando = await salaEmAndamento(roomIdLocal);
+        if (reconectando) {
+            deckEscolhido = null;
+            console.info('pvp-game: partida em andamento — reconectando sem refazer a escolha de deck');
+        } else {
+            await escolherDeckDeEntrada();
+        }
 
         socket = new WebSocket(webSocketUrl());
         socket.addEventListener('open', enviarHello);

@@ -69,6 +69,17 @@ Decisões de arquitetura:
   do ledger, e o novo `tests/pvp/turn_timer.py` sobe o servidor com 2s e verifica
   o estouro, a replicação e o espelho). UI: `#turn-timer` no painel central das
   duas telas, com aviso nos últimos 10s (`.turn-timer-warning`) e pulso em 0.
+- **Fix (PvP): F5 numa partida em andamento reabria o seletor de decks** — o
+  `bootstrap` sempre chamava `escolherDeckDeEntrada()` antes de conectar, então
+  quem recarregava o tabuleiro no meio da partida era forçado a escolher de novo
+  (uma escolha que o servidor já tinha resolvido e ignoraria). Agora o bootstrap
+  consulta o status via `GET /api/matches/<id>` (`salaEmAndamento`): se a sala
+  está `playing`/`finished` (ou tem `resultado`), pula o seletor, zera o
+  `deckEscolhido` e conecta direto — o `MATCH_START`/`COMMAND_LOG` remontam a
+  partida exatamente como estava. Sala nova (`waiting`) segue pedindo o deck. Sem
+  servidor (testes headless), cai no fluxo de primeira entrada. Travado por teste
+  de unidade (source-scan do bootstrap) e pelo novo `test_pvp_reconnect.js` (fetch
+  dublado com sala `playing`).
 - **Fix (UI): Fantom não ficava mais preso em campo ao voltar à mão** — o retorno
   (evasão fantasmagórica) movia a carta para a mão no estado, mas o elemento do
   campo nunca era removido: o `renderFieldsFromState` pula qualquer `.card` com a
