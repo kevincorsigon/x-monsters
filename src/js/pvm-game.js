@@ -40,6 +40,12 @@
         if (typeof document === 'undefined') return;
         document.body.dataset.seat = ASSENTO_HUMANO;
 
+        // Em PvM a mão da máquina é sempre N versos: remove o esconderijo de mão
+        // do hotseat que pode ter sobrado do `updateUI` inicial (antes do __pvm).
+        document.querySelectorAll('.player1-hand, .player2-hand').forEach(el => {
+            el.classList.remove('player-hand-hidden', 'player-hand-peeking');
+        });
+
         // Espiar a mão da máquina não existe em PvM.
         document.querySelectorAll('.player2-hand .peek-hand-btn').forEach(el => el.remove());
 
@@ -71,6 +77,15 @@
             pvP2.removeAttribute('onclick');
             pvP2.style.cursor = 'default';
             pvP2.onclick = null;
+        }
+
+        // A máquina se chama "Computador" (o estado volta a "Jogador 2" a cada
+        // remontagem de partida, então o rótulo é reaplicado aqui e no wrapper).
+        if (window.gameState && window.GameStateModel?.setPlayerName) {
+            window.GameStateModel.setPlayerName(window.gameState, ASSENTO_MAQUINA, 'Computador');
+        }
+        if (nomeP2 && window.gameState && window.GameStateModel?.getPlayerName) {
+            nomeP2.innerText = window.GameStateModel.getPlayerName(window.gameState, ASSENTO_MAQUINA);
         }
 
         garantirDadoDaMaquina();
@@ -184,8 +199,31 @@
         if (typeof window === 'undefined' || typeof document === 'undefined') return;
         window.__pvm = true;
         configurarMaquina();
+
+        // `resetMatchState` devolve "Jogador 2" a cada nova partida: reaplica o
+        // rótulo da máquina após o Reset/Trocar deck.
+        const startNewMatchOriginal = window.startNewMatch;
+        if (typeof startNewMatchOriginal === 'function') {
+            window.startNewMatch = async function () {
+                const resultado = await startNewMatchOriginal.apply(this, arguments);
+                configurarMaquina();
+                return resultado;
+            };
+        }
+
         if (relogio) clearInterval(relogio);
         relogio = setInterval(verificarTurno, INTERVALO_DO_TURNO);
+    }
+
+    // Mesmo timing do PvP (`window.PvpSession` nasce no load do script): marca o
+    // modo ANTES do DOMContentLoaded. O `updateUI` inicial do game.js roda no
+    // evento e, sem esta flag, aplicaria o esconderijo de mão do hotseat
+    // (`player-hand-hidden`), que encobre o verso com um gradiente.
+    if (typeof window !== 'undefined') {
+        window.__pvm = true;
+        if (typeof document !== 'undefined' && document.body) {
+            document.body.dataset.seat = 'p1';
+        }
     }
 
     const api = { iniciar, configurarMaquina, executarTurnoDaMaquina, verificarTurno, executarComando };

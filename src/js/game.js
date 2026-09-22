@@ -179,7 +179,7 @@
             if (stat === 'pv' && newValue <= 0) {
                 element.classList.add('pv-zero');
                 playVictorySound();
-                const vencedor = player === 'p1' ? 'Jogador 2' : 'Jogador 1';
+                const vencedor = window.GameStateModel.getPlayerName(gameState, player === 'p1' ? 'p2' : 'p1');
                 showTurnNotification(`🏆 ${vencedor} venceu!`, 2500);
                 const generation = window.matchGeneration;
                 setTimeout(() => {
@@ -706,7 +706,7 @@
         function updateUI() {
             const turnoElement = document.getElementById('current-player');
             if (turnoElement) {
-                turnoElement.textContent = gameState.currentPlayer === 'p1' ? 'Jogador 1' : 'Jogador 2';
+                turnoElement.textContent = window.GameStateModel.getPlayerName(gameState, gameState.currentPlayer);
             }
 
             const faseElement = document.getElementById('current-phase');
@@ -1397,7 +1397,7 @@
                 // Reset names
                 const nameElement = document.querySelector(`.player${player === 'p1' ? '1' : '2'}-stats .player-name`);
                 if (nameElement) {
-                    nameElement.innerText = player === 'p1' ? 'Jogador 1' : 'Jogador 2';
+                    nameElement.innerText = window.GameStateModel.getPlayerName(gameState, player);
                 }
                 updateHandCounter(player);
                 updateDiscardCount(player);

@@ -40,6 +40,13 @@
     assert('espiar a mão da máquina foi removido', !document.querySelector('.player2-hand .peek-hand-btn'));
     assert('dado da máquina fica desabilitado', document.getElementById('dice-p2').disabled === true);
     assert('deck da máquina não tem onclick inline', document.querySelector('.player2-deck').getAttribute('onclick') === null);
+    assert('máquina se chama "Computador" no estado', Model.getPlayerName(state, 'p2') === 'Computador');
+    assert('rótulo da máquina mostra "Computador"', (document.querySelector('.player2-stats .player-name')?.textContent || '').trim() === 'Computador');
+    const versoEl = document.querySelector('#hand-p2 .card-back');
+    const bgVerso = versoEl ? getComputedStyle(versoEl).backgroundImage : '';
+    assert('verso da máquina usa a arte X Monsters (verso.jpeg)', bgVerso.includes('verso.jpeg'));
+    const opacidadeMao = getComputedStyle(document.getElementById('hand-p2')).opacity;
+    assert('mão da máquina fica translúcida (não cobre o campo)', Number(opacidadeMao) < 1);
 
     // 2. Decisão da IA sobre estado determinístico (sem efeito colateral).
     function montar(phase) {
