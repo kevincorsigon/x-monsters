@@ -27,7 +27,9 @@ and `pvp-lobby.html` (`/pvp`) creates rooms via `POST /api/matches`.
 - **`src/js/game-engine.js`** — `GameEngine`: actions, events, effects,
   modifiers, combat resolver, transactions.
 - **`src/js/card-rules.js`** — registry of all card abilities (tables +
-  `install()` handlers). Source of truth for rules.
+  `install()` handlers). Source of truth for rules; também as regras de mesa
+  `canDirectAttack`/`ehPrimeiroTurnoDoJogador` (ninguém ataca direto no próprio
+  primeiro turno) e `validateAttackTarget`.
 - **`src/js/card-abilities.js`** — thin UI bridge (`attachEngine`,
   feedback toasts). No per-card logic.
 - **`src/js/deck_system.js`** — `DeckBuilder` (injectable `rng`),
@@ -47,8 +49,15 @@ and `pvp-lobby.html` (`/pvp`) creates rooms via `POST /api/matches`.
   botão + modal "Regras do Jogo", conteúdo igual ao do `index.html`);
   **`src/css/pvp.css`** — PvP-only styles (`body[data-seat]`).
 - **`server.py`** — statics + lobby API + WebSocket relay, per-room ledger,
-  server-side RNG, `matches/<roomId>.json` mirror.
-- **`data/cards_database.json`** — 110-card catalog.
+  server-side RNG, `matches/<roomId>.json` mirror; resolve o preset de deck
+  escolhido no lobby (`data/decks.json`) por assento.
+- **`data/cards_database.json`** — 110-card catalog; **`data/decks.json`** —
+  presets do seletor (só ids + tema/emblema/cores; 9 decks de 40 cartas; a ordem é
+  receita: `DeckBuilder.embaralhar` reembaralha a cada partida, no PvP pela seed
+  da sala).
+- **`src/js/deck-select.js`** (+ **`src/css/deck-select.css`**) — seletor de
+  decks: modal bloqueante do hotseat, picker embutido no lobby, rótulos pt-BR
+  das traits e resumo/curva do deck.
 - **`index.html`** — standalone PV/Energy counter (no engine).
 - **`tests/unit/run-tests.js`** — Node regression suite (engine, rules, PvP
   protocol/session, PvP draw bridge).
@@ -137,11 +146,16 @@ patterns:
   que empunha arma, 24 cartas — nunca junto de `dragao`/`robotico`/`aquatico`/`planta`/
   `fantasma`. A família Lobo `card_078`–`card_082` tem `lobisomem` **sem** `humanoide`:
   são caninos (`besta`), e ali `lobisomem` é trait temática de grupo).
-- `tests/unit/run-tests.js` — engine/rules/PvP regression tests (221 tests:
-  inclui o inventário fechado de traits, a integridade das 110 artes e a matriz de
-  equipamento de `card_097`/`card_102`).
+- `tests/unit/run-tests.js` — engine/rules/PvP regression tests (240 testes:
+  inventário fechado de traits, integridade das 110 artes, matriz de equipamento
+  de `card_097`/`card_102`, catálogo de decks/seletor e a guarda de sintaxe dos
+  classic scripts).
 - `tests/pvp/smoke_match.py` — server + 2 WS clients smoke test (ledger só com
-  as compras esperadas; F5 não soma comando).
+  as compras esperadas; F5 não soma comando). Roda com `XM_TURN_SECONDS=0` para o
+  relógio de turno não mexer no ledger.
+- `tests/pvp/turn_timer.py` — relógio de turno do servidor: sobe o `server.py` com
+  `XM_TURN_SECONDS=2`, não envia comando nenhum e verifica o `END_TURN` automático
+  no ledger, a replicação, o avanço do turno e o espelho.
 - `tests/browser/test_pvp_draw.js` — regra da compra em PvP no DOM real +
   contador de mão vindo do websocket.
 - `tests/browser/test_deck_count.js` — área de saque mostra as cartas restantes
@@ -164,7 +178,18 @@ patterns:
   inerte, replay idempotente, remount limpando o dado antes do ledger).
 - `tests/browser/test_pvp_lobby_rules.js` — botão "Regras do Jogo" no lobby abre
   o modal (mesmas 5 seções do `index.html`), fecha no ×/fundo/Esc e o conteúdo
-  cabe na viewport com rolagem interna (`LOBBY_CONSOLE_SCRIPTS` no runner).
+  cabe na viewport com rolagem interna (`LOBBY_CONSOLE_SCRIPTS` no runner). O
+  lobby não escolhe deck: isso é da entrada da partida.
+- `tests/browser/test_deck_select.js` — seletor de decks do hotseat: modal no
+  boot, pilha de versos com a cor de cada deck, detalhe com curva e cartas, traits
+  no modal de detalhes, "Trocar deck" remontando a mesa com o preset escolhido.
+- `tests/browser/test_turn_timer.js` — relógio de turno (45s) no hotseat: o
+  contador decrementa, avisa nos últimos 10s, zera e passa a vez sozinho, e o
+  limite desligado (0) neutraliza o contador.
+- `tests/browser/test_pvp_deck_entry.js` — a escolha na entrada da sala: dubla o
+  `WebSocket`, entra em `/pvp/<sala>/<assento>` e prova que o socket só nasce
+  depois do modal e que o `HELLO` leva o deck confirmado (e que o baralho chega
+  embaralhado pela seed da sala).
 - `scripts/deck_factory.js` — seeded deck CLI used by the server.
 - `scripts/check_cards.py` — catalog vs `card-rules.js` mention scan.
 - `game.html` / `pvp.html` / `pvp-lobby.html` — board shell, online board, lobby.
@@ -188,7 +213,9 @@ patterns:
   based.
 - card_038's trait-based search is implemented in the engine but currently
   inert pending a catalog trait tag (`aquatico`) — see `.vibeflow/decisions.md`.
-- card_090 (Bilugação Astral) has no rule yet; blocked on product question
+- card_090 (Bilugação Astral) ganhou regra (default conservador: `IMPENETRABLE` até
+  o fim do turno do oponente) — a pergunta de produto #13 sobre o sentido amplo de
+  "intransponível" segue aberta para um eventual ajuste fino.
   #13 ("intransponível") in the ability-engine spec.
 - `CardRules.isMigrated()` undercounts handler-only cards; coverage is the
   text scan in `scripts/check_cards.py`.

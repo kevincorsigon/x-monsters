@@ -1,8 +1,11 @@
 // Constantes do jogo
-        const INITIAL_PV = 200;
+        const INITIAL_PV = 300;
         const INITIAL_ENERGY = 6;
         const MAX_ENERGY = 20;
-        window.gameConfig = { initialPv: INITIAL_PV, initialEnergy: INITIAL_ENERGY };
+        // Cada turno dura no máximo 45s: no hotseat o cliente passa a vez sozinho;
+        // no PvP quem manda é o servidor (o cliente só desenha o contador).
+        const TURN_SECONDS = 45;
+        window.gameConfig = { initialPv: INITIAL_PV, initialEnergy: INITIAL_ENERGY, turnSeconds: TURN_SECONDS };
         const gameState = window.GameStateModel.createInitialGameState(window.gameConfig);
         window.gameState = gameState;
         window.gameEngine = window.GameEngine.createEngine(gameState);
@@ -473,6 +476,71 @@
             });
         }
 
+        // ── Relógio de turno ────────────────────────────────────────────────
+        // Limite do turno: `gameConfig.turnSeconds` (45s). Os dois modos usam o
+        // mesmo contador, mas só o hotseat decide sozinho — em PvP a transição é
+        // do servidor (`END_TURN` no ledger), então o contador aqui é só leitura.
+        let contadorDeTurno = null;
+        let fimDoTurnoEm = 0;
+
+        function limiteDeTurno() {
+            const valor = Number(window.gameConfig?.turnSeconds);
+            return Number.isFinite(valor) && valor > 0 ? valor : 0;
+        }
+
+        function pintaContadorDeTurno(segundos) {
+            const alvo = document.getElementById('turn-timer');
+            if (!alvo) return;
+            const inteiros = Math.max(0, Math.ceil(segundos));
+            alvo.textContent = `${inteiros}s`;
+            alvo.classList.toggle('turn-timer-warning', inteiros > 0 && inteiros <= 10);
+            alvo.classList.toggle('turn-timer-over', inteiros === 0);
+        }
+        window.pintaContadorDeTurno = pintaContadorDeTurno;
+
+        function pararTempoDeTurno() {
+            if (contadorDeTurno !== null) clearInterval(contadorDeTurno);
+            contadorDeTurno = null;
+        }
+        window.pararTempoDeTurno = pararTempoDeTurno;
+
+        /**
+         * Reinicia o contador do turno. Sem argumento usa o limite do jogo; o PvP
+         * passa o `prazoTurno` que o servidor publicou (relógio dele é a
+         * autoridade). `0` (ou limite desligado) esconde o contador.
+         */
+        function reiniciarTempoDeTurno(segundos = null) {
+            pararTempoDeTurno();
+            const limite = segundos === null
+                ? limiteDeTurno()
+                : Math.max(0, Number(segundos) || 0);
+            const alvo = document.getElementById('turn-timer');
+            if (!limite) {
+                if (alvo) alvo.textContent = '--';
+                return;
+            }
+
+            fimDoTurnoEm = Date.now() + limite * 1000;
+            pintaContadorDeTurno(limite);
+            // Guarda a geração da partida: um intervalo pendente não pode passar a
+            // vez da partida seguinte (mesmo cuidado dos outros timers).
+            const generation = window.matchGeneration;
+            contadorDeTurno = setInterval(() => {
+                if (generation !== window.matchGeneration) {
+                    pararTempoDeTurno();
+                    return;
+                }
+                const restante = (fimDoTurnoEm - Date.now()) / 1000;
+                pintaContadorDeTurno(Math.max(0, restante));
+                if (restante > 0) return;
+                pararTempoDeTurno();
+                // Em PvP o servidor passa a vez; o cliente só espera o comando.
+                if (window.PvpSession?.PvpSession) return;
+                if (typeof endTurn === 'function') endTurn();
+            }, 250);
+        }
+        window.reiniciarTempoDeTurno = reiniciarTempoDeTurno;
+
         function endTurn() {
             if (pvpGuard({ cmd: 'END_TURN', args: {} })) return;
             const endingPlayer = gameState.currentPlayer;
@@ -562,6 +630,11 @@
             showTurnNotification(`⚡ ${currentPlayerName}<br/>Energia: ${newEnergy}`, 1000);
             
             updateUI();
+
+            // O turno virou: o novo assento da vez ganha o relógio cheio (no PvP o
+            // servidor publica o `prazoTurno` dele na sequência e o contador é
+            // reajustado — assim os dois navegadores mostram o mesmo número).
+            reiniciarTempoDeTurno();
             
             // Em PvP a compra e a troca de fase do novo turno são comandos
             // próprios (o servidor replica nos dois), então o encadeamento local
@@ -1266,9 +1339,11 @@
             );
             renderPlayerStat('energy', 'p1');
             addCardToHand('p1');
+            // O primeiro turno também tem relógio (e é ele que o boot/Reset inicia).
+            reiniciarTempoDeTurno();
         }
 
-        function resetGame() {
+        function resetGame(escolha) {
             document.getElementById('hand-p1').innerHTML = '';
             document.getElementById('hand-p2').innerHTML = '';
             document.getElementById('field-p1').innerHTML = '';
@@ -1289,7 +1364,12 @@
             closeCardModal();
             closeDiscardModal();
             if (typeof startNewMatch === 'function') {
-                startNewMatch();
+                // `startNewMatch` é assíncrono, mas não tem nenhum `await` interno:
+                // a mesa é montada no mesmo tick, então o Reset continua síncrono
+                // (os testes e o gear contam com o estado pronto logo em seguida).
+                // Sem argumento ele reusa a escolha da partida atual (Reset mantém o
+                // deck); `trocarDeck` passa um id explícito.
+                startNewMatch(escolha);
             }
             initFirstTurn();
 
@@ -2091,6 +2171,16 @@
                 `<img src="${cardData.image}" alt="${cardData.name}" class="card-image-real" style="width: 100%; height: auto; border-radius: 8px;">` :
                 `<div class="card-image" style="width: 100%; height: 200px; background: var(--secondary-color); border-radius: 8px;"></div>`;
 
+            // Traits da carta: vêm do catálogo (fonte de verdade) com o mapa do
+            // motor como fallback, e são rotuladas em pt-BR pelo seletor de decks.
+            // Suportes não têm traits no catálogo — a seção simplesmente não aparece.
+            const traitsDaCarta = window.DeckSelect?.traitsDaCarta?.(cardData) || [];
+            const blocoDeTraits = traitsDaCarta.length > 0 ? `
+                <div class="modal-card-traits">
+                    <h3 class="modal-card-section-title">Características:</h3>
+                    <div class="deck-traits modal-traits">${window.DeckSelect.chipsDeTraits(traitsDaCarta)}</div>
+                </div>` : '';
+
             cardContent.innerHTML = `
                 <div class="card ${cssType}" style="width: 300px; height: 420px; margin: 0 auto; position: relative;">
                     <div class="card-cost">${cardData.cost}</div>
@@ -2102,6 +2192,7 @@
                         <span class="defense">${cardData.defense}</span>
                     </div>
                 </div>
+                ${blocoDeTraits}
                 <div style="margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 8px;">
                     <h3 style="color: var(--primary-color); margin-bottom: 10px; text-align: center;">Habilidade:</h3>
                     <p style="font-size: 16px; line-height: 1.4; text-align: center; color: var(--text-color);">${cardData.hability || cardData.ability || 'Sem habilidade especial.'}</p>
@@ -2336,8 +2427,9 @@
             }
             const stats = window.deckBuilder.getDeckStats(gameState.decks[dono]);
             const restantes = gameState.decks[dono].length;
+            const nomeDeck = gameState.deckSelections?.[dono]?.nome || 'Deck aleatório';
             showMessage(
-                `SEU DECK (${dono === 'p1' ? 'Jogador 1' : 'Jogador 2'}):\n` +
+                `SEU DECK (${dono === 'p1' ? 'Jogador 1' : 'Jogador 2'}) — ${nomeDeck}:\n` +
                 `• Total: ${stats.total} cartas\n` +
                 `• Criaturas: ${stats.criaturas}\n` +
                 `• Suportes: ${stats.suportes}\n` +
@@ -2347,6 +2439,26 @@
             );
         }
         window.mostrarInfoDeckProprio = mostrarInfoDeckProprio;
+
+        // Gear "Trocar deck": reabre o seletor e remonta a partida com a nova
+        // escolha (trocar de deck implica mesa nova, igual ao Reset).
+        async function trocarDeck() {
+            if (window.PvpSession?.PvpSession) {
+                showMessage('Em PvP o deck é escolhido no lobby antes de entrar na sala.', 'warning');
+                return;
+            }
+            if (!window.DeckSelect?.abrir) {
+                showMessage('Seletor de decks indisponível.', 'warning');
+                return;
+            }
+            const escolha = await window.DeckSelect.abrir();
+            if (!escolha) {
+                showMessage('Catálogo de decks indisponível: a partida segue com o deck aleatório.', 'warning');
+                return;
+            }
+            resetGame(escolha);
+        }
+        window.trocarDeck = trocarDeck;
 
         // Função para mostrar informações dos decks
         function showDeckInfo() {
@@ -2363,15 +2475,16 @@
             
             const stats1 = window.deckBuilder.getDeckStats(gameState.decks.p1);
             const stats2 = window.deckBuilder.getDeckStats(gameState.decks.p2);
+            const nomeDeck = player => gameState.deckSelections?.[player]?.nome || 'Deck aleatório';
             
-            const info = `DECK PLAYER 1:
+            const info = `DECK PLAYER 1 (${nomeDeck('p1')}):
 • Total: ${stats1.total} cartas
 • Criaturas: ${stats1.criaturas}
 • Suportes: ${stats1.suportes}  
 • Evoluções: ${stats1.evolucoes}
 • Custo médio: ${stats1.custoMedio}
 
-DECK PLAYER 2:
+DECK PLAYER 2 (${nomeDeck('p2')}):
 • Total: ${stats2.total} cartas
 • Criaturas: ${stats2.criaturas}
 • Suportes: ${stats2.suportes}
@@ -2692,8 +2805,15 @@ Cartas restantes:
             // `DRAW` extra ao servidor a cada load e a mão crescia fora dele.
             if (window.PvpSession) return;
 
+            // Seletor de decks do hotseat: a mesa só é montada depois da escolha.
+            // Sem catálogo (fetch bloqueado/file://) `abrir()` resolve null e a
+            // partida segue com o deck aleatório, como antes.
+            const escolhaDeDeck = window.DeckSelect?.abrir
+                ? await window.DeckSelect.abrir()
+                : null;
+
             if (cardsLoaded && typeof startNewMatch === 'function') {
-                startNewMatch();
+                await startNewMatch(escolhaDeDeck);
                 console.log('Jogo iniciado com cartas reais!');
             } else {
                 console.log('Usando cartas básicas (fallback)');

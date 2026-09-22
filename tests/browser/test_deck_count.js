@@ -29,18 +29,18 @@
     const texto = player => (el(player)?.textContent || '').trim();
     const mao = player => state.players[player].zones.hand.length;
 
-    // Boot do game.html: `startNewMatch` distribui 5 cartas por lado e o
-    // `initFirstTurn` compra mais 1 para quem abre (p1). O deck balanceado tem
-    // 48–50 cartas (o pool é sorteado), então o invariante é a distribuição, não
-    // um total fixo de 50.
+    // Boot do game.html: o seletor de decks confirma o deck aleatório e o
+    // `startNewMatch` distribui 5 cartas por lado; o `initFirstTurn` compra mais
+    // 1 para quem abre. O deck tem exatamente 40 cartas (preset ou sorteado),
+    // então o invariante é o total por lado, não só a mão.
     const totalDoBoot = player => saldo(player) + mao(player);
     assert('as duas áreas de saque têm contador', Boolean(el('p1')) && Boolean(el('p2')));
     assert('o rótulo de p1 é o saldo do deck', texto('p1') === `${saldo('p1')} cartas`);
     assert('o rótulo de p2 é o saldo do deck', texto('p2') === `${saldo('p2')} cartas`);
     assert('o boot deixa 5 cartas por lado (+1 compra para quem abre) e o resto no deck',
         mao('p2') === 5 && mao('p1') === 6
-        && totalDoBoot('p1') >= 45 && totalDoBoot('p1') <= 50
-        && totalDoBoot('p2') >= 45 && totalDoBoot('p2') <= 50);
+        && totalDoBoot('p1') === window.DECK_SIZE
+        && totalDoBoot('p2') === window.DECK_SIZE);
     assert('o saldo também vai no data-count',
         el('p1').getAttribute('data-count') === String(saldo('p1')));
 

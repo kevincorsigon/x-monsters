@@ -23,7 +23,9 @@ const CONSOLE_SCRIPTS = [
     'tests/browser/test_mago_arcano.js',
     'tests/browser/test_tobinha.js',
     'tests/browser/test_deck_count.js',
+    'tests/browser/test_deck_select.js',
     'tests/browser/test_dice_roll.js',
+    'tests/browser/test_turn_timer.js',
     'tests/browser/test_tlantidu_death.js',
 ];
 
@@ -37,6 +39,7 @@ const PVP_CONSOLE_SCRIPTS = [
     'tests/browser/test_pvp_game_over.js',
     'tests/browser/test_pvp_deck_count.js',
     'tests/browser/test_pvp_dice_state.js',
+    'tests/browser/test_pvp_deck_entry.js',
 ];
 
 // Scripts de console do lobby (precisam de pvp-lobby.html carregado)
@@ -45,6 +48,25 @@ const LOBBY_CONSOLE_SCRIPTS = [
 ];
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/**
+ * Espera uma condição booleana dentro da página (com timeout). Substitui os sleeps
+ * fixos do runner: a página só é testada depois de `readyState === 'complete'` e
+ * do núcleo carregado — foi o que evitou o flake de "PvpProtocol não carregado".
+ */
+async function esperarNaPagina(ws, expressao, timeoutMs = 15000, obrigatorio = true) {
+    const limite = Date.now() + timeoutMs;
+    while (Date.now() < limite) {
+        const resultado = await cdp(ws, 'Runtime.evaluate', {
+            expression: expressao,
+            returnByValue: true
+        });
+        if (resultado && resultado.result && resultado.result.value) return true;
+        await sleep(150);
+    }
+    if (obrigatorio) console.warn(`aviso: condição não satisfeita em ${timeoutMs}ms: ${expressao}`);
+    return false;
+}
 
 function fetchJson(path) {
     return new Promise((resolve, reject) => {
@@ -98,8 +120,41 @@ async function runPage(wsUrl, label, scriptToInject, pageUrl = 'game.html') {
     let domLog = null;
 
     if (scriptToInject) {
+        // Páginas do tabuleiro: espera ATIVA em vez de sleep fixo. Cada página
+        // carrega ~12 `<script>` sequenciais, então 3s bastavam na máquina ociosa e
+        // a suíte já falhou com a página no meio do carregamento (o teste injetado
+        // via `PvpProtocol não carregado`).
+        const paginaDeJogo = /(^|\/)(game|pvp)\.html$/.test(pageUrl);
         await cdp(ws, 'Page.navigate', { url: `${BASE}/${pageUrl}` });
-        await sleep(3000);
+        // O lobby não carrega o núcleo do jogo (`game-state.js`/`game.js`): lá basta
+        // a página terminar de carregar. Nas duas telas de partida, espera também o
+        // estado e (no PvP) a camada do protocolo.
+        await esperarNaPagina(
+            ws,
+            paginaDeJogo
+                ? `(function(){
+                    const protocoloOk = ${pageUrl.startsWith('pvp') ? 'Boolean(window.PvpProtocol)' : 'true'};
+                    return document.readyState === 'complete'
+                        && Boolean(window.GameStateModel && window.gameState)
+                        && protocoloOk;
+                })()`
+                : `(function(){ return document.readyState === 'complete'; })()`,
+            20000
+        );
+
+        // O seletor de decks bloqueia o boot das duas telas de partida: o harness
+        // confirma o deck aleatório assim que o modal abre (mesmo caminho de um
+        // clique do jogador). Sem seletor na página, nada acontece.
+        if (paginaDeJogo) {
+            await esperarNaPagina(ws,
+                `(function(){ return Boolean(window.DeckSelect?.aberto?.()); })()`,
+                12000, false);
+        }
+        const escolha = await cdp(ws, 'Runtime.evaluate', {
+            expression: `(function(){ return window.DeckSelect?.confirmarAleatorio ? window.DeckSelect.confirmarAleatorio() : null; })()`,
+            returnByValue: true
+        });
+        if (escolha && escolha.result && escolha.result.value) await sleep(700);
         const fs = require('fs');
         const code = fs.readFileSync(require('path').join(__dirname, '..', '..', scriptToInject), 'utf8');
         await cdp(ws, 'Runtime.evaluate', {

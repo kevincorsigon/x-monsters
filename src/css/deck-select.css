@@ -1,0 +1,458 @@
+/* deck-select.css — seletor de decks (modal do hotseat + picker do lobby PvP).
+   Componente compartilhado por game.html e pvp-lobby.html: por isso vive em
+   arquivo próprio em vez de dentro do game.css. As cores de identidade de cada
+   deck chegam como CSS vars (--deck-primaria / --deck-secundaria / --deck-acento)
+   escritas por `src/js/deck-select.js` a partir de data/decks.json. */
+
+.deck-select-modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    z-index: 1200;
+    overflow-y: auto;
+    padding: clamp(12px, 3vh, 40px) clamp(10px, 3vw, 32px);
+    background: radial-gradient(120% 90% at 50% 0%, rgba(20, 26, 44, 0.94) 0%, rgba(5, 7, 12, 0.97) 70%);
+    backdrop-filter: blur(6px);
+}
+
+.deck-select-modal.visible {
+    display: block;
+}
+
+body.deck-select-aberto {
+    overflow: hidden;
+}
+
+.deck-select-card {
+    width: min(1180px, 100%);
+    margin: 0 auto;
+    padding: clamp(14px, 2.4vw, 26px);
+    border: 2px solid var(--primary-color, #d4af37);
+    border-radius: 18px;
+    background: linear-gradient(135deg, var(--card-bg-color, #1a1e28) 0%, #10131c 100%);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.75);
+}
+
+.deck-select-head {
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.deck-select-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border: 1px solid var(--primary-color, #d4af37);
+    border-radius: 999px;
+    color: var(--primary-color, #d4af37);
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+.deck-select-head h2 {
+    margin: 10px 0 6px;
+    color: var(--primary-color, #d4af37);
+    font-size: clamp(1.1rem, 2.2vw, 1.6rem);
+    letter-spacing: 0.04em;
+}
+
+.deck-select-subtitle {
+    margin: 0;
+    color: var(--text-color, #f1f5f9);
+    opacity: 0.85;
+    font-size: 0.9rem;
+}
+
+/* ── grade de opções ─────────────────────────────────────────────────────── */
+
+.deck-select-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(196px, 1fr));
+    gap: 14px;
+}
+
+.deck-option {
+    --deck-primaria: #d4af37;
+    --deck-secundaria: #1a1e28;
+    --deck-acento: #f8fafc;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 12px 14px;
+    border: 2px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    background: linear-gradient(160deg, var(--deck-secundaria) 0%, rgba(8, 10, 16, 0.96) 88%);
+    color: var(--text-color, #f1f5f9);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.deck-option:hover,
+.deck-option:focus-visible {
+    transform: translateY(-3px);
+    border-color: var(--deck-primaria);
+    outline: none;
+}
+
+.deck-option.selected {
+    border-color: var(--deck-primaria);
+    box-shadow: 0 0 0 2px var(--deck-primaria), 0 16px 34px rgba(0, 0, 0, 0.6);
+}
+
+/* Pilha de cartas: os versos de X Monsters empilhados, com a cor do deck. */
+.deck-stack {
+    position: relative;
+    display: block;
+    height: 134px;
+}
+
+.deck-stack-card {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    width: 88px;
+    height: 124px;
+    margin-left: -44px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-radius: 10px;
+    background: url('../../assets/verso.jpeg') center / cover no-repeat,
+        linear-gradient(135deg, var(--deck-secundaria) 0%, #0b0e15 100%);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.55);
+    transform: rotate(calc((var(--pilha) - 2) * 5deg)) translateY(calc(var(--pilha) * -4px));
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.deck-option:hover .deck-stack-card {
+    transform: rotate(calc((var(--pilha) - 2) * 9deg)) translateY(calc(var(--pilha) * -7px));
+}
+
+.deck-option.selected .deck-stack-card {
+    border-color: var(--deck-acento);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6), 0 0 16px var(--deck-primaria);
+}
+
+.deck-stack-emblema {
+    position: absolute;
+    top: 66px;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 30px;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.85));
+    pointer-events: none;
+}
+
+.deck-option-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.deck-option-nome {
+    color: var(--deck-primaria);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.deck-option-tema {
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.7;
+}
+
+.deck-option-stats {
+    font-size: 0.74rem;
+    line-height: 1.35;
+    opacity: 0.85;
+}
+
+/* ── chips de traits ─────────────────────────────────────────────────────── */
+
+.deck-traits {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.trait-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+}
+
+.deck-option.selected .trait-chip {
+    border-color: var(--deck-primaria);
+}
+
+.trait-chip-icone {
+    font-size: 0.78rem;
+}
+
+/* Chips de traits dentro do modal de detalhes da carta (game.html/pvp.html). */
+.modal-card-traits {
+    margin-top: 16px;
+    padding: 12px 15px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    text-align: center;
+}
+
+.modal-card-section-title {
+    margin-bottom: 8px;
+    color: var(--primary-color, #d4af37);
+    font-size: 1.05rem;
+}
+
+.modal-traits {
+    justify-content: center;
+}
+
+.modal-traits .trait-chip {
+    font-size: 0.8rem;
+    padding: 4px 12px;
+}
+
+/* ── painel de detalhe ───────────────────────────────────────────────────── */
+
+.deck-select-detail,
+#deckSelectDetail {
+    --deck-primaria: #d4af37;
+    margin-top: 16px;
+    padding: 14px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.28);
+}
+
+.deck-detalhe-cabecalho {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.deck-detalhe-emblema {
+    font-size: 30px;
+}
+
+.deck-detalhe-titulos {
+    display: flex;
+    flex-direction: column;
+}
+
+.deck-detalhe-nome {
+    color: var(--primary-color, #d4af37);
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.deck-detalhe-tema {
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.65;
+}
+
+.deck-detalhe-descricao {
+    margin: 10px 0;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    opacity: 0.9;
+}
+
+.deck-detalhe-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.deck-detalhe-stat {
+    padding: 4px 10px;
+    border: 1px solid var(--secondary-color, #334155);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 0.74rem;
+}
+
+.deck-detalhe-stat b {
+    color: var(--energy-color, #fbbf24);
+}
+
+.deck-detalhe-curva {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+}
+
+.deck-detalhe-curva.is-vazia {
+    font-size: 0.78rem;
+    opacity: 0.7;
+}
+
+.deck-curva-linha {
+    display: grid;
+    grid-template-columns: 34px 1fr 28px;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.72rem;
+}
+
+.deck-curva-trilha {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+}
+
+.deck-curva-barra {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--deck-primaria), var(--deck-acento, #f8fafc));
+}
+
+.deck-curva-valor {
+    text-align: right;
+    opacity: 0.8;
+}
+
+.deck-traits-detalhe {
+    margin-bottom: 10px;
+}
+
+/* ── cartas do deck (miniatura clicável: abre o modal de detalhes) ───────── */
+
+.deck-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.deck-card-mini {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px;
+    border: 2px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    background: linear-gradient(160deg, var(--deck-secundaria, #1a1e28) 0%, #0a0d14 100%);
+    color: var(--text-color, #f1f5f9);
+    font: inherit;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.deck-card-mini:hover,
+.deck-card-mini:focus-visible {
+    transform: translateY(-3px) scale(1.03);
+    border-color: var(--deck-primaria, #d4af37);
+    outline: none;
+    z-index: 2;
+}
+
+.deck-card-mini-img {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    border-radius: 6px;
+    object-fit: cover;
+}
+
+.deck-card-mini-img.is-vazia {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 22px;
+}
+
+.deck-card-mini-custo {
+    position: absolute;
+    top: 0;
+    left: 0;
+    min-width: 20px;
+    padding: 1px 5px;
+    border-radius: 8px 0 8px 0;
+    background: var(--energy-color, #fbbf24);
+    color: #10131c;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.deck-card-mini-nome {
+    font-size: 0.66rem;
+    line-height: 1.2;
+    text-align: center;
+}
+
+.deck-card-mini-copias {
+    align-self: center;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    font-size: 0.66rem;
+}
+
+/* ── ações ───────────────────────────────────────────────────────────────── */
+
+.deck-select-actions {
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+}
+
+.deck-select-confirm {
+    --deck-primaria: #d4af37;
+    padding: 12px 26px;
+    border: 2px solid var(--deck-primaria);
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(0, 0, 0, 0.35) 100%);
+    color: var(--text-color, #f1f5f9);
+    font: inherit;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.deck-select-confirm:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.deck-select-confirm:not(:disabled):hover,
+.deck-select-confirm:not(:disabled):focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 0 20px var(--deck-primaria);
+    outline: none;
+}
+
+@media (max-width: 560px) {
+    .deck-stack {
+        height: 112px;
+    }
+
+    .deck-stack-card {
+        width: 74px;
+        height: 104px;
+        margin-left: -37px;
+    }
+
+    .deck-stack-emblema {
+        top: 56px;
+    }
+}

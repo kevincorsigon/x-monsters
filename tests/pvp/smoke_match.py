@@ -19,6 +19,7 @@ Exit code 0 = tudo passou.
 
 import asyncio
 import json
+import os
 import re
 import subprocess
 import sys
@@ -58,17 +59,20 @@ class WsClient:
         self._recv_task = None
         self._queue = None          # fila interna drenada pelo listener de fundo
 
-    async def connect(self, room_id, token=None):
+    async def connect(self, room_id, token=None, deck=None):
         from collections import deque
         token = token or f"smoke_{self.seat}"
         self.ws = await connect(WS_URL, max_size=None, max_queue=None)
         self._queue = deque()
-        await self.ws.send(json.dumps({
+        hello = {
             "type": "HELLO",
             "room": room_id,
             "seat": self.seat,
             "token": token,
-        }))
+        }
+        if deck:
+            hello["deck"] = deck
+        await self.ws.send(json.dumps(hello))
         # inicia o listener de fundo
         self._recv_task = asyncio.create_task(self._listen())
 
@@ -126,10 +130,14 @@ def assert_true(condition, message):
 # ── teste principal ───────────────────────────────────────────────────────
 
 async def run_test():
+    # Relogio de turno DESLIGADO neste smoke: ele conta comandos exatos e um
+    # END_TURN automatico no meio mudaria o ledger. O relogio tem teste proprio
+    # (`tests/pvp/turn_timer.py`).
     server = subprocess.Popen(
         [sys.executable, str(ROOT / "server.py"), "--port", str(PORT)],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        env={**os.environ, "XM_TURN_SECONDS": "0"},
     )
     time.sleep(1.5)
 
@@ -505,6 +513,65 @@ async def run_test():
             nova["links"]["p1"].endswith(f"/pvp/{nova['roomId']}/p1"),
             "os links da sala nova apontam para ela",
         )
+
+        # ── deck escolhido no lobby (preset de data/decks.json) ──
+        presets = json.loads((ROOT / "data" / "decks.json").read_text(encoding="utf-8"))["decks"]
+        preset = next(deck for deck in presets if deck["id"] == "robotico")
+
+        p1p = WsClient("p1")
+        p2p = WsClient("p2")
+        await p1p.connect(nova["roomId"], "smoke_preset_p1", deck=preset["id"])
+        await asyncio.sleep(0.3)
+        # O assento sem preset continua entrando pelo sorteio; um id desconhecido
+        # precisa ser ignorado sem derrubar a partida.
+        await p2p.connect(nova["roomId"], "smoke_preset_p2", deck="deck-que-nao-existe")
+        await p2p.drain(1.2)
+
+        inicio_p1 = [m for m in p1p.messages if m.get("type") == "MATCH_START"][-1]
+        inicio_p2 = [m for m in p2p.messages if m.get("type") == "MATCH_START"][-1]
+        assert_true(
+            inicio_p1.get("deckId") == preset["id"],
+            "o preset escolhido volta no MATCH_START do dono",
+        )
+        assert_true(
+            inicio_p1.get("deckNome") == preset["nome"],
+            "o nome do preset acompanha o id",
+        )
+        assert_true(
+            [carta["id"] for carta in inicio_p1.get("deck") or []] == preset["cartas"],
+            "o servidor expande o preset na ordem de data/decks.json",
+        )
+        assert_true(
+            len(inicio_p1.get("deck") or []) == 40,
+            "o preset chega com as 40 cartas do catalogo",
+        )
+        assert_true(
+            inicio_p2.get("deckId") is None,
+            "deck desconhecido cai no sorteio (sem deckId)",
+        )
+        assert_true(
+            len(inicio_p2.get("deck") or []) == 40 or inicio_p2.get("deck") is None,
+            "o assento sem preset recebe o deck da seed (ou None para o cliente gerar)",
+        )
+        assert_true(
+            "deckId" not in ((inicio_p1.get("state") or {}).get("assentos", {}).get("p2") or {}),
+            "o deck do oponente nao vaza identidade no estado publico",
+        )
+
+        espelho_preset = json.loads(
+            (ROOT / "matches" / f"{nova['roomId']}.json").read_text(encoding="utf-8")
+        )
+        assert_true(
+            (espelho_preset.get("escolhasDeck") or {}).get("p1") == preset["id"],
+            "o espelho registra a escolha de deck do assento",
+        )
+        assert_true(
+            (espelho_preset.get("decksResolvidos") or {}).get("p2") is None,
+            "o espelho registra que p2 ficou com o deck sorteado",
+        )
+
+        await p1p.close()
+        await p2p.close()
 
         await p1b.close()
         await p2.close()

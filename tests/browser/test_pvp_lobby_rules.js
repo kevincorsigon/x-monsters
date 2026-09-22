@@ -34,16 +34,20 @@
     botao.click();
     assert('o botão "Regras do Jogo" abre o modal', visivel() && estilo().visibility === 'visible');
 
-    // 2. O modal cobre a tela e o conteúdo cabe na viewport.
+    // 2. O modal cobre a tela e o conteúdo cabe na viewport. A área visível é
+    //    `clientWidth`/`clientHeight` (sem a barra de rolagem): desde que o lobby
+    //    ganhou o seletor de decks a página rola, e o `innerWidth` inclui a barra.
+    const raiz = document.documentElement;
     const caixaModal = modal.getBoundingClientRect();
     const caixaConteudo = conteudo.getBoundingClientRect();
-    assert('o modal cobre a viewport',
+    assert(`o modal cobre a viewport (${Math.round(caixaModal.width)}x${Math.round(caixaModal.height)} ` +
+        `vs ${raiz.clientWidth}x${raiz.clientHeight})`,
         caixaModal.top <= 0.5 && caixaModal.left <= 0.5
-        && caixaModal.width >= window.innerWidth - 1 && caixaModal.height >= window.innerHeight - 1);
+        && caixaModal.width >= raiz.clientWidth - 1 && caixaModal.height >= raiz.clientHeight - 1);
     assert('o conteúdo fica dentro da tela e rola por dentro',
         caixaConteudo.top >= -0.5
-        && caixaConteudo.bottom <= window.innerHeight + 0.5
-        && caixaConteudo.height <= window.innerHeight);
+        && caixaConteudo.bottom <= raiz.clientHeight + 0.5
+        && caixaConteudo.height <= raiz.clientHeight);
 
     // 3. Conteúdo das regras: as cinco seções do index.html.
     const secoes = [...conteudo.querySelectorAll('.rules-text h3')].map(h => h.textContent.trim());

@@ -1289,6 +1289,9 @@ test('ataque direto básico exige campo vazio e criaturas aéreas ignoram defens
 test('Atravessava limpa permissão ao sair e Rego expira no fim do turno', () => {
     const atravessava = grantDirectAttackEquipment('card_028');
     assert.equal(atravessava.result.status, 'resolved');
+    // A permissão de equipamento NÃO fura a regra do primeiro turno de cada jogador.
+    assert.equal(CardRules.canDirectAttack(atravessava.state, atravessava.attacker.instanceId), false);
+    atravessava.state.turn = 3; // segundo turno de p1
     assert.equal(CardRules.canDirectAttack(atravessava.state, atravessava.attacker.instanceId), true);
     atravessava.engine.resolveAction({
         type: 'REMOVE_DIRECT_EQUIPMENT',
@@ -1304,6 +1307,7 @@ test('Atravessava limpa permissão ao sair e Rego expira no fim do turno', () =>
     assert.equal(CardRules.canDirectAttack(atravessava.state, atravessava.attacker.instanceId), false);
 
     const rego = grantDirectAttackEquipment('card_088');
+    rego.state.turn = 3; // segundo turno de p1 (o primeiro não permite ataque direto)
     assert.equal(CardRules.canDirectAttack(rego.state, rego.attacker.instanceId), true);
     rego.engine.emit(GameEngine.EVENT_TYPES.TURN_ENDED, {
         playerId: 'p1',
@@ -1744,10 +1748,10 @@ test('inventário de traits do catálogo é fechado (lista por trait)', () => {
     // por aqui de propósito, obrigando a atualizar o inventário e o relatório.
     const INVENTARIO = {
         besta: ['card_011', 'card_013', 'card_014', 'card_016', 'card_017', 'card_019',
-            'card_021', 'card_022', 'card_036', 'card_039', 'card_041', 'card_044',
-            'card_048', 'card_049', 'card_050', 'card_053', 'card_063', 'card_069',
-            'card_070', 'card_073', 'card_075', 'card_078', 'card_079', 'card_080',
-            'card_081', 'card_082'],
+            'card_021', 'card_022', 'card_029', 'card_036', 'card_039', 'card_041',
+            'card_044', 'card_048', 'card_049', 'card_050', 'card_053', 'card_063',
+            'card_069', 'card_070', 'card_073', 'card_075', 'card_078', 'card_079',
+            'card_080', 'card_081', 'card_082'],
         humanoide: ['card_003', 'card_025', 'card_026', 'card_031', 'card_040',
             'card_043', 'card_045', 'card_046', 'card_047', 'card_054', 'card_055',
             'card_056', 'card_058', 'card_059', 'card_061', 'card_062', 'card_066',
@@ -1756,7 +1760,7 @@ test('inventário de traits do catálogo é fechado (lista por trait)', () => {
         elite: ['card_036', 'card_054', 'card_061', 'card_067', 'card_068', 'card_076',
             'card_078', 'card_079', 'card_080', 'card_081', 'card_082', 'card_083',
             'card_084', 'card_085', 'card_086', 'card_087'],
-        dragao: ['card_020', 'card_029', 'card_035', 'card_037', 'card_051', 'card_052',
+        dragao: ['card_020', 'card_035', 'card_037', 'card_051', 'card_052',
             'card_065', 'card_071', 'card_087'],
         lobisomem: ['card_059', 'card_077', 'card_078', 'card_079', 'card_080',
             'card_081', 'card_082', 'card_085'],
@@ -1793,13 +1797,17 @@ test('inventário de traits do catálogo é fechado (lista por trait)', () => {
 });
 
 test('dragões do catálogo estão marcados com a trait dragao', () => {
-    const dragoes = ['card_020', 'card_029', 'card_035', 'card_037', 'card_051',
+    // Aladar saiu da lista (decisão do autor, 2026-09-21): a arte/habilidade não
+    // são de dragão — card_029 é besta.
+    const dragoes = ['card_020', 'card_035', 'card_037', 'card_051',
         'card_052', 'card_065', 'card_071', 'card_087'];
     const faltando = dragoes.filter(id => {
         const carta = cardsDatabase.cards.find(c => c.id === id);
         return !carta || !carta.traits.includes('dragao');
     });
     assert.deepEqual(faltando, [], 'estas cartas deveriam ter dragao');
+    assert.deepEqual(cardsDatabase.cards.find(c => c.id === 'card_029').traits, ['besta'],
+        'Aladar é besta, não dragão');
 });
 
 test('Superior é dragão: Scoul reage a ele em campo', () => {
@@ -4514,7 +4522,8 @@ test('Trox: modificador de custo zero é consumido após reinvocação', () => {
 });
 
 test('equipagem de suporte sem regra retorna null em vez de lançar', () => {
-    ['card_006', 'card_007', 'card_008', 'card_090'].forEach(definitionId => {
+    // card_090 saiu daqui: a Bilugação Astral ganhou regra de equipamento.
+    ['card_006', 'card_007', 'card_008'].forEach(definitionId => {
         const state = GameStateModel.createInitialGameState();
         const equipment = GameStateModel.createCardInstance({
             id: definitionId,
@@ -4731,9 +4740,10 @@ test('fim de jogo trava os botões e o reset devolve a interatividade', () => {
 test('timers de fim de turno, de vitória e do dado respeitam a geração da partida', () => {
     const interfaceSource = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
     const generationGuards = interfaceSource.match(/generation !== window\.matchGeneration/g) || [];
-    // endGame (fim de turno/vitória), a compra do deck e o resultado do dado da
-    // sorte — um timer pendente nunca pode cair na partida seguinte.
-    assert.equal(generationGuards.length, 3);
+    // endGame (fim de turno/vitória), a compra do deck, o resultado do dado da
+    // sorte e o relógio de turno — um timer pendente nunca pode cair na partida
+    // seguinte.
+    assert.equal(generationGuards.length, 4);
 });
 
 /**
@@ -5321,7 +5331,10 @@ test('game.js não compra carta automática com a sessão PvP ativa', () => {
     const guardaAbertura = bootstrap.indexOf('if (window.PvpSession) return;');
     assert.notEqual(guardaAbertura, -1, 'a abertura local precisa sair cedo no PvP');
     assert.ok(guardaAbertura < bootstrap.indexOf('initFirstTurn();'), 'initFirstTurn não roda em PvP');
-    assert.ok(guardaAbertura < bootstrap.indexOf('startNewMatch();'), 'startNewMatch local não roda em PvP');
+    assert.ok(guardaAbertura < bootstrap.indexOf('startNewMatch(escolhaDeDeck)'),
+        'startNewMatch local não roda em PvP');
+    assert.ok(guardaAbertura < bootstrap.indexOf('window.DeckSelect.abrir()'),
+        'o seletor de decks (modal bloqueante) nunca abre no PvP');
 
     // O clique no deck é comando: em PvP quem compra é o servidor.
     const addBody = functionBody('addCardToHand', 'toggleGearMenu');
@@ -5582,6 +5595,560 @@ test('resizeHiddenZone ajusta o leque do oponente à contagem do servidor', () =
     assert.strictEqual(PvpState.resizeHiddenZone(state, 'p1', 'hand', -1), 0, 'alvo inválido é ignorado');
 });
 
+
+/**
+ * SELECAO DE DECKS — catalogo pre-montado (data/decks.json)
+ */
+
+const decksDatabase = require('../../data/decks.json');
+const DeckSystem = require('../../src/js/deck_system.js');
+const deckBuilderCatalogo = new DeckBuilder(cardsDatabase);
+const catalogoDeCartas = cardsDatabase.cards;
+const cartaPorId = id => catalogoDeCartas.find(carta => carta.id === id);
+
+test('o catalogo de decks traz ao menos 3 presets de 40 cartas com ids do catalogo', () => {
+    assert.ok(Array.isArray(decksDatabase.decks), 'data/decks.json tem a lista de decks');
+    assert.ok(decksDatabase.decks.length >= 3, 'o pedido exige pelo menos 3 decks');
+
+    decksDatabase.decks.forEach(deck => {
+        assert.ok(deck.id && deck.nome && deck.emblema, `${deck.id}: identificacao completa`);
+        assert.ok(deck.cores?.primaria && deck.cores?.secundaria, `${deck.id}: cores de identidade`);
+        assert.equal(deck.cartas.length, DeckSystem.DECK_SIZE,
+            `${deck.nome} tem exatamente ${DeckSystem.DECK_SIZE} cartas`);
+
+        const copias = deck.cartas.reduce((contagem, id) => {
+            contagem[id] = (contagem[id] || 0) + 1;
+            return contagem;
+        }, {});
+        const maxCopias = Math.max(...Object.values(copias));
+        assert.ok(maxCopias <= 3, `${deck.nome}: no maximo 3 copias por carta (achei ${maxCopias})`);
+        Object.keys(copias).forEach(id => {
+            assert.ok(cartaPorId(id), `${deck.nome}: ${id} existe em cards_database.json`);
+        });
+    });
+});
+
+test('todo deck respeita a curva de custo e a proporcao de criaturas', () => {
+    decksDatabase.decks.forEach(deck => {
+        const cartas = deck.cartas.map(cartaPorId);
+        const custos = cartas.map(carta => carta.cost);
+        const media = custos.reduce((soma, custo) => soma + custo, 0) / custos.length;
+        const criaturas = cartas.filter(carta => carta.type === 'criatura' || carta.type === 'evolução').length;
+
+        assert.ok(Math.max(...custos) <= 12, `${deck.nome}: nenhum custo acima de 12`);
+        assert.ok(media >= 3.0 && media <= 4.8, `${deck.nome}: custo medio ${media.toFixed(2)} na faixa 3.0-4.8`);
+        assert.ok(criaturas >= 24, `${deck.nome}: pelo menos 24 criaturas/evolucoes (achei ${criaturas})`);
+        assert.ok(custos.filter(custo => custo <= 3).length >= 10,
+            `${deck.nome}: base de custo baixo para abrir a partida`);
+        assert.ok(custos.filter(custo => custo >= 4 && custo <= 6).length >= 8,
+            `${deck.nome}: meio de curva consistente`);
+    });
+});
+
+test('cada deck e coeso: a maioria das criaturas carrega as traits do tema', () => {
+    decksDatabase.decks.forEach(deck => {
+        const criaturas = deck.cartas.map(cartaPorId)
+            .filter(carta => carta.type === 'criatura' || carta.type === 'evolução');
+        const doTema = criaturas.filter(carta =>
+            (carta.traits || []).some(trait => deck.traits.includes(trait)));
+
+        assert.ok(doTema.length / criaturas.length >= 0.5,
+            `${deck.nome}: ao menos metade das criaturas no tema (${doTema.length}/${criaturas.length})`);
+        deck.traits.forEach(trait => {
+            const portadoras = criaturas.filter(carta => (carta.traits || []).includes(trait));
+            assert.ok(portadoras.length >= 1, `${deck.nome}: ${trait} precisa de portadora no deck`);
+        });
+    });
+});
+
+test('todo suporte com exigencia de trait acha hospedeiro no deck e a evolucao tem a base', () => {
+    decksDatabase.decks.forEach(deck => {
+        const cartas = deck.cartas.map(cartaPorId);
+        const criaturas = cartas.filter(carta => carta.type === 'criatura' || carta.type === 'evolução');
+        const elegivel = (carta, trait) => CardRules.hasTrait({ definitionId: carta.id, data: carta }, trait);
+
+        cartas.filter(carta => carta.type === 'suporte').forEach(suporte => {
+            const regra = CardRules.getEquipmentRule(suporte.id);
+            if (!regra) return;
+            const exigidas = regra.requiredTraitsAny || (regra.requiredTrait ? [regra.requiredTrait] : []);
+            if (exigidas.length === 0) return;
+            const hospedeiros = criaturas.filter(carta => exigidas.some(trait => elegivel(carta, trait)));
+            assert.ok(hospedeiros.length >= 3,
+                `${deck.nome}: ${suporte.name} exige ${exigidas.join('/')} e tem ${hospedeiros.length} hospedeiros`);
+        });
+
+        cartas.filter(carta => carta.type === 'evolução').forEach(evolucao => {
+            const base = CardRules.EVOLUTION_BASE_IDS[evolucao.id];
+            assert.ok(base, `${evolucao.name}: evolucao registrada em EVOLUTION_BASE_IDS`);
+            assert.ok(deck.cartas.includes(base), `${deck.nome}: ${evolucao.name} vem com a base ${base}`);
+        });
+    });
+});
+
+test('definicoesDeDeck expande o preset em definicoes do catalogo (e recusa deck desconhecido)', () => {
+    const definicoes = deckBuilderCatalogo.definicoesDeDeck('robotico', decksDatabase);
+    assert.equal(definicoes.length, DeckSystem.DECK_SIZE);
+    assert.deepStrictEqual(definicoes.map(c => c.id), decksDatabase.decks.find(d => d.id === 'robotico').cartas);
+    definicoes.forEach(definicao => assert.ok(cartaPorId(definicao.id), `${definicao.id} veio do catalogo`));
+    assert.throws(() => deckBuilderCatalogo.definicoesDeDeck('inexistente', decksDatabase), /Deck desconhecido/);
+});
+
+test('montarDecksDaEscolha entrega o preset embaralhado em p1 e um deck sorteado em p2', () => {
+    const furia = decksDatabase.decks.find(d => d.id === 'furia');
+    const comPreset = DeckSystem.montarDecksDaEscolha('furia', DeckSystem.DECK_SIZE, deckBuilderCatalogo, decksDatabase);
+
+    assert.equal(comPreset.decks.player1.length, DeckSystem.DECK_SIZE);
+    assert.deepStrictEqual(
+        comPreset.decks.player1.map(c => c.id).sort(),
+        [...furia.cartas].sort(),
+        'p1 recebe exatamente as cartas do preset (o multiset, não a ordem do arquivo)'
+    );
+    assert.equal(comPreset.decks.player2.length, DeckSystem.DECK_SIZE, 'p2 segue com deck balanceado');
+    assert.equal(comPreset.selecoes.p1.id, 'furia');
+    assert.equal(comPreset.selecoes.p2, null);
+
+    // O baralho é embaralhado na montagem: com o RNG da partida (seed fixa) a
+    // ordem é reproduzível — é o que garante o F5 do PvP — e muda entre partidas.
+    const comSeed = seed => DeckSystem.montarDecksDaEscolha(
+        'furia',
+        DeckSystem.DECK_SIZE,
+        new DeckBuilder(cardsDatabase, { rng: mulberry32(seed) }),
+        decksDatabase
+    ).decks.player1.map(c => c.id);
+
+    const primeira = comSeed(11);
+    assert.deepStrictEqual(primeira, comSeed(11), 'mesma seed, mesma ordem de baralho');
+    assert.notDeepStrictEqual(primeira, comSeed(12), 'seed diferente, ordem diferente');
+    assert.notDeepStrictEqual(primeira, furia.cartas,
+        'a ordem do JSON (agrupada por custo) nunca é a ordem do baralho');
+
+    ['aleatorio', null, 'id-que-nao-existe'].forEach(escolha => {
+        const sorteado = DeckSystem.montarDecksDaEscolha(escolha, DeckSystem.DECK_SIZE, deckBuilderCatalogo, decksDatabase);
+        assert.equal(sorteado.selecoes.p1, null, `${escolha}: cai no deck aleatorio`);
+        assert.equal(sorteado.decks.player1.length, DeckSystem.DECK_SIZE);
+    });
+});
+
+test('embaralhar preserva as cartas, nao muta a entrada e depende so do RNG', () => {
+    const entrada = ['card_011', 'card_013', 'card_014', 'card_017', 'card_019', 'card_036', 'card_059', 'card_077'];
+    const copia = [...entrada];
+
+    const a = DeckBuilder.embaralhar(entrada, mulberry32(5));
+    const b = DeckBuilder.embaralhar(entrada, mulberry32(5));
+    const c = DeckBuilder.embaralhar(entrada, mulberry32(6));
+
+    assert.deepStrictEqual([...a].sort(), [...entrada].sort(), 'nao cria nem perde carta');
+    assert.deepStrictEqual(a, b, 'mesmo RNG, mesma ordem');
+    assert.notDeepStrictEqual(a, c, 'RNG diferente, ordem diferente');
+    assert.notDeepStrictEqual(a, copia, 'a ordem de entrada nao sobrevive ao embaralhamento');
+    assert.deepStrictEqual(entrada, copia, 'a entrada original fica intacta');
+    assert.deepStrictEqual(DeckBuilder.embaralhar([], mulberry32(1)), [], 'baralho vazio nao quebra');
+
+    // `shuffleArray` (usado pelo deck aleatorio) e o mesmo algoritmo do estatico.
+    const builder = new DeckBuilder(cardsDatabase, { rng: mulberry32(7) });
+    assert.deepStrictEqual(
+        builder.shuffleArray(['a', 'b', 'c', 'd'], mulberry32(7)),
+        DeckBuilder.embaralhar(['a', 'b', 'c', 'd'], mulberry32(7)),
+        'shuffleArray delega para embaralhar (uma unica implementacao)'
+    );
+});
+
+test('resumoDeDeck soma a curva de custo e as estatisticas do preset', () => {
+    decksDatabase.decks.forEach(deck => {
+        const resumo = DeckSystem.resumoDeDeck(deck.id, decksDatabase, deckBuilderCatalogo);
+        assert.equal(resumo.nome, deck.nome);
+        assert.equal(resumo.stats.total, DeckSystem.DECK_SIZE);
+        assert.equal(resumo.faixas.baixo + resumo.faixas.medio + resumo.faixas.alto, DeckSystem.DECK_SIZE);
+        assert.equal(resumo.cartasDistintas, new Set(deck.cartas).size);
+        assert.equal(resumo.stats.criaturas + resumo.stats.suportes + resumo.stats.evolucoes, DeckSystem.DECK_SIZE);
+    });
+    assert.equal(DeckSystem.resumoDeDeck('inexistente', decksDatabase, deckBuilderCatalogo), null);
+});
+
+test('a escolha de deck vive no estado da partida (e o reset a preserva)', () => {
+    const state = GameStateModel.createInitialGameState();
+    assert.deepStrictEqual(state.deckSelections, { p1: null, p2: null });
+
+    GameStateModel.resetMatchState(state, { p1: [], p2: [] }, {
+        deckSelections: { p1: { id: 'robotico', nome: 'Legião Robótica', emblema: '🤖' } }
+    });
+    assert.equal(state.deckSelections.p1.id, 'robotico');
+    assert.equal(state.deckSelections.p2, null, 'o oponente do hotseat segue sem preset');
+
+    GameStateModel.resetMatchState(state, { p1: [], p2: [] });
+    assert.deepStrictEqual(state.deckSelections, { p1: null, p2: null }, 'reset sem escolha limpa a selecao');
+});
+
+/**
+ * GUARDA DE SINTAXE DOS CLASSIC SCRIPTS
+ * Um `await` fora de função async derruba o arquivo inteiro no navegador (e o
+ * resto da página fica sem `gameState`): os testes de unidade não pegam isso
+ * sozinhos porque leem o texto, então o parse entra na suíte.
+ */
+test('todo script de src/js compila como classic script', () => {
+    const vm = require('node:vm');
+    const arquivos = fs.readdirSync(path.join(__dirname, '../../src/js'))
+        .filter(arquivo => arquivo.endsWith('.js'));
+
+    assert.ok(arquivos.length >= 10, 'a lista de runtime do cliente não pode encolher');
+    arquivos.forEach(arquivo => {
+        const fonte = readSourceText(`src/js/${arquivo}`);
+        assert.doesNotThrow(() => new vm.Script(fonte, { filename: arquivo }),
+            `${arquivo} precisa compilar (await só dentro de função async)`);
+    });
+});
+
+/**
+ * SELETOR DE DECKS — UI do hotseat, traits do modal de detalhes e PvP
+ */
+
+const DeckSelect = require('../../src/js/deck-select.js');
+
+test('o tamanho do baralho e 40 no motor, no cliente PvP, no servidor e no CLI', () => {
+    assert.strictEqual(DeckSystem.DECK_SIZE, 40, 'deck_system.js e a fonte da constante');
+    assert.match(readSourceText('src/js/pvp-game.js'), /const DECK_SIZE = 40;/,
+        'pvp-game.js precisa do mesmo tamanho para o fallback pela seed');
+    assert.match(readSourceText('server.py'), /^DECK_SIZE = 40$/m,
+        'server.py gera os decks no mesmo tamanho');
+    assert.match(readSourceText('scripts/deck_factory.js'), /args\.size \|\| '40'/,
+        'o CLI de decks deterministicos segue o teto de 40');
+});
+
+test('game.html traz o seletor de decks na ordem de scripts do runtime', () => {
+    const html = readSourceText('game.html');
+    assert.match(html, /<div class="deck-select-modal" id="deckSelectModal"/, 'o modal existe no markup');
+    assert.match(html, /<link rel="stylesheet" href="src\/css\/deck-select\.css">/, 'o CSS do componente carrega');
+    assert.match(html, /id="deckSelectConfirm"[\s\S]*?onclick="confirmarSelecaoDeDeck\(\)"/,
+        'o botao de confirmar aponta para o handler do componente');
+    assert.match(html, /onclick="trocarDeck\(\); toggleGearMenu\(\)"/, 'o gear tem "Trocar deck"');
+
+    const ordem = ['deck_system.js', 'deck-select.js', 'manual_abilities.js', 'game.js']
+        .map(arquivo => html.indexOf(`src/js/${arquivo}`));
+    assert.ok(ordem.every(posicao => posicao !== -1), 'todos os módulos estão na página');
+    assert.deepEqual(ordem, [...ordem].sort((a, b) => a - b),
+        'deck-select.js carrega depois do catálogo e antes da UI');
+});
+
+test('o seletor rotula em pt-BR todas as traits que o catalogo usa', () => {
+    const doCatalogo = [...new Set(cardsDatabase.cards.flatMap(carta => carta.traits || []))].sort();
+    assert.ok(doCatalogo.length >= 16, 'o catalogo mantem as traits variadas');
+
+    doCatalogo.forEach(trait => {
+        const { rotulo, icone } = DeckSelect.rotuloDeTrait(trait);
+        assert.ok(rotulo && icone, `trait ${trait} tem rótulo e ícone`);
+    });
+    assert.deepEqual(Object.keys(DeckSelect.TRAIT_LABELS).sort(), doCatalogo,
+        'o mapa de rótulos e o catalogo nao divergem');
+
+    const cartao = DeckSelect.chipsDeTraits(['besta', 'elite']);
+    assert.equal((cartao.match(/trait-chip/g) || []).length, 4, 'dois chips com ícone cada');
+    assert.deepEqual(DeckSelect.rotuloDeTrait('trait_nova'), { rotulo: 'Trait_nova', icone: '🔹' },
+        'trait fora do mapa nao some da tela');
+    assert.deepEqual(DeckSelect.traitsDaCarta({ id: 'card_011', traits: ['Besta'] }), ['besta'],
+        'as traits do catalogo sao normalizadas em minusculas');
+});
+
+test('o modal de detalhes da carta apresenta os traits', () => {
+    const fonte = readSourceText('src/js/game.js');
+    const inicio = fonte.indexOf('function showCardModal');
+    const modal = fonte.slice(inicio, fonte.indexOf('function closeCardModal', inicio));
+
+    assert.match(modal, /window\.DeckSelect\?\.traitsDaCarta\?\.\(cardData\)/,
+        'os traits vem do catalogo com fallback do motor');
+    assert.match(modal, /traitsDaCarta\.length > 0 \?/, 'carta sem traits nao ganha bloco vazio');
+    assert.match(modal, /class="modal-card-traits"/, 'a secao de traits entra no modal');
+    assert.match(modal, /Características:/, 'com titulo em pt-BR');
+    assert.match(modal, /chipsDeTraits\(traitsDaCarta\)/, 'rotulados pelo seletor de decks');
+
+    const css = readSourceText('src/css/deck-select.css');
+    assert.match(css, /\.modal-card-traits/, 'o bloco tem estilo proprio');
+    assert.match(css, /\.trait-chip/, 'e o chip compartilhado com o resumo do deck');
+});
+
+test('o visual do seletor empilha cartas e usa a cor de cada deck', () => {
+    const css = readSourceText('src/css/deck-select.css');
+    assert.match(css, /\.deck-stack-card/, 'a pilha de versos existe');
+    assert.match(css, /url\('\.\.\/\.\.\/assets\/verso\.jpeg'\)/, 'usa o verso real do jogo');
+    assert.match(css, /var\(--deck-primaria\)/, 'a cor do deck vem de CSS var (dado do tema)');
+    assert.match(css, /\.deck-option\.selected/, 'a opcao escolhida e destacada');
+    assert.match(css, /\.deck-card-mini/, 'as cartas do deck aparecem em miniatura');
+
+    const deckSelect = readSourceText('src/js/deck-select.js');
+    assert.match(deckSelect, /--deck-primaria/, 'o componente escreve as cores do deck');
+    assert.ok(!/function renderizar\(/.test(deckSelect),
+        'não existe mais modo embutido: o deck se escolhe ao entrar na partida');
+    assert.ok(!/\n\s+renderizar,/.test(deckSelect), 'e a API não expõe renderizar');
+
+    // O lobby não escolhe deck: a escolha acontece na entrada da sala.
+    const lobby = readSourceText('pvp-lobby.html');
+    assert.ok(!lobby.includes('deck-picker') && !lobby.includes('deck-select'),
+        'o lobby não carrega o seletor nem o CSS de decks');
+    assert.ok(!lobby.includes('salvarPreferencia'), 'o lobby não grava preferência de deck');
+});
+
+test('os decks sao escolhidos na entrada da partida (o lobby nao monta seletor)', () => {
+    // Regressão do pedido: o lobby só cria/compartilha a sala. Quem escolhe o
+    // deck é a tela da partida (game.html ou o link da sala em pvp.html).
+    const lobby = readSourceText('pvp-lobby.html');
+    assert.ok(!lobby.includes('deck-select.js'), 'o lobby nao carrega o componente do seletor');
+    assert.ok(!lobby.includes('deck-select.css'), 'nem o CSS do seletor');
+    assert.ok(!lobby.includes('deck-picker'), 'nem o container da grade de decks');
+    assert.ok(!lobby.includes('loadCardSystem'), 'nem o catalogo de cartas/decks');
+    assert.ok(lobby.includes('Regras do Jogo'), 'o lobby continua com o que e dele');
+
+    // As duas telas de partida montam o modal bloqueante.
+    ['game.html', 'pvp.html'].forEach(arquivo => {
+        const pagina = readSourceText(arquivo);
+        assert.match(pagina, /<div class="deck-select-modal" id="deckSelectModal"/, `${arquivo} tem o modal`);
+        assert.match(pagina, /<script src="src\/js\/deck-select\.js"><\/script>/, `${arquivo} carrega o seletor`);
+    });
+});
+
+test('o HELLO do PvP leva o deck escolhido na entrada da sala', () => {
+    const pvpGame = readSourceText('src/js/pvp-game.js');
+    assert.match(pvpGame, /async function escolherDeckDeEntrada\(\)/,
+        'a escolha acontece na entrada da sala, nao no lobby');
+    assert.match(pvpGame, /deckEscolhido = await window\.DeckSelect\.abrir\(\);/,
+        'o modal do seletor resolve a escolha');
+    assert.match(pvpGame, /await loadCardSystem\(\);/,
+        'o catalogo carrega para o resumo do deck (o tabuleiro PvP nao o tem)');
+    assert.match(pvpGame, /deck: deckEscolhido/, 'o HELLO envia o deck confirmado');
+
+    // Nenhum socket antes da escolha: o `HELLO` nasce com o id confirmado.
+    const inicio = pvpGame.indexOf('async function bootstrap');
+    const corpo = pvpGame.slice(inicio, pvpGame.indexOf('function enviarHello', inicio));
+    assert.ok(corpo.indexOf('await escolherDeckDeEntrada()') < corpo.indexOf('new WebSocket('),
+        'o bootstrap espera a escolha antes de conectar');
+
+    const reset = pvpGame.slice(pvpGame.indexOf('window.GameStateModel.resetMatchState'),
+        pvpGame.indexOf('window.PvpState.installHiddenZones'));
+    assert.match(reset, /deckSelections: mensagem\.deckId/, 'o preset do dono entra no estado');
+    assert.match(reset, /nome: mensagem\.deckNome \|\| mensagem\.deckId/, 'com nome para o gear "Decks"');
+
+    // O tabuleiro PvP precisa do componente (seletor da entrada + chips de traits).
+    const pvp = readSourceText('pvp.html');
+    assert.match(pvp, /<script src="src\/js\/deck-select\.js"><\/script>/);
+    assert.match(pvp, /<link rel="stylesheet" href="src\/css\/deck-select\.css">/);
+    assert.match(pvp, /id="deckSelectModal"/, 'a entrada da sala abre o seletor bloqueante');
+    assert.match(pvp, /quando os dois jogadores confirmarem/, 'o texto explica que a partida espera os dois');
+});
+
+test('o servidor resolve o preset do assento sem vazar o deck alheio', () => {
+    const servidor = readSourceText('server.py');
+    assert.match(servidor, /def deck_presets\(\)/, 'le data/decks.json com cache');
+    assert.match(servidor, /def preset_deck\(deck_id\)/, 'expande os ids para definicoes');
+    assert.match(servidor, /def resolver_decks\(room\)/, 'preset do assento ou deck pela seed');
+    assert.match(servidor, /hello\.get\("deck"\) or parametro\("deck"\)/, 'o HELLO carrega a escolha');
+    assert.match(servidor, /room\.deck_choices\[seat\] = escolha_deck/, 'a escolha fica na sala');
+    assert.match(servidor, /room\.deck_ids\[seat\] = escolha if definicoes else None/,
+        'so conta como resolvido o preset que existe de verdade');
+    assert.match(servidor, /if escolha_deck and room\.decks is None and not room\.started:/,
+        'trocar deck so antes da partida');
+
+    const inicio = servidor.indexOf('def match_start_payload');
+    const payload = servidor.slice(inicio, servidor.indexOf('def command_log_payload', inicio));
+    assert.match(payload, /"deckId": deck_id,/, 'o dono recebe o id do proprio preset');
+    assert.match(payload, /"deckNome": deck_presets\(\)\.get\(deck_id/, 'e o nome, para a UI');
+    assert.ok(!payload.includes('other_seat(seat)]["deckId"]'), 'o deck alheio nao viaja');
+
+    const publico = servidor.slice(servidor.indexOf('def public_state'), servidor.indexOf('def ledger_dict'));
+    assert.ok(!publico.includes('deck_choices') && !publico.includes('deck_ids'),
+        'o de deck alheio continua secreto: a escolha nao vai no estado publico');
+
+    const espelho = servidor.slice(servidor.indexOf('def ledger_dict'), servidor.indexOf('def claim'));
+    assert.match(espelho, /"escolhasDeck": dict\(self\.deck_choices\)/, 'o espelho audita a escolha');
+    assert.match(espelho, /"decksResolvidos": dict\(self\.deck_ids\)/, 'e o que de fato valeu');
+
+    const rematch = servidor.slice(servidor.indexOf('def reset_for_rematch'), servidor.indexOf('class RoomRegistry'));
+    assert.match(rematch, /self\.decks = None/, 'a partida nova volta a resolver os decks');
+});
+
+test('o catalogo tem variedade: decks distintos, pouca repeticao e cartas baratas', () => {
+    const decks = decksDatabase.decks;
+    assert.ok(decks.length >= 9, 'o catalogo ja tem 9 arquetipos montados');
+
+    // Nenhum deck é uma pilha de 3 cópias da mesma carta: a média de cópias por
+    // carta distinta fica abaixo de 2,3 em todo o catálogo.
+    decks.forEach(deck => {
+        const distintas = new Set(deck.cartas).size;
+        const media = deck.cartas.length / distintas;
+        assert.ok(distintas >= 18, `${deck.nome}: ao menos 18 cartas distintas (tem ${distintas})`);
+        assert.ok(media <= 2.3, `${deck.nome}: no máximo 2,3 cópias por carta distinta (${media.toFixed(2)})`);
+    });
+
+    // Pelo menos três arquétipos exploram variedade alta (>= 28 distintas, <= 1,5
+    // cópias/carta) — é o que sustenta "sinergia sem repetir tantas cartas".
+    const variados = decks.filter(deck =>
+        new Set(deck.cartas).size >= 28 && deck.cartas.length / new Set(deck.cartas).size <= 1.5);
+    assert.ok(variados.length >= 3,
+        `esperava 3+ decks de variedade alta, achei ${variados.map(d => d.id).join(', ')}`);
+
+    // Os arquétipos juntos cobrem TODO o catálogo: 110/110 cartas entram em pelo
+    // menos um deck (a última a fechar foi a Bilugação Astral, que ganhou regra).
+    const usadas = new Set(decks.flatMap(deck => deck.cartas));
+    assert.equal(usadas.size, cardsDatabase.cards.length,
+        `os decks usam todas as cartas do catálogo (cobrem ${usadas.size}/${cardsDatabase.cards.length})`);
+    assert.deepEqual([...usadas].sort(), cardsDatabase.cards.map(c => c.id).sort(),
+        'nenhuma carta do catálogo ficou fora dos decks');
+});
+test('o PvP embaralha o deck do servidor com o RNG da sala e o fallback local funciona', () => {
+    const deckSystem = readSourceText('src/js/deck_system.js');
+    assert.match(deckSystem, /static embaralhar\(definicoes, rng = Math\.random\)/,
+        'o embaralhamento e um unico estatico do DeckBuilder');
+    assert.match(deckSystem, /shuffleArray\(array, rng = this\.rng\) \{\n\s*return DeckBuilder\.embaralhar\(array, rng\);/,
+        'shuffleArray delega (sem segunda implementacao de Fisher-Yates)');
+    assert.match(deckSystem, /window\.DeckBuilder = DeckBuilder;/,
+        'a classe e exposta: gerarDeckLocal e embaralharDeck dependem de window.DeckBuilder');
+
+    const pvpGame = readSourceText('src/js/pvp-game.js');
+    assert.match(pvpGame, /function embaralharDeck\(definicoes, seed\)/);
+    assert.match(pvpGame, /const rng = mulberrySala\(seed\);/, 'o RNG e o da sala (seed)');
+    assert.match(pvpGame, /window\.DeckBuilder\.embaralhar\(definicoes, rng\)/);
+    assert.match(pvpGame, /embaralharDeck\(mensagem\.deck, mensagem\.seed\)/,
+        'o deck privado recebido do servidor e embaralhado antes do reset');
+
+    // O preset do hotseat tambem entra embaralhado na mesa.
+    assert.match(deckSystem, /player1: DeckBuilder\.embaralhar\(definicoes, alvo\.rng\)/);
+});
+test('Bilugação Astral deixa a criatura intransponível por um turno', () => {
+    const { state, attacker, target, engine } = createCombatFixture({ targetDefense: 100 });
+    CardRules.install(engine);
+
+    const regra = CardRules.getEquipmentRule('card_090');
+    assert.ok(regra, 'card_090 tem regra de equipamento (era a única carta sem regra)');
+
+    const bilugacao = GameStateModel.createCardInstance({
+        id: 'card_090', name: 'Bilugação Astral', type: 'suporte', cost: 2, attack: 0, defense: 0
+    }, 'p2', { instanceId: 'bilugacao_astral' });
+    GameStateModel.registerCard(state, bilugacao, 'equipment', 'p2');
+    bilugacao.attachedTo = target.instanceId;
+    target.attachments.push(bilugacao.instanceId);
+
+    assert.equal(engine.resolveAction({
+        type: 'EQUIP_ASTRAL', actorId: 'p2', sourceId: bilugacao.instanceId,
+        requiresControl: false,
+        effects: CardRules.createEquipmentEffects(bilugacao, target.instanceId, state)
+    }).status, 'resolved');
+
+    const efeito = state.effects.find(candidato => candidato.effectType === 'IMPENETRABLE');
+    assert.ok(efeito, 'o efeito intransponível entra no estado');
+    assert.equal(efeito.duration.kind, GameEngine.DURATION_KINDS.UNTIL_END_OF_OPPONENT_TURN,
+        '"por um turno" = até o fim do turno do oponente');
+    assert.equal(efeito.duration.controllerId, 'p2');
+
+    // A UI recusa o alvo e o combate em si é cancelado (sem dano).
+    const validacao = CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId);
+    assert.equal(validacao.valid, false);
+    assert.match(validacao.reason, /intransponível/);
+
+    const combate = engine.resolveCombat({ attackerId: attacker.instanceId, targetId: target.instanceId });
+    assert.equal(combate.cancelled, true);
+    assert.equal(target.damage, 0, 'nada atravessa enquanto o efeito dura');
+    assert.ok(state.effects.some(candidato => candidato.effectType === 'IMPENETRABLE'),
+        'o efeito NÃO é consumido pelo ataque: vale o turno inteiro');
+
+    // O turno do OPONENTE (quem não é o dono do efeito) termina e a proteção cai
+    // sozinha: é o que "por um turno" significa para esta carta.
+    engine.emit(GameEngine.EVENT_TYPES.TURN_ENDED, { playerId: 'p1', turnNumber: state.turn });
+    assert.equal(state.effects.some(candidato => candidato.effectType === 'IMPENETRABLE'), false,
+        'dura um turno, não a partida');
+    assert.equal(CardRules.validateAttackTarget(state, attacker.instanceId, target.instanceId).valid, true);
+});
+test('ninguem ataca direto no proprio primeiro turno (vale para os dois jogadores)', () => {
+    const { state, attacker, target } = createCombatFixture();
+
+    // p1 abre a partida em `turn 1`: o turno 2 já é o segundo de p1 e o primeiro de p2.
+    assert.equal(CardRules.ehPrimeiroTurnoDoJogador(state, 'p1'), true);
+    assert.equal(CardRules.ehPrimeiroTurnoDoJogador(state, 'p2'), false);
+    assert.equal(CardRules.canDirectAttack(state, attacker.instanceId), false,
+        'nem com defensor em campo, nem com campo vazio');
+
+    // Campo vazio não libera a abertura (era a brecha: turno 2 liberava p2).
+    GameStateModel.moveCard(state, target.instanceId, 'discard', 'p2');
+    assert.equal(CardRules.canDirectAttack(state, attacker.instanceId), false);
+
+    // Segundo turno de p1 (turn 3): liberado.
+    state.turn = 3;
+    assert.equal(CardRules.ehPrimeiroTurnoDoJogador(state, 'p1'), false);
+    assert.equal(CardRules.canDirectAttack(state, attacker.instanceId), true);
+
+    // p2 tem o seu próprio primeiro turno (turn 2).
+    const diabreteP2 = GameStateModel.createCardInstance({
+        id: 'card_010_1', name: 'Diabrete', type: 'criatura', cost: 2, attack: 10, defense: 8
+    }, 'p2', { instanceId: 'diabrete_p2' });
+    GameStateModel.registerCard(state, diabreteP2, 'field', 'p2');
+    state.turn = 2;
+    state.currentPlayer = 'p2';
+    assert.equal(CardRules.ehPrimeiroTurnoDoJogador(state, 'p2'), true);
+    assert.equal(CardRules.canDirectAttack(state, diabreteP2.instanceId), false,
+        'ataque direto inerente (Diabrete) também não passa no primeiro turno de p2');
+
+    // Segundo turno de p2 (turn 4): liberado.
+    state.turn = 4;
+    assert.equal(CardRules.canDirectAttack(state, diabreteP2.instanceId), true);
+
+    // `startingPlayer` é explícito: se a partida começasse com p2, os turnos invertem.
+    state.startingPlayer = 'p2';
+    state.turn = 1;
+    assert.equal(CardRules.ehPrimeiroTurnoDoJogador(state, 'p2'), true);
+    assert.equal(CardRules.ehPrimeiroTurnoDoJogador(state, 'p1'), false);
+});
+
+test('a vida inicial (300) esta sincronizada entre telas, cliente e servidor', () => {
+    assert.match(readSourceText('src/js/game.js'), /const INITIAL_PV = 300;/,
+        'hotseat/PvP usam 300 no gameConfig');
+    assert.match(readSourceText('server.py'),
+        /DEFAULT_CONFIG = \{"initialPv": 300, "initialEnergy": 6, "turnSeconds": TURN_SECONDS\}/,
+        'o servidor cria a sala com 300');
+    assert.match(readSourceText('index.html'), /const INITIAL_PV = 300;/, 'o contador standalone tambem');
+
+    // As regras (index.html e lobby PvP, textos idênticos) anunciam o novo valor.
+    ['index.html', 'pvp-lobby.html'].forEach(arquivo => {
+        assert.match(readSourceText(arquivo), /Cada jogador começa com 300 pontos de vida/,
+            `${arquivo} explica a vida inicial`);
+        assert.match(readSourceText(arquivo), /Ninguém ataca direto no próprio primeiro turno/,
+            `${arquivo} explica a regra do ataque direto`);
+    });
+
+    // O número pintado no tabuleiro antes do primeiro render também é 300.
+    ['game.html', 'pvp.html', 'index.html'].forEach(arquivo => {
+        const mostrados = [...readSourceText(arquivo).matchAll(/id="pv-p[12]"[^>]*>\s*(\d+)/g)]
+            .map(resultado => resultado[1]);
+        assert.deepEqual(mostrados, ['300', '300'], `${arquivo} mostra 300 nos dois PV`);
+    });
+});
+test('o relogio de turno (45s) esta no cliente, no servidor e nas duas telas', () => {
+    const game = readSourceText('src/js/game.js');
+    assert.match(game, /const TURN_SECONDS = 45;/, 'o hotseat usa 45s');
+    assert.match(game, /turnSeconds: TURN_SECONDS/, 'e o valor viaja no gameConfig (PvP/hotseat)');
+    assert.match(game, /window\.reiniciarTempoDeTurno = reiniciarTempoDeTurno;/,
+        'o contador e reiniciavel (boot, virada de turno e sync do PvP)');
+    assert.match(game, /generation !== window\.matchGeneration/,
+        'o intervalo respeita a geracao da partida');
+
+    const servidor = readSourceText('server.py');
+    assert.match(servidor, /TURN_SECONDS = int\(os\.environ\.get\("XM_TURN_SECONDS", "45"\)\)/,
+        'o servidor tem o mesmo limite (e permite desligar/afinar por env)');
+    assert.match(servidor, /async def expirar_turno\(room\):/, 'quem passa a vez e o servidor');
+    assert.match(servidor, /if not room\.both_connected\(\):\n\s*return False/,
+        'com um assento fora, o jogo nao anda sozinho');
+    assert.match(servidor, /entry = room\.add_command\(ator, "END_TURN", \{\}, \[\]\)/,
+        'o estouro entra no ledger como END_TURN do assento da vez');
+    assert.match(servidor, /await expirar_turno\(room\)/, 'o loop de limpeza confere o relogio');
+    assert.match(servidor, /"prazoTurno": self\.prazo_turno\(\),/, 'o estado publica o prazo');
+    assert.match(servidor, /"prazoTurno": room\.prazo_turno\(\),/, 'e o comando tambem (sync dos dois lados)');
+
+    const pvpGame = readSourceText('src/js/pvp-game.js');
+    assert.match(pvpGame, /window\.reiniciarTempoDeTurno\?\./, 'o board PvP desenha o relogio do servidor');
+
+    ['game.html', 'pvp.html'].forEach(arquivo => {
+        const pagina = readSourceText(arquivo);
+        assert.match(pagina, /id="turn-timer" class="turn-timer">45s</, `${arquivo} tem o contador`);
+    });
+    const css = readSourceText('src/css/game.css');
+    assert.match(css, /\.turn-timer \{/, 'o contador tem estilo proprio');
+    assert.match(css, /\.turn-timer\.turn-timer-warning/, 'e aviso nos ultimos segundos');
+});
 
 let failures = 0;
 

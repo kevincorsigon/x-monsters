@@ -1,4 +1,16 @@
 // Sistema de Deck Builder para X Monsters
+
+// Tamanho oficial do baralho (deck aleatório e presets): 40 cartas é o teto do
+// jogo. `server.py` e `pvp-game.js` mantêm a mesma constante — um teste de
+// unidade trava a sincronia dos três.
+const DECK_SIZE = 40;
+
+// Catálogo de decks pré-montados (data/decks.json). O arquivo guarda só ids de
+// carta: as definições continuam vindo exclusivamente de cards_database.json.
+const DECKS_PATH = 'data/decks.json';
+let decksCatalogCache = null;
+let decksCatalogPromessa = null;
+
 class DeckBuilder {
     constructor(cardsDatabase, options = {}) {
         this.allCards = cardsDatabase.cards;
@@ -9,7 +21,7 @@ class DeckBuilder {
     }
 
     // Criar deck balanceado para um jogador
-    createBalancedDeck(deckSize = 40) {
+    createBalancedDeck(deckSize = DECK_SIZE) {
         const deck = [];
         
         // Distribuição balanceada:
@@ -73,16 +85,28 @@ class DeckBuilder {
     
     // Embaralhar array
     shuffleArray(array, rng = this.rng) {
-        const shuffled = [...array];
-        for (let i = shuffled.length - 1; i > 0; i--) {
+        return DeckBuilder.embaralhar(array, rng);
+    }
+
+    /**
+     * Embaralha definições de carta (Fisher-Yates) com um RNG injetado. É o único
+     * embaralhamento do jogo: cada partida monta o baralho numa ordem nova —
+     * inclusive os decks prontos, que chegam do JSON agrupados por custo e nunca
+     * podem sair na mesma sequência em duas partidas. Em PvP o RNG é o mulberry32
+     * da seed da sala, então o F5 reencontra exatamente a mesma ordem (o replay
+     * dos DRAW do ledger depende do mesmo topo de baralho).
+     */
+    static embaralhar(definicoes, rng = Math.random) {
+        const embaralhado = [...definicoes];
+        for (let i = embaralhado.length - 1; i > 0; i--) {
             const j = Math.floor(rng() * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            [embaralhado[i], embaralhado[j]] = [embaralhado[j], embaralhado[i]];
         }
-        return shuffled;
+        return embaralhado;
     }
     
     // Criar dois decks balanceados para uma partida
-    createMatchDecks(deckSize = 40) {
+    createMatchDecks(deckSize = DECK_SIZE) {
         // Dividir cartas em dois pools para evitar repetição
         const allCardsShuffled = this.shuffleArray([...this.allCards]);
         const midPoint = Math.floor(allCardsShuffled.length / 2);
@@ -127,10 +151,159 @@ class DeckBuilder {
         
         return stats;
     }
+
+    // Expande um deck pré-montado (data/decks.json) em definições completas do
+    // catálogo. O JSON guarda só ids: nenhuma definição é duplicada aqui.
+    definicoesDeDeck(deckId, catalogo = null) {
+        const deck = encontrarDeckNoCatalogo(deckId, catalogo);
+        if (!deck) {
+            throw new Error(`Deck desconhecido: ${deckId}`);
+        }
+        return deck.cartas.map(definitionId => {
+            const definicao = this.allCards.find(card => card.id === definitionId);
+            if (!definicao) {
+                throw new Error(`Carta ${definitionId} do deck ${deckId} não existe no catálogo`);
+            }
+            return definicao;
+        });
+    }
+}
+
+// ── Catálogo de decks pré-montados (data/decks.json) ─────────────────────────
+
+function normalizarCatalogoDeDecks(dados) {
+    if (!dados || !Array.isArray(dados.decks)) return null;
+    const decks = dados.decks
+        .filter(deck => deck && deck.id && Array.isArray(deck.cartas))
+        .map(deck => ({
+            ...deck,
+            traits: Array.isArray(deck.traits) ? deck.traits.map(t => String(t).toLowerCase()) : [],
+            cartas: deck.cartas.map(id => String(id))
+        }));
+    if (decks.length === 0) return null;
+    return { version: dados.version || 1, decks };
+}
+
+/**
+ * Carrega os decks pré-montados uma única vez por página. Sem `fetch` (Node) ou
+ * com o arquivo indisponível, devolve `null` e a seleção cai no deck aleatório
+ * — nunca existe um segundo dataset embarcado em JS.
+ *
+ * Chamadas concorrentes (o hotseat e o boot PvP pedem ao mesmo tempo) dividem a
+ * mesma promessa: ninguém vê `deckCatalog` vazio por causa de uma corrida.
+ */
+async function loadDeckCatalog() {
+    if (decksCatalogCache) return decksCatalogCache;
+    if (decksCatalogPromessa) return decksCatalogPromessa;
+    if (typeof window === 'undefined' || typeof fetch !== 'function') return null;
+
+    decksCatalogPromessa = (async () => {
+        try {
+            const response = await fetch(DECKS_PATH);
+            const dados = await response.json();
+            decksCatalogCache = normalizarCatalogoDeDecks(dados);
+            window.deckCatalog = decksCatalogCache;
+            console.log('Catálogo de decks carregado:', decksCatalogCache
+                ? decksCatalogCache.decks.map(d => `${d.nome} (${d.cartas.length})`)
+                : 'vazio');
+            return decksCatalogCache;
+        } catch (error) {
+            console.warn('Catálogo de decks indisponível — a seleção cai no deck aleatório:', error);
+            return null;
+        } finally {
+            decksCatalogPromessa = null;
+        }
+    })();
+    return decksCatalogPromessa;
+}
+
+function encontrarDeckNoCatalogo(deckId, catalogo = null) {
+    const fonte = catalogo
+        || (typeof window !== 'undefined' ? window.deckCatalog : null)
+        || decksCatalogCache;
+    if (!fonte || !Array.isArray(fonte.decks) || !deckId) return null;
+    return fonte.decks.find(deck => deck.id === deckId) || null;
+}
+
+/** Resumo de um preset (metadados + curva de custo) usado pelo seletor de decks. */
+function resumoDeDeck(deckId, catalogo = null, builder = null) {
+    const deck = encontrarDeckNoCatalogo(deckId, catalogo);
+    const alvo = builder || (typeof window !== 'undefined' ? window.deckBuilder : null);
+    if (!deck || !alvo) return null;
+
+    const definicoes = alvo.definicoesDeDeck(deck.id, catalogo);
+    const custos = definicoes.map(card => card.cost);
+    return {
+        ...deck,
+        cartasDistintas: [...new Set(deck.cartas)].length,
+        stats: alvo.getDeckStats(definicoes),
+        faixas: {
+            baixo: custos.filter(c => c <= 3).length,
+            medio: custos.filter(c => c >= 4 && c <= 6).length,
+            alto: custos.filter(c => c >= 7).length
+        }
+    };
+}
+if (typeof window !== 'undefined') {
+    window.resumoDeDeck = resumoDeDeck;
+    // O seletor de decks (deck-select.js) exibe o tamanho do baralho antes da
+    // partida existir: a constante precisa estar no escopo global.
+    window.DECK_SIZE = DECK_SIZE;
+    // `pvp-game.js` monta o deck privado e embaralha o deck do servidor pela
+    // classe: sem esta exposição o fallback "cliente gera pela seed" avisava
+    // "sem DeckBuilder" e devolvia null.
+    window.DeckBuilder = DeckBuilder;
+}
+
+/** Id do deck escolhido na partida atual (o Reset reusa; `null` = aleatório). */
+function selecaoAtual(player = 'p1') {
+    const estado = typeof gameState !== 'undefined' ? gameState : null;
+    return estado?.deckSelections?.[player]?.id || null;
+}
+
+/**
+ * Monta os decks da partida a partir da escolha do jogador: p1 fica com o preset
+ * escolhido (quando existe) e p2 recebe um deck balanceado sorteado.
+ */
+function montarDecksDaEscolha(escolha, deckSize = DECK_SIZE, builder = null, catalogo = null) {
+    const alvo = builder || (typeof window !== 'undefined' ? window.deckBuilder : null);
+    if (!alvo) {
+        throw new Error('DeckBuilder não carregado');
+    }
+
+    const aleatorios = alvo.createMatchDecks(deckSize);
+    const deckId = typeof escolha === 'string' && escolha !== 'aleatorio' ? escolha : null;
+    const escolhido = deckId ? encontrarDeckNoCatalogo(deckId, catalogo) : null;
+
+    if (!escolhido) {
+        return { decks: aleatorios, selecoes: { p1: null, p2: null } };
+    }
+
+    // A ordem do JSON é só a receita: cada partida embaralha o baralho do preset
+    // com o RNG do builder (Math.random no hotseat; seed da sala no PvP).
+    const definicoes = alvo.definicoesDeDeck(escolhido.id, catalogo);
+
+    return {
+        decks: {
+            player1: DeckBuilder.embaralhar(definicoes, alvo.rng),
+            player2: aleatorios.player2
+        },
+        selecoes: {
+            p1: { id: escolhido.id, nome: escolhido.nome, emblema: escolhido.emblema || null },
+            p2: null
+        }
+    };
 }
 
 // Função para carregar e inicializar o sistema de cartas
 async function loadCardSystem() {
+    // Idempotente: o boot do hotseat e o da entrada da sala PvP chamam em
+    // paralelo; quem chega depois usa o que já está no escopo global (e o
+    // catálogo de decks vem junto, sem corrida entre as duas promessas).
+    if (typeof window !== 'undefined' && window.cardsDatabase && window.deckCatalog) {
+        return true;
+    }
+
     try {
         // Tentar carregar via fetch primeiro (servidor)
         const response = await fetch('data/cards_database.json');
@@ -150,7 +323,11 @@ async function loadCardSystem() {
             total: cardsData.total_cards,
             tipos: cardsData.types
         });
-        
+
+        // Os decks pré-montados viajam junto: o seletor precisa dos dois catálogos
+        // (cards_database define as cartas, decks.json só referencia ids).
+        await loadDeckCatalog();
+
         return true;
     } catch (error) {
         console.warn('Erro ao carregar via fetch, usando dados embarcados:', error);
@@ -165,6 +342,10 @@ async function loadCardSystem() {
             total: fallbackData.total_cards,
             tipos: fallbackData.types
         });
+
+        // O fallback embarcado não tem o catálogo de decks: sem ele a seleção
+        // fica apenas com o deck aleatório (nada é duplicado em JS).
+        await loadDeckCatalog();
         
         return true;
     }
@@ -484,21 +665,24 @@ function getFallbackCardData() {
     };
 }
 
-// Função para inicializar uma nova partida com decks balanceados
-function startNewMatch() {
+// Função para inicializar uma nova partida com decks balanceados (ou com o deck
+// escolhido pelo jogador no seletor). Sem argumento reaproveita a escolha da
+// partida atual — é o que o Reset faz; `null`/`'aleatorio'` força o sorteio.
+async function startNewMatch(escolha) {
     if (!window.deckBuilder || !window.GameStateModel) {
         console.error('Sistema de cartas não carregado!');
         return;
     }
-    
-    const matchDecks = window.deckBuilder.createMatchDecks(50);
-    
+
+    const selecionada = escolha === undefined ? selecaoAtual('p1') : escolha;
+    const { decks, selecoes } = montarDecksDaEscolha(selecionada);
+
     window.GameStateModel.resetMatchState(gameState, {
-        p1: matchDecks.player1,
-        p2: matchDecks.player2
-    }, window.gameConfig);
+        p1: decks.player1,
+        p2: decks.player2
+    }, { ...window.gameConfig, deckSelections: selecoes });
     
-    // Baralho PvP/hotseat: 50 cartas (mão inicial segue 5 para cada jogador)
+    // Baralho PvP/hotseat: 40 cartas (mão inicial segue 5 para cada jogador)
     for (let i = 0; i < 5; i++) {
         drawCardFromDeck('p1');
         drawCardFromDeck('p2');
@@ -512,15 +696,16 @@ function startNewMatch() {
     }
     
     // Estatísticas dos decks
-    const stats1 = window.deckBuilder.getDeckStats(matchDecks.player1);
-    const stats2 = window.deckBuilder.getDeckStats(matchDecks.player2);
+    const stats1 = window.deckBuilder.getDeckStats(decks.player1);
+    const stats2 = window.deckBuilder.getDeckStats(decks.player2);
     
     console.log('Nova partida iniciada!');
+    console.log(selecoes.p1 ? `Deck do P1: ${selecoes.p1.nome} (${selecoes.p1.id})` : 'Deck do P1: sorteado');
     console.log('Deck Player 1:', stats1);
     console.log('Deck Player 2:', stats2);
     
     updateUI();
-    return matchDecks;
+    return { decks, selecoes };
 }
 
 // Função para sacar carta do deck
@@ -545,5 +730,16 @@ function drawCardFromDeck(player) {
 
 // Exportar para uso global
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { DeckBuilder, loadCardSystem, startNewMatch, drawCardFromDeck };
+    module.exports = {
+        DECK_SIZE,
+        DECKS_PATH,
+        DeckBuilder,
+        loadCardSystem,
+        loadDeckCatalog,
+        encontrarDeckNoCatalogo,
+        resumoDeDeck,
+        montarDecksDaEscolha,
+        startNewMatch,
+        drawCardFromDeck
+    };
 }

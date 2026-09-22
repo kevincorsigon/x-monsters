@@ -51,20 +51,27 @@
     const versos = player => document.querySelectorAll(`#hand-${player} .card-back`).length;
     const comando = (seq, cmd, actor, args = {}) => ({ seq, cmd, actor, args, reveals: [] });
 
+    // O deck sorteado tem 47–50 cartas (o pool é sorteado), então os números do
+    // teste saem do próprio deck montado — nada de literal que varie por sorte.
+    const privado = saldo('p2');
+    const oculto = 40;
+
     assert('o deck privado aparece na área de saque do dono',
-        saldo('p2') === 50 && texto('p2') === '50 cartas');
+        privado > 0 && texto('p2') === `${privado} cartas`);
     assert('o deck oculto mostra o tamanho publicado no MATCH_START',
-        saldo('p1') === 40 && texto('p1') === '40 cartas');
+        saldo('p1') === oculto && texto('p1') === `${oculto} cartas`);
 
     // DRAW do assento local: o deck privado encolhe e o rótulo acompanha.
     sessao.handleMessage({ type: 'COMMAND', ...comando(1, 'DRAW', 'p2') });
-    assert('o DRAW local tira 1 do deck privado', saldo('p2') === 49 && texto('p2') === '49 cartas');
+    assert('o DRAW local tira 1 do deck privado',
+        saldo('p2') === privado - 1 && texto('p2') === `${privado - 1} cartas`);
     assert('o deck do oponente não é tocado pela compra local',
-        saldo('p1') === 40 && texto('p1') === '40 cartas');
+        saldo('p1') === oculto && texto('p1') === `${oculto} cartas`);
 
     // DRAW do oponente replicado no ledger: o deck oculto encolhe na tela dele.
     sessao.handleMessage({ type: 'COMMAND', ...comando(2, 'DRAW', 'p1') });
-    assert('o DRAW do oponente tira 1 do deck oculto', saldo('p1') === 39 && texto('p1') === '39 cartas');
+    assert('o DRAW do oponente tira 1 do deck oculto',
+        saldo('p1') === oculto - 1 && texto('p1') === `${oculto - 1} cartas`);
     assert('a mão do oponente ganha 1 verso e nada de identidade',
         versos('p1') === 1 && state.players.p1.zones.hand[0].definitionId === null);
 
@@ -75,12 +82,12 @@
     assert('o saldo exibido segue o estado depois da sincronização',
         texto('p1') === `${saldo('p1')} cartas` && texto('p2') === `${saldo('p2')} cartas`);
     assert('a sincronização da mão alheia não come o deck dele',
-        saldo('p1') === 39 && saldo('p2') === 49);
+        saldo('p1') === oculto - 1 && saldo('p2') === privado - 1);
 
     // F5/reidratação: remontar as mãos redesenha as duas áreas de saque.
     window.renderHandsFromState();
     assert('reidratar a tela mantém o saldo publicado',
-        texto('p1') === '39 cartas' && texto('p2') === '49 cartas');
+        texto('p1') === `${oculto - 1} cartas` && texto('p2') === `${privado - 1} cartas`);
 
     // Deck do oponente é segredo de conteúdo, não de tamanho: o saldo continua
     // visível, como a contagem da mão publicada pelo websocket.

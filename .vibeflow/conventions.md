@@ -12,8 +12,8 @@
 - No `package.json`, no bundler, no transpiler, no TypeScript. Plain ES6
   loaded via `<script src="...">` at the end of `<body>`, in this order:
   `src/js/game-state.js` → `game-engine.js` → `card-rules.js` →
-  `card-abilities.js` → `deck_system.js` → `manual_abilities.js` →
-  `game.js`. `pvp.html` appends the PvP layer after it:
+  `card-abilities.js` → `deck_system.js` → `deck-select.js` →
+  `manual_abilities.js` → `game.js`. `pvp.html` appends the PvP layer after it:
   `pvp-protocol.js` → `pvp-state.js` → `pvp-session.js` → `pvp-game.js`.
   New runtime JS must be inserted in that list so dependents load after
   their dependencies (`game.html` keeps only markup + scripts).
@@ -24,9 +24,15 @@
   same port is served by `py -3 server.py` (statics + `/api` + `/ws`) or by
   `docker compose up -d`.
 - Tests: `node tests/unit/run-tests.js` (no extra packages) and
-  `py -3 tests/pvp/smoke_match.py` for the network layer. Coverage CLI:
+  `py -3 tests/pvp/smoke_match.py` for the network layer (o smoke roda com
+  `XM_TURN_SECONDS=0`); o relógio de turno tem teste próprio
+  (`py -3 tests/pvp/turn_timer.py`, servidor com 2s). Coverage CLI:
   `py -3 scripts/check_cards.py`. Deterministic decks:
-  `node scripts/deck_factory.js --seed=123 --size=50`.
+  `node scripts/deck_factory.js --seed=123 --size=40`.
+- Browser suite: `node tests/browser/run-browser-tests.js` (needs
+  `py -3 -m http.server 8080`). The hotseat boot is gated by the deck selector,
+  so the harness confirms the random deck (`DeckSelect.confirmarAleatorio()`)
+  before injecting each console script.
 
 ## Naming
 - JS: `camelCase` for functions/variables, `PascalCase` for classes and
@@ -49,16 +55,51 @@
   `changeStat` / `renderPlayerStat`.
 - Cross-file APIs on `window` (`gameState`, `gameEngine`, `GameStateModel`,
   `GameEngine`, `CardRules`, `cardAbilities`, `findCardData`, `changeStat`,
-  `updateUI`, `deckBuilder`, `cardsDatabase`) accessed with existence
-  guards (`window.X?.y()`).
+  `updateUI`, `deckBuilder`, `cardsDatabase`, `deckCatalog`, `resumoDeDeck`,
+  `DECK_SIZE`, `DeckSelect`) accessed with existence guards (`window.X?.y()`).
 
 ## Data
 - `data/cards_database.json` is the single authoritative card dataset
   (110 cards). Schema:
   `{ name, type: 'criatura'|'suporte'|'evolução', cost, attack, defense,
   hability, id, image: 'assets/cards/...' }`.
-- Traits used by rules live in `CardRules.TRAITS_BY_DEFINITION`, not in
-  the JSON (the catalog has no `traits` field today).
+- `data/decks.json` holds the pre-built decks. It references **only** ids of
+  the catalog (`cartas[]`, one entry per copy, `id` repeated) plus the theme
+  data (`nome`, `tema`, `descricao`, `emblema`, `traits`, `cores.primaria/
+  secundaria/acento`). Never duplicate card definitions there. `DeckBuilder
+  .definicoesDeDeck(deckId, catalogo)` expands it; `loadDeckCatalog()` loads it
+  into `window.deckCatalog` (hotseat, lobby and PvP board — the in-flight
+  promise is shared, so parallel boots never see an empty catalog) and
+  `server.py` reads the same file to resolve a PvP seat's preset.
+- `DECK_SIZE = 40` is the deck ceiling and lives in `src/js/deck_system.js`
+  (exported as `window.DECK_SIZE`); `src/js/pvp-game.js` and `server.py` keep
+  the same constant, and `scripts/deck_factory.js` defaults to `--size=40`. A
+  unit test locks the four together.
+- Table rules that live in more than one place are locked by test: `INITIAL_PV =
+  300` (`src/js/game.js`, `server.py DEFAULT_CONFIG`, `index.html`, the painted
+  `#pv-p1/#pv-p2` spans of `game.html`/`pvp.html`) and the opening restriction
+  "nobody direct-attacks on their own first turn"
+  (`CardRules.ehPrimeiroTurnoDoJogador` + `state.startingPlayer`, announced in the
+  rules text of `index.html`/`pvp-lobby.html`). Changing any of those without the
+  others fails the suite on purpose. `GameStateModel`'s own default (200) is a
+  fixture fallback — the match always passes a config.
+- The 45s turn clock is **server-authoritative in PvP**: `server.py` `expirar_turno`
+  writes a normal `END_TURN` (autor = assento da vez, `timeout: true`) into the
+  ledger and broadcasts it, so both clients apply the same transition; the board
+  only renders `prazoTurno`. Never end the turn from a PvP client timer. The
+  server skips the check unless `both_connected()`, and `XM_TURN_SECONDS=0`
+  disables the clock (tests that count ledger entries). Hotseat has no server, so
+  `game.js` owns the auto-end there (guarded by `window.matchGeneration`).
+- Presets are **recipes, not deck order**: every match shuffles the built deck —
+  `DeckBuilder.embaralhar(definicoes, rng)` (the only Fisher-Yates in the game;
+  `shuffleArray` delegates to it) is called by `montarDecksDaEscolha` (hotseat,
+  builder RNG) and by `pvp-game.js#embaralharDeck` with the room's `mulberry32`
+  seed. In PvP the order must be reproducible per room (the F5 replay moves the
+  top of the deck), so never re-shuffle on reconnect and never touch
+  `gameState.rng` for this.
+- Traits used by rules live in the catalog (`data/cards_database.json`) with
+  `CardRules.TRAITS_BY_DEFINITION` as the declared legacy fallback; the pt-BR
+  labels for the UI live in `DeckSelect.TRAIT_LABELS` (display only).
 
 ## UI/CSS
 - Theming via `:root` CSS custom properties. Card visual state is CSS
@@ -93,6 +134,14 @@
   drag/hover/overflow.
 - Rules stay out of the server and out of the PvP layer: the engine
   (`game-engine.js` / `card-rules.js`) remains mode-agnostic.
+- The deck is chosen **when entering the match**, never in the lobby: `game.html`
+  and `pvp.html` (the room link) mount the same blocking modal, and
+  `pvp-game.js` `bootstrap()` awaits `escolherDeckDeEntrada()` **before** opening
+  the socket, so the `HELLO` already carries `deck: <id>`. `pvp-lobby.html` only
+  creates/shares the room (no picker, no `loadCardSystem`, no
+  `DeckSelect.renderizar` — the embedded mode was removed). Never send the
+  opponent's deck id/name — `MATCH_START` exposes `deckId`/`deckNome` for the own
+  seat only.
 - The hand count shown in the UI comes from the websocket, never from a local
   recount: `server.py` keeps `Room.hand_sizes` (its own deltas for
   `DRAW`/`SUMMON`/`EQUIP`) and publishes it as `handSizes` on every accepted

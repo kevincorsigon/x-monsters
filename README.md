@@ -141,15 +141,61 @@ Para persistência via `docker run`, monte um diretório host em `/app/matches`:
 docker run --rm -p 8000:8000 -v ${PWD}/matches:/app/matches x-monsters
 ```
 
+### Regras de mesa (constantes travadas por teste)
+
+- **Vida inicial: 300 PV** para cada jogador (era 200). O valor aparece em
+  `src/js/game.js` (`INITIAL_PV`), `server.py` (`DEFAULT_CONFIG`), no contador
+  `index.html` e nos spans de `game.html`/`pvp.html`, além das duas telas de
+  regras. O ajuste veio da análise dos decks: ATK médio 27,1 / DEF média 24,2 /
+  top‑3 de ATK 47,7 — com campo aberto, 3 atacantes passam de 100 PV por turno,
+  então 300 dá 2–3 turnos de cerco depois do atrito em vez de decidir a partida
+  em 1–2.
+- **Limite de turno: 45s** — ao estourar, a vez passa sozinha. Em PvP quem decide é
+  o servidor (ele grava um `END_TURN` normal no ledger e replica aos dois
+  clientes); no hotseat é o próprio cliente. O contador (`⏱ Turno`) fica no painel
+  central, com aviso nos últimos 10s. O `server.py` aceita `XM_TURN_SECONDS` para
+  afinar/desligar (0) o relógio em execuções de teste.
+- **Ninguém ataca direto no próprio primeiro turno** (vale para ataque direto
+  inerente, campo vazio e permissão de carta/equipamento). A regra vive em
+  `CardRules.canDirectAttack` + `ehPrimeiroTurnoDoJogador` (apoiada em
+  `state.startingPlayer`).
+
+### Escolha de decks
+
+Existem nove decks prontos em `data/decks.json` — Legião Robótica, Fúria
+Selvagem, Corte Dracônica, Ordem dos Caçadores, Alcateia Lunar, Banquete de
+Apelino, Maré Profunda, Círculo Arcano e Lua de Sangue — todos com 40 cartas,
+balanceados por curva de custo e montados por sinergia de traits (cada um usa no
+máximo 3 cópias da mesma carta, e a maioria no máximo 2), além do **deck
+aleatório**. Juntos, os nove usam **todas as 110 cartas** do catálogo.
+
+- **Hotseat (`game.html`)**: um modal abre assim que a partida carrega e a mesa
+  só é montada depois da escolha (o oponente local entra com um deck sorteado).
+  O gear ⚙️ → **🎴 Trocar deck** reabre o seletor; **🔄 Reset** mantém o deck
+  atual.
+- **PvP online**: o **lobby só cria/compartilha a sala** — não há escolha de deck
+  lá. Cada jogador confirma o deck **ao entrar na sala**: o modal abre no link
+  `/pvp/<sala>/<assento>` antes de qualquer conexão, e o `HELLO` já leva o id
+  escolhido (a partida só começa quando os dois assentos confirmam). O
+  `server.py` resolve o preset daquele assento e o deck do oponente continua
+  secreto.
+
+Os presets referenciam apenas ids de `data/cards_database.json`: nenhuma
+definição de carta é duplicada — e a ordem do arquivo é só a **receita**: o
+baralho de cada partida é embaralhado na hora de montar a mesa (no PvP com a seed
+da sala, então um F5 mantém o mesmo baralho). Clicar numa carta do resumo abre o
+modal de detalhes, que lista custo, ATK/DEF, **características** (traits, com
+rótulo em pt-BR) e a habilidade.
+
 ### Gerar decks determinísticos
 
 O `scripts/deck_factory.js` (Node, RNG mulberry32) gera dois decks idênticos a
-partir de uma seed — usado pelo servidor ao criar a sala e útil para
-auditoria/rastreabilidade:
+partir de uma seed — usado pelo servidor ao criar a sala (para quem não escolheu
+preset) e útil para auditoria/rastreabilidade:
 
 ```powershell
-node scripts/deck_factory.js --seed=123 --size=50
-# {"p1":[...50 defs...],"p2":[...50 defs...]}
+node scripts/deck_factory.js --seed=123 --size=40
+# {"p1":[...40 defs...],"p2":[...40 defs...]}
 ```
 
 ## Estrutura
@@ -159,7 +205,7 @@ x-monsters/
 ├── assets/
 │   ├── audio/          # Efeitos sonoros
 │   └── cards/          # Imagens das 110 cartas
-├── data/               # Base de dados JSON
+├── data/               # Base de dados JSON (cartas + decks pré-montados)
 ├── docs/               # Guias e relatórios
 ├── scripts/            # Ferramentas Python executadas a partir da raiz
 ├── src/js/             # JavaScript de runtime

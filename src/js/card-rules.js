@@ -415,6 +415,30 @@
             targetSide: 'ALLY',
             requiredTrait: 'robotico',
             modifiers: {}
+        },
+        card_090: {
+            // "Intransponível" (default conservador, decisão de 2026-09-21): nenhum
+            // ATAQUE passa até o fim do turno do oponente. Dano de habilidade (Dino
+            // Elétrico, Quimera, efeitos) continua valendo — a carta fala de
+            // travessia, não de imunidade geral.
+            feedback: 'Bilugação Astral: o hospedeiro fica intransponível até o fim do turno do oponente.',
+            targetSide: 'ALLY',
+            modifiers: {},
+            effects(equipment, targetId) {
+                return [{
+                    kind: GameEngine.EFFECT_KINDS.ADD_EFFECT,
+                    effect: {
+                        id: `${equipment.instanceId}:impenetravel`,
+                        effectType: 'IMPENETRABLE',
+                        sourceId: equipment.instanceId,
+                        targetId,
+                        duration: {
+                            kind: GameEngine.DURATION_KINDS.UNTIL_END_OF_OPPONENT_TURN,
+                            controllerId: equipment.controllerId
+                        }
+                    }
+                }];
+            }
         }
     });
 
@@ -1561,6 +1585,13 @@
             .filter(Boolean);
         const bypassesAllDefenses = attachedDefinitions.includes('card_097');
         const bypassesEvasion = bypassesAllDefenses || attachedDefinitions.includes('card_101');
+        // Bilugação Astral: enquanto o efeito durar a criatura é intransponível —
+        // nenhum ataque passa, nem com Olho de Águia/Flecha de Prata (o texto da
+        // carta é absoluto). O bloqueio em combate vive no BECAME_ATTACK_TARGET.
+        if (state.effects.some(effect =>
+            effect.effectType === 'IMPENETRABLE' && effect.targetId === target.instanceId)) {
+            return { valid: false, reason: 'Bilugação Astral deixa a criatura intransponível.' };
+        }
         const attackedTargets = attacker.usage?.combatAttacks?.turnNumber === state.turn
             ? attacker.usage.combatAttacks.targets || []
             : [];
@@ -1616,26 +1647,41 @@
         return { valid: true };
     }
 
+    /**
+     * Primeiro turno do jogador (não é o turno 1 global — cada jogador tem o seu).
+     * A partida nasce com `p1` abrindo em `turn 1`, então p1 joga os turnos ímpares
+     * e p2 os pares. `state.startingPlayer` deixa isso explícito no estado.
+     */
+    function ehPrimeiroTurnoDoJogador(state, playerId) {
+        const abriu = state?.startingPlayer || 'p1';
+        const deslocamento = playerId === abriu ? 0 : 1;
+        return state?.turn === 1 + deslocamento;
+    }
+
     function canDirectAttack(state, attackerId) {
         const attacker = state.cardInstances[attackerId];
         if (!attacker) return false;
+
+        // Ninguém ataca direto no PRÓPRIO primeiro turno (regra do autor,
+        // 2026-09-21): vale para ataque direto inerente, campo vazio e permissão
+        // de equipamento — a abertura não pode virar corrida de PV.
+        if (ehPrimeiroTurnoDoJogador(state, attacker.controllerId)) return false;
+
         const opponentId = attacker.controllerId === 'p1' ? 'p2' : 'p1';
         const hasDefenders = state.players[opponentId].zones.field
             .some(card => ['criatura', 'evolução'].includes(card.data.type));
-        // Sem defensores: permite apenas a partir do turno 2
-        if (!hasDefenders) return state.turn > 1;
+        // Sem defensores: do segundo turno em diante qualquer criatura ataca direto.
+        if (!hasDefenders) return true;
         // Beluga: bypass direto inerente, porém limitado a um uso por turno
         if (attacker.definitionId === 'card_063') {
-            if (state.turn <= 1) return false;
             const usage = attacker.usage?.combatAttacks;
             const directAttacks = usage?.turnNumber === state.turn
                 ? usage.directAttacks || 0
                 : 0;
             return directAttacks < 1;
         }
-        // Com defensores: cartas com ataque direto inerente exigem turno >= 2
+        // Com defensores: cartas com ataque direto inerente podem passar.
         if (DIRECT_ATTACK_DEFINITION_IDS.includes(attacker.definitionId)) {
-            if (state.turn <= 1) return false;
             return true;
         }
         // Apenas permitir se houver permissão temporária de equipamento/efeito
@@ -2446,6 +2492,20 @@
                         effectId: untouchableShield.id
                     });
                 }
+                const impenetravel = context.state.effects.find(effect =>
+                    effect.effectType === 'IMPENETRABLE' &&
+                    effect.targetId === event.payload.targetId
+                );
+                if (impenetravel) {
+                    // Bilugação Astral: o ataque é cancelado e o efeito NÃO é
+                    // consumido (vale o turno inteiro do oponente).
+                    effects.push({
+                        kind: GameEngine.EFFECT_KINDS.MODIFY_COMBAT,
+                        combatId: event.payload.combatId,
+                        field: 'cancelled',
+                        value: true
+                    });
+                }
                 const featherShield = context.state.effects.find(effect =>
                     effect.effectType === 'FEATHER_SHIELD' &&
                     effect.targetId === event.payload.targetId
@@ -2922,6 +2982,7 @@
         validateEquipmentTarget,
         validateAttackTarget,
         canDirectAttack,
+        ehPrimeiroTurnoDoJogador,
         hasTrait,
         getTraits,
         getActivatedTargets,

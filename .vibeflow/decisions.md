@@ -1,6 +1,265 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-21 — Seleção de decks (hotseat + lobby PvP) e traits no modal da carta
+
+Pedido: "tela de seleção de decks assim que o usuário ingressar na tela da partida",
+com modal oferecendo deck aleatório ou decks prontos vindos de JSON (≥3, ≤40
+cartas, balanceados por custo, agrupados por traits/suportes/tipos), visual de
+cartas empilhadas com a cor de cada deck; e os **traits** no modal de detalhes da
+criatura, além da habilidade.
+
+Decisões de arquitetura:
+
+- **`data/decks.json` é a fonte única dos presets** e guarda **só ids** de
+  `data/cards_database.json` (nada de definição duplicada). Schema: `id`, `nome`,
+  `tema`, `descricao`, `emblema`, `traits` (tema), `cores`
+  (`primaria`/`secundaria`/`acento`) e `cartas[]` (id repetido uma vez por cópia).
+  4 decks de 40: Legião Robótica (robotico), Matilha Selvagem (besta + evolução
+  Turtol Maximus), Corte Dracônica (dragao/voador/elite) e Ordem dos Caçadores
+  (humanoide/guerreiro/paladino/elite) — depois somados de Alcateia Lunar
+  (lobisomem/besta/elite, ver bullet do quinto deck). Curvas: 13–29 cartas de
+  custo 1–3, 10–22 de 4–6 e 1–9 de 7+, custo médio 3,08–4,65 e no máximo 3
+  cópias por carta.
+- **Suporte casa com o deck**: cada preset traz ≥3 hospedeiros reais para os
+  suportes que exigem trait (`Dispositivo de Sincronia`/`Couraça`/`Escudo` →
+  robotico, `Núcleo de Energia Pura` → dragao|elite, `Flecha de Prata` →
+  humanoide|besta, `Estaca do Caçador` → guerreiro|humanoide, `Lâmina Sagrada` e
+  `Aura de Vingança` → elite|paladino) e a evolução vem com a forma base
+  (`card_048` para `card_075`). Um teste de unidade valida isso contra
+  `CardRules.getEquipmentRule`/`hasTrait` — não é só estética.
+- **Tamanho do baralho unificado em 40** (`DECK_SIZE`): `src/js/deck_system.js`
+  (fonte), `src/js/pvp-game.js`, `server.py` e o default de
+  `scripts/deck_factory.js`. Um teste trava a sincronia dos quatro (`const
+  DECK_SIZE = 40` / `^DECK_SIZE = 40$` / `args.size || '40'`).
+- **Um componente, dois modos** (`src/js/deck-select.js` + `src/css/deck-select.css`):
+  `abrir()` no hotseat (modal bloqueante do boot; resolve com o id escolhido) e
+  `renderizar(container, { onSelect })` no lobby PvP. A pilha usa
+  `assets/verso.jpeg` em 5 versos girados, e a identidade de cada deck chega como
+  CSS var `--deck-primaria/--deck-secundaria/--deck-acento` escrita a partir do
+  JSON (dado de tema; o estado visual continua em classe). O botão do aleatório
+  (`aleatorio`) entra como opção sintética, sem curva inventada.
+- **Boot do hotseat**: `DOMContentLoaded` → `loadCardSystem()` (que agora também
+  carrega `data/decks.json` em `window.deckCatalog`) → `await DeckSelect.abrir()`
+  → `startNewMatch(escolha)`. O `p2` do hotseat entra com deck balanceado sorteado
+  (o modal explica isso). Sem catálogo (fetch bloqueado/`file://`) `abrir()` resolve
+  `null` e a partida segue aleatória — nenhum dataset alternativo embutido.
+- **Reset preserva o deck, "Trocar deck" reabre o modal**: a escolha vive em
+  `gameState.deckSelections` (inicializado em `GameStateModel.createInitialGameState`
+  e propagado por `resetMatchState(state, decks, {...gameConfig, deckSelections})`),
+  não num global paralelo. `startNewMatch()` sem argumento reusa a seleção;
+  `resetGame(escolha)` fica **síncrono** (o `startNewMatch` não tem `await` interno),
+  o que mantém os testes de browser existentes válidos.
+- **Limite de turno de 45s** (a pedido): cada turno tem relógio e, ao estourar, a
+  vez passa sozinha. Decisão de arquitetura: **o servidor é a autoridade** — o
+  `cleanup_loop` confere os relógios a cada 2s e, quando o assento da vez passa de
+  `limite_turno()`, registra um `END_TURN` **no ledger** (autor = assento da vez,
+  com `timeout: true` na replicação) e faz o broadcast normal: os dois clientes
+  aplicam a mesma transição pelo caminho de sempre (nada de relógios paralelos
+  decidindo o jogo, o que furaria o lockstep). O servidor só passa a vez com os
+  **dois assentos conectados**, então um F5 não faz a partida andar nas costas de
+  quem caiu. `Room.turn_started_at` reinicia em cada `END_TURN` e no `start_match`;
+  `public_state()` e o broadcast de `COMMAND` carregam `limiteTurno`/`prazoTurno`,
+  e o cliente só **desenha** o contador a partir do relógio do servidor. No
+  **hotseat** (sem servidor) o próprio cliente passa a vez quando zera (com a
+  mesma guarda de geração de partida dos outros timers). Config:
+  `gameConfig.turnSeconds` (45) e `DEFAULT_CONFIG.turnSeconds` (45); o
+  `XM_TURN_SECONDS` do ambiente afina/desliga (0) o relógio do servidor — os
+  smokes usam isso (o `smoke_match.py` roda com 0 para manter as contagens exatas
+  do ledger, e o novo `tests/pvp/turn_timer.py` sobe o servidor com 2s e verifica
+  o estouro, a replicação e o espelho). UI: `#turn-timer` no painel central das
+  duas telas, com aviso nos últimos 10s (`.turn-timer-warning`) e pulso em 0.
+- **Ataque direto proibido no primeiro turno de CADA jogador**: antes a trava era
+  `state.turn <= 1` (turno 1 global), então p2 atacava direto no seu primeiro turno
+  e uma permissão de equipamento (`Atravessava`/`Rego Freitas`) furava a regra até
+  no turno 1. Agora `CardRules.canDirectAttack` abre com
+  `ehPrimeiroTurnoDoJogador(state, attacker.controllerId)` — vale para ataque
+  direto inerente (Diabretes/Ptera/Beluga), campo vazio **e** permissão de carta.
+  O estado ganhou `startingPlayer: 'p1'` (p1 joga os turnos ímpares, p2 os pares),
+  então a regra não depende de números mágicos e continua determinística no PvP.
+  As regras do jogo (index.html e lobby, textos idênticos) anunciam a proibição.
+- **Vida inicial: 200 → 300** (análise de poder dos decks). Medições dos 9 presets
+  (média ponderada por cópias): **ATK médio 27,1**, **DEF média 24,2** e **média
+  dos 3 melhores ATK 47,7** — ou seja, no atrito o vazamento por ataque é pequeno
+  (~3 de overflow contra defesa cheia), mas quando um campo cai, cada atacante
+  despeja o ATK inteiro (40–59 nas elites) e 3 atacantes passam de **100 PV por
+  turno**. Com 200 PV, o perdedor do embate de campo morria em 1–2 turnos (é a
+  sensação de "partida curta"); com **300** a fase de atrito (~8 turnos, 90–120 PV)
+  ainda deixa **2–3 turnos de cerco** para quem virou a mesa, dando espaço para
+  rebuild de campo, `Aura de Vingança`, Condessa e Marik 2. O valor está nas três
+  pontas do jogo: `src/js/game.js INITIAL_PV`, `server.py DEFAULT_CONFIG`, o
+  contador `index.html`, os spans pintados de `game.html`/`pvp.html` e as duas
+  telas de regras — um teste novo trava todos eles (300 nos dois PV e no texto).
+  O default do `GameStateModel` segue 200 **como fixture** (comentado no arquivo):
+  a partida real sempre passa o config do hotseat ou do `MATCH_START`.
+- **Bilugação Astral implementada** (era a única das 110 cartas sem regra, 109/110):
+  `card_090` é suporte de custo 2 que equipa **qualquer** criatura aliada e aplica o
+  efeito `IMPENETRABLE` com duração `UNTIL_END_OF_OPPONENT_TURN` — a criatura fica
+  **intransponível até o fim do turno do oponente**. Default conservador para a
+  ambiguidade registrada (pergunta de produto #13): **nenhum ataque passa** —
+  recusa em `CardRules.validateAttackTarget` (o motivo aparece na UI) **e** combate
+  cancelado no `BECAME_ATTACK_TARGET` (caminho determinístico do ledger, ambos os
+  clientes iguais) —, sem consumir o efeito a cada ataque e sem bloquear dano de
+  habilidade (Dino Elétrico, Quimera) nem ataques diretos ao jogador. `check_cards.py`
+  agora reporta **110/110 (100%)**. A carta entrou no **Círculo Arcano** (o deck dos
+  magos) e no **Banquete de Apelino** (a "apelação" literal), fechando a cobertura
+  do catálogo nos decks: **110/110 cartas em uso**, com um teste que agora exige
+  cobertura total (antes tolerava a carta inerte fora).
+- **Fúria Selvagem** (era "Matilha Selvagem", id `furia`): a pedido, o deck passou a
+  ser o das **feras variadas** — 32 cartas distintas em 40 (1,25 cópia/carta contra
+  2,11 antes), média 3,48, curva 24/12/4, 25 criaturas **100% besta**;
+  entraram Baltz, Paladar ×1, Gulosinho, Grifo Real, Turtol, Entola Guela, Gárgula,
+  Beluga, Tiranossauro e Golem de Pedra, e saíram as cópias repetidas (Bufaboi,
+  Rei das Feras, Puma, Zol, Tobinha, Flecha/Espada/Estaca em tripla). Nomes/id
+  atualizados em `data/decks.json`, README, testes de unidade e de browser.
+- **Turtol Maximus na Maré Profunda (e Roller na Matilha)** (a pedido): a
+  evolução do Turtol pertencia à Matilha, mas o deck aquático é o dono natural
+  dela — `card_048` Turtol ×1 já estava lá como muralha (imune a habilidades de
+  custo < 4) e agora evolui para `card_075` Turtol Maximus (35/48), fechando o
+  "segura e vira fortaleza". O `card_069` Roller foi para a **Matilha Selvagem**
+  (besta, 39/35, volta à mão ao morrer): troca direta de um para um, os dois decks
+  seguem com 40 cartas e o teste de evolução continua exigindo a base presente
+  (`card_048`). Descrições dos dois decks atualizadas.
+- **Aladar é besta, não dragão** (decisão do autor): `card_029` tinha a trait
+  `dragao` no catálogo e no inventário travado por teste. Corrigido para `besta`
+  em `data/cards_database.json` e nos dois lugares do teste (`INVENTARIO`.
+  besta/dragao e a lista de dragões), que agora também assevera explicitamente
+  `card_029 → ['besta']`. Consequências: a **Corte Dracônica** perdeu Aladar (e
+  ganhou mais uma cópia de Scoul e de Ptera — curva idêntica: os três custam 4) e
+  o Aladar entrou na **Matilha Selvagem**, onde é besta legítimo (30/12, ataca de
+  novo ao derrotar). `card_037` Scoul deixa de contar Aladar como dragão em campo.
+- **Cobertura total do catálogo**: os 9 decks agora usam **109 das 110 cartas**.
+  Os buracos foram fechados rebalanceando: `card_050` Shupáku e `card_029` Aladar
+  na Matilha (saíram Baltz ×2 e Gulosinho), `card_057` Quimera de Fogo na
+  Alcateia (que ganhou `fogo` nas traits — carregada pelo Lobo Omega Pyro),
+  `card_041` Gulosinho na Alcateia (no lugar de uma Tobinha), `card_007` Camisa 14
+  do América na Ordem dos Caçadores e os **três arts do Diabrete Alado** na Corte
+  Dracônica (`card_010_1`+`card_010_2`+`card_010_3`; seguro porque
+  `DIRECT_ATTACK_DEFINITION_IDS` lista os três). A única carta fora é
+  `card_090` Bilugação Astral, **sem regra implementada** (pergunta de produto
+  #13) — um teste novo exige cobertura de *todas as cartas jogáveis* e proíbe a
+  inerte em deck.
+- **O lobby não escolhe mais deck**: o seletor embutido (`DeckSelect.renderizar`)
+  foi removido do `pvp-lobby.html` (seção, CSS, scripts e `loadCardSystem`) e do
+  componente — a escolha acontece **só ao entrar na partida** (`game.html` e o
+  link da sala em `pvp.html`, mesmo modal bloqueante). O lobby voltou a ser só
+  criar/compartilhar sala + Regras do Jogo. Testes: o `test_pvp_lobby_deck.js` foi
+  removido e um teste de unidade novo garante que o lobby não carrega/grava nada de
+  deck (`deck-select.js`, `deck-select.css`, `deck-picker`, `loadCardSystem`).
+- **🌑 Lua de Sangue** (a pedido, o par noturno da Alcateia): vampiros +
+  demônios + fantasmas + elite. A corte é `card_054` Lorde Sanguinário ×2,
+  `card_062` Alucard ×2 e `card_076` Condessa Carmilla ×2 (os três elite, então
+  Núcleo de Energia Pura e Aura de Vingança têm 4 hospedeiros), com o séquito
+  demoníaco (`card_024` Slipul ×2, `card_060` Tranca Rua ×2, `card_010_1`
+  Diabretes ×2 convocados pelo `card_045` Invocador das Trevas) e o Fantom ×2
+  como evasão. Fecha com o pacote de travamento (11 de Setembro ×2, Zica ×2, Cara
+  de Cu Estourado, Chocolicia) e Pena do Gigante/Medalhão/Estrela para sustentar a
+  corte. Números: 40 cartas, **26 distintas**, ≤2 cópias, média 3,50, curva
+  26/10/4, 24 criaturas (58% no tema — os três vampiros do catálogo estão aqui,
+  duas cópias de cada). O catálogo ficou com **9 arquétipos**.
+- **Cada partida embaralha o baralho (inclusive nos decks prontos)**: a ordem do
+  `data/decks.json` é só a receita. `DeckBuilder.embaralhar(definicoes, rng)` é o
+  **único** Fisher-Yates do jogo (o `shuffleArray` do deck aleatório passou a
+  delegar para ele), aplicado no hotseat em `montarDecksDaEscolha` (RNG do
+  builder = `Math.random`) e no PvP em `pvp-game.js#embaralharDeck` com o
+  **mulberry32 da seed da sala** — não por acaso: o F5 reenvia o `MATCH_START` e o
+  replay dos `DRAW` do ledger move o **topo** do baralho, então a ordem precisa ser
+  reproduzível dentro da sala (seeds diferentes entre salas ⇒ ordens diferentes).
+  O stream do RNG é novo e local, sem tocar em `gameState.rng` (dado/efeitos).
+  Efeito colateral corrigido: `window.DeckBuilder` nunca era exposto, então o
+  fallback "cliente gera o deck pela seed" (`gerarDeckLocal`) sempre avisava
+  "sem DeckBuilder` e devolvia `null` — agora a classe está no escopo global.
+- **Três arquétipos novos, com variedade alta** (a pedido: "combine mais traits,
+  sinergias sem repetir tantas cartas"): **🍷 Banquete de Apelino** (o deck de
+  custo alto — `card_089` Apelino ×2 é o motor de ataques ilimitados, os
+  hospedeiros são os furadores de defesa Tiranossauro, Minotauro, Gárgula e
+  Mexica, e a mesa mistura elites de facções diferentes: Superior, Imperial X,
+  Sentinela Solar, Condessa Carmilla, Lorde Sanguinário, Golem e Nucles —
+  **32 cartas distintas**, 18/11/11 de curva, 11 cartas de custo 7+, média 4,72);
+  **🌊 Maré Profunda** (aquáticos + pacote de controle/paralisação: o único deck
+  que usa **todas as 6 cartas aquáticas do catálogo, duas de cada** — Tlantidu ×2
+  e Hidra das Profundezas ×2 fecham a linha de tutor, porque o Tlantidu busca um
+  aquático no deck ao morrer —, com 11 de Setembro, Zica, Cara de Cu Estourado,
+  Abutuaram e Chocolicia atrasando o oponente e Cacton/Turtol/Fantom/Roller como
+  muralha: 28 distintas, média 3,77); **🔮 Círculo Arcano**
+  (magico + humanoide + elite + fantasma: Cajado da Ilusão e Tomo de Feitiços só
+  equipam os quatro conjuradores, o Invocador traz Diabretes, o Tranca Rua provoca
+  e o Manto da Luz Solar responde a vampiros/lobisomens — 29 distintas, média
+  3,27). Os três usam **no máximo 2 cópias por carta** (1,25–1,38 cópias/carta
+  contra 2,0–2,2 dos quatro primeiros) e juntos os 8 decks cobrem **103 das 110
+  cartas** do catálogo. Um teste novo trava isso: ≥18 distintas por deck, ≤2,3
+  cópias/carta, ≥3 decks de variedade alta e ≥100 cartas cobertas.
+- **Quinto deck — Alcateia Lunar** (a pedido): lobisomens + lobos elementais.
+  Núcleo: `card_059` O Lica ×2, `card_077` Marik ×2, `card_085` **Marik 2** ×1
+  (evolução ← Marik, 59/59), `card_078` Alfa Fly, `card_079` Beta Lightning,
+  `card_080` Omega Pyro, `card_081` Latex e `card_082` Gamma Freeze (1 cópia cada
+  — o teto do deck); a vanguarda é de bestas de custo baixo (Kirb, Zol, Tobinha,
+  Bufaboi, Garras Afiadas, Rei das Feras, Trox) para segurar até o custo 9.
+  Suportes: `card_097` Flecha de Prata ×3, `card_104` Núcleo de Energia Pura ×2 e
+  `card_108` Aura de Vingança ×2 (os dois últimos só equipam elite — 8 cópias de
+  elites hospedeiras), Espada Mágica, Botas da Rapidez, Medalhão de Cura e Rego
+  Freitas. Paleta roxo-lunar (`#c4b5fd`), emblema 🌕. Números: 40 cartas, 22
+  distintas, ≤3 cópias, média **4,53**, curva 22/10/8, 26 criaturas (100% no
+  tema lobisomem/besta/elite).
+- **Roster ajustado a pedido**: a **Corte Dracônica** recebeu o **Invocador das
+  Trevas** (`card_045`) — a regra dele (`ritual_invocacao`) invoca um Diabrete Alado
+  **da mão** por 1 de energia, então o deck subiu os **Diabretes Alados**
+  (`card_010_1`) de 2 para **3 cópias** e abriu espaço tirando o `Medalhão de
+  Cura` (custo 2 → média 4,15, criaturas 26). Na **Ordem dos Caçadores** o
+  Invocador saiu e entrou o **Paladino Alvorada** (`card_067`, elite/paladino/
+  humanoide, 37/28) em **3 cópias** — a ala nobre do deck e mais um hospedeiro de
+  `Lâmina Sagrada`/`Estaca do Caçador`/`Flecha de Prata` (média 4,65). Os testes
+  de catálogo (40 cartas, ≤3 cópias, curva, tema, hospedeiros) seguem verdes sem
+  afrouxar nenhum limite.
+- **PvP — a escolha é confirmada na ENTRADA da sala** (correção do pedido): o
+  `bootstrap` do `pvp.html` chama `escolherDeckDeEntrada()` **antes** de abrir o
+  socket — o modal é o mesmo do hotseat (bloqueante, sem ×) e o `HELLO` nasce com
+  `deck: <id confirmado>`. Como o servidor só inicia a partida com os dois
+  assentos, ninguém entra numa mesa sem o outro ter escolhido. O seletor do
+  **lobby** passou a ser só **pré-seleção** (o `localStorage['xmDeckPreferido']`
+  pré-marca a opção no modal). O tabuleiro PvP nunca carregava o catálogo de
+  cartas (o deck vem do servidor) — agora `escolherDeckDeEntrada()` carrega
+  `loadCardSystem()` para o resumo do modal (stats/curva/cartas) e isso de
+  quebra conserta o fallback `gerarDeckLocal`, que dependia de
+  `window.cardsDatabase`. PvP/hotseat carregando em paralelo expôs uma corrida
+  (`cardsDatabase` pronto e `deckCatalog` não, o modal caía no aleatório):
+  `loadDeckCatalog` agora compartilha a promessa em andamento e `loadCardSystem`
+  é idempotente.
+- **PvP — servidor**: o lobby escolhe (mesmo componente,
+  `localStorage['xmDeckPreferido']`) e o `HELLO` manda `deck: <id>`; `server.py` guarda `Room.deck_choices`, valida o id
+  contra `deck_presets()` (lidas de `data/decks.json`, com cache) e resolve
+  `resolver_decks(room)`: preset expandido **em Python** (não depende do Node) ou
+  deck pela seed (fallback do `deck_factory`, inalterado). A escolha só vale antes
+  da partida (`room.decks is None and not room.started`); `reset_for_rematch` limpa
+  `decks`/`deck_ids` para re-resolver. `MATCH_START` ganhou `deckId`/`deckNome`
+  **só do próprio assento** — o deck alheio continua secreto (nada em
+  `public_state`); o espelho `matches/<roomId>.json` audita
+  `escolhasDeck`/`decksResolvidos`.
+- **Traits no modal de detalhes** (`showCardModal`): bloco **"Características:"**
+  entre stats e habilidade, alimentado por `DeckSelect.traitsDaCarta(cardData)`
+  (catálogo primeiro, `CardRules.getTraits` como fallback) e rotulado em pt-BR por
+  `TRAIT_LABELS` (16 traits: `besta` → "Besta 🐾", `lobisomem` → "Lobisomem 🌕",
+  `elite` → "Elite 👑" …). Suporte não tem traits no catálogo: a seção não aparece
+  (nada de bloco vazio). Um teste garante que o mapa de rótulos e as traits do
+  catálogo não divergem e que o PvP também carrega o componente (os chips viajam
+  no `pvp.html`).
+
+Evidências: `node tests/unit/run-tests.js` **240/240** (novos blocos de catálogo de
+decks, motor, traits, markup/ordem de scripts, guarda de sintaxe dos classic
+scripts e do servidor), `node tests/browser/run-browser-tests.js` **23/23** (novos
+`test_deck_select.js`, `test_pvp_lobby_deck.js` e `test_pvp_deck_entry.js` — este
+último dubla o `WebSocket`, entra em `/pvp/<sala>/<assento>` e prova que o `HELLO`
+leva o deck confirmado; o harness confirma o deck aleatório via
+`DeckSelect.confirmarAleatorio()` antes de injetar os scripts) e
+`py -3 tests/pvp/smoke_match.py` com os casos novos (preset de 40 na ordem do JSON,
+`deckNome`, id desconhecido → sorteio, espelho auditando a escolha).
+
+Pitfall registrado: um `await` dentro de função não-async em `game.js` derrubava o
+arquivo inteiro no navegador (a página ficava sem `window.gameState` e 10 testes de
+browser falharam em massa). Agora `run-tests.js` compila todo `src/js/*.js` com
+`new vm.Script(...)` — os testes de unidade pegam esse tipo de erro antes do
+browser.
+
 ## 2026-09-21 — Suporte equipado soma sempre os próprios ATK/DEF do catálogo
 
 Reclamação de produto: cartas de suporte com `attack`/`defense` no

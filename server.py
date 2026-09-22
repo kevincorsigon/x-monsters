@@ -65,12 +65,20 @@ ALL_COMMANDS = TURN_COMMANDS | {"CHOICE", "DESTROY", "SET_NAME"}
 ROOM_TTL_FINISHED = 30 * 60
 ROOM_TTL_IDLE = 2 * 60 * 60
 
-DEFAULT_CONFIG = {"initialPv": 200, "initialEnergy": 6}
+# Tempo maximo de um turno. O servidor e a autoridade: passou do limite, ele
+# registra um END_TURN do assento da vez no ledger e replica aos dois clientes (o
+# caminho normal de comando), entao nao existe corrida entre relogios.
+# `XM_TURN_SECONDS=0` desliga o relogio (usado pelos testes que contam comandos).
+TURN_SECONDS = int(os.environ.get("XM_TURN_SECONDS", "45"))
+
+DEFAULT_CONFIG = {"initialPv": 300, "initialEnergy": 6, "turnSeconds": TURN_SECONDS}
 
 # Cartas na mão inicial de cada jogador: as compras entram no ledger para que os
 # dois clientes reapliquem exatamente a mesma abertura.
 INITIAL_HAND = 5
-DECK_SIZE = 50
+DECK_SIZE = 40
+DECKS_CATALOG = ROOT / "data" / "decks.json"
+CARDS_DATABASE = ROOT / "data" / "cards_database.json"
 # Limite de mao do motor (`GameStateModel.HAND_LIMIT`). O servidor nao conhece
 # regra de carta, mas a contagem de mao e um invariante de contagem: replica-la e
 # o que impede um assento de exibir "7" enquanto o outro exibe "6".
@@ -166,12 +174,39 @@ class Room:
     # regra de carta: ele guarda o numero que o autor declara em cada COMMAND
     # (e conta sozinho o DRAW, que e sempre +1) e replica para os dois lados.
     hand_sizes: dict = field(default_factory=lambda: {seat: 0 for seat in SEATS})
+    # Preset pedido pelo assento (id de data/decks.json) e o que de fato valeu:
+    # o segundo guarda None quando o assento ficou com o deck sorteado pela seed.
+    deck_choices: dict = field(default_factory=lambda: {seat: None for seat in SEATS})
+    deck_ids: dict = field(default_factory=lambda: {seat: None for seat in SEATS})
+    # Inicio do turno corrente: o relogio que o `cleanup_loop` compara com o limite.
+    turn_started_at: float | None = None
 
     def connected_seats(self):
         return [seat for seat in SEATS if self.seats[seat].connected]
 
     def both_connected(self):
         return len(self.connected_seats()) == 2
+
+    def limite_turno(self):
+        """Segundos por turno (0 = relogio desligado)."""
+        valor = (self.config or {}).get("turnSeconds")
+        if valor is None:
+            return TURN_SECONDS
+        try:
+            return max(0, int(valor))
+        except (TypeError, ValueError):
+            return TURN_SECONDS
+
+    def prazo_turno(self):
+        """Segundos restantes do turno corrente (0 quando o relogio esta parado)."""
+        limite = self.limite_turno()
+        if not limite or self.turn_started_at is None or self.status != "playing":
+            return 0
+        restante = limite - (time.time() - self.turn_started_at)
+        return round(max(0.0, min(restante, float(limite))), 1)
+
+    def reiniciar_relogio_de_turno(self):
+        self.turn_started_at = time.time()
 
     def public_state(self):
         """Estado da sala que pode trafegar e virar JSON (nenhum segredo)."""
@@ -185,6 +220,10 @@ class Room:
             "fase": self.phase,
             "escolhaPendente": self.pending_choice,
             "maos": dict(self.hand_sizes),
+            # Relogio de turno: o cliente desenha o contador a partir daqui, sem
+            # depender do relogio da maquina de quem esta jogando.
+            "limiteTurno": self.limite_turno(),
+            "prazoTurno": self.prazo_turno(),
             "assentos": {
                 seat: {
                     "conectado": self.seats[seat].connected,
@@ -201,6 +240,10 @@ class Room:
             **self.public_state(),
             "seed": self.seed,
             "config": self.config,
+            # Auditoria: a escolha de deck nao vai para `public_state` (o deck do
+            # oponente e segredo), mas fica registrada no espelho da partida.
+            "escolhasDeck": dict(self.deck_choices),
+            "decksResolvidos": dict(self.deck_ids),
             "commands": list(self.commands),
         }
 
@@ -277,6 +320,9 @@ class Room:
             self.current_player = other_seat(actor)
             self.turn += 1
             self.phase = "energy"
+            # Cada turno comeca com o relogio zerado: o assento da vez tem
+            # `limite_turno()` segundos antes de o servidor passar a vez sozinho.
+            self.reiniciar_relogio_de_turno()
         if args.get("setsChoice"):
             self.pending_choice = True
         if cmd == "CHOICE":
@@ -341,7 +387,9 @@ class Room:
     def reset_for_rematch(self):
         """Prepara a sala para uma nova partida (assentos liberados, ledger limpo).
 
-        O espelho da partida anterior continua em `matches/<roomId>.json`.
+        O espelho da partida anterior continua em `matches/<roomId>.json`. Os
+        decks voltam a ser resolvidos no proximo `start_match`: os presets saem das
+        escolhas registradas (que podem ter mudado no lobby) e o resto da seed.
         """
         self.last_seq = 0
         self.commands = []
@@ -353,6 +401,8 @@ class Room:
         self.started = False
         self.status = "waiting"
         self.hand_sizes = {seat: 0 for seat in SEATS}
+        self.decks = None
+        self.deck_ids = {seat: None for seat in SEATS}
         self.updated_at = time.time()
 
 
@@ -416,6 +466,88 @@ async def persist_room(room):
         log(f"[aviso] nao foi possivel gravar matches/{room.room_id}.json: {error}")
 
 
+_DECK_PRESETS = None
+_CARDS_BY_ID = None
+
+
+def deck_presets():
+    """Catalogo de decks pre-montados: {id: {"nome": str, "cartas": [ids]}}.
+
+    Fonte unica do seletor (data/decks.json). O servidor apenas resolve a escolha
+    do assento: balancear deck continua sendo do `src/js/deck_system.js`.
+    """
+    global _DECK_PRESETS
+    if _DECK_PRESETS is not None:
+        return _DECK_PRESETS
+
+    _DECK_PRESETS = {}
+    try:
+        dados = json.loads(DECKS_CATALOG.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        log(f"[aviso] catalogo de decks indisponivel ({error}); vale o deck pela seed")
+        return _DECK_PRESETS
+
+    for deck in dados.get("decks") or []:
+        deck_id = str(deck.get("id") or "")
+        cartas = [str(carta) for carta in (deck.get("cartas") or [])]
+        if deck_id and cartas:
+            _DECK_PRESETS[deck_id] = {"nome": str(deck.get("nome") or deck_id), "cartas": cartas}
+
+    if _DECK_PRESETS:
+        log(f"[decks] catalogo carregado: {', '.join(sorted(_DECK_PRESETS))}")
+    return _DECK_PRESETS
+
+
+def cards_by_id():
+    """Definicoes do catalogo por id (cache): o preset guarda so ids."""
+    global _CARDS_BY_ID
+    if _CARDS_BY_ID is None:
+        _CARDS_BY_ID = {}
+        try:
+            dados = json.loads(CARDS_DATABASE.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            log(f"[aviso] cards_database.json ilegivel ({error}); presets desativados")
+            return _CARDS_BY_ID
+        _CARDS_BY_ID = {
+            str(carta["id"]): carta
+            for carta in (dados.get("cards") or [])
+            if carta.get("id")
+        }
+    return _CARDS_BY_ID
+
+
+def preset_deck(deck_id):
+    """Resolve o preset em `(nome, definicoes)`; `(None, None)` se nao houver."""
+    preset = deck_presets().get(str(deck_id or ""))
+    if not preset:
+        return None, None
+
+    catalogo = cards_by_id()
+    definicoes = [catalogo.get(carta_id) for carta_id in preset["cartas"]]
+    if any(definicao is None for definicao in definicoes):
+        log(f"[aviso] deck {deck_id} referencia carta inexistente; preset ignorado")
+        return None, None
+    return preset["nome"], definicoes
+
+
+def resolver_decks(room):
+    """Decks da partida: preset escolhido no lobby ou deck sorteado pela seed.
+
+    O sorteio continua delegado ao `deck_factory` (Node). Sem ele, o assento sem
+    preset recebe `None` e o cliente monta o proprio deck pela mesma seed — o
+    fallback que ja existia. O preset, por outro lado, e resolvido aqui: nao
+    depende do Node para valer.
+    """
+    sorteados = generate_decks(room.seed) or {}
+    decks = {}
+    for seat in SEATS:
+        escolha = (room.deck_choices or {}).get(seat)
+        _, definicoes = preset_deck(escolha) if escolha else (None, None)
+        decks[seat] = definicoes or sorteados.get(seat)
+        room.deck_ids[seat] = escolha if definicoes else None
+    return decks
+
+
 def generate_decks(seed, size=DECK_SIZE):
     """Delega o embaralhamento ao `scripts/deck_factory.js`.
 
@@ -453,11 +585,53 @@ def generate_decks(seed, size=DECK_SIZE):
     return decks
 
 
+async def expirar_turno(room):
+    """Passa a vez quando o assento da vez estoura `limite_turno()`.
+
+    O END_TURN entra no ledger como qualquer outro comando (autor = assento da
+    vez), entao os dois clientes aplicam a mesma transicao pelo caminho normal —
+    nenhum deles precisa confiar no proprio relogio. So vale com os DOIS assentos
+    conectados: assim um F5 (alguns segundos) nao faz o jogo andar sozinho nas
+    costas de quem caiu.
+    """
+    limite = room.limite_turno()
+    if not limite or room.status != "playing" or not room.started or room.decks is None:
+        return False
+    if not room.both_connected():
+        return False
+    if room.turn_started_at is None:
+        room.reiniciar_relogio_de_turno()
+        return False
+    if time.time() - room.turn_started_at < limite:
+        return False
+
+    ator = room.current_player
+    entry = room.add_command(ator, "END_TURN", {}, [])
+    await persist_room(room)
+    await broadcast(room, {
+        "type": "COMMAND",
+        **entry,
+        "handSizes": dict(room.hand_sizes),
+        "prazoTurno": room.prazo_turno(),
+        "timeout": True,
+    })
+    log(
+        f"[relogio] {room.room_id}: turno de {ator} estourou {limite}s; "
+        f"a vez passou para {room.current_player}"
+    )
+    return True
+
+
 def match_start_payload(room, seat):
-    """MATCH_START do assento: apenas o deck privado dele e a contagem do outro."""
+    """MATCH_START do assento: apenas o deck privado dele e a contagem do outro.
+
+    O `deckId`/`deckNome` descrevem so o preset do proprio assento: a identidade
+    do deck alheio continua secreta (spec parte 4, decisao 6).
+    """
     decks = room.decks or {}
     deck = decks.get(seat)
     opponent_size = len(decks.get(other_seat(seat)) or []) or DECK_SIZE
+    deck_id = (room.deck_ids or {}).get(seat)
     return {
         "type": "MATCH_START",
         "roomId": room.room_id,
@@ -467,6 +641,8 @@ def match_start_payload(room, seat):
         "config": room.config,
         "seed": room.seed,
         "deck": deck,
+        "deckId": deck_id,
+        "deckNome": deck_presets().get(deck_id, {}).get("nome") if deck_id else None,
         "opponentDeckSize": opponent_size,
         "initialHand": INITIAL_HAND,
         "state": room.public_state(),
@@ -490,10 +666,13 @@ def command_log_payload(room, reason):
 async def start_match(room):
     """Gera os decks, registra a abertura no ledger e inicia a partida."""
     if room.decks is None:
-        room.decks = generate_decks(room.seed)
+        room.decks = resolver_decks(room)
+        escolhidos = [f"{seat}={room.deck_ids.get(seat) or 'sorteado'}" for seat in SEATS]
+        log(f"[decks] {room.room_id}: {' | '.join(escolhidos)}")
     room.seed_initial_hand(INITIAL_HAND)
     room.started = True
     room.status = "playing"
+    room.reiniciar_relogio_de_turno()
     room.updated_at = time.time()
     await persist_room(room)
 
@@ -715,8 +894,14 @@ async def handle_command(connection, room, seat, message):
     entry = room.add_command(seat, cmd, args, reveals)
     await persist_room(room)
     # `handSizes` viaja em todo comando aceito: o contador exibido nos dois
-    # navegadores vem daqui, nao de uma recontagem local.
-    await broadcast(room, {"type": "COMMAND", **entry, "handSizes": dict(room.hand_sizes)})
+    # navegadores vem daqui, nao de uma recontagem local. `prazoTurno` faz o mesmo
+    # com o relogio: os dois contadores saem do relogio do servidor.
+    await broadcast(room, {
+        "type": "COMMAND",
+        **entry,
+        "handSizes": dict(room.hand_sizes),
+        "prazoTurno": room.prazo_turno(),
+    })
     client_hash = message.get("hash")
     if client_hash:
         await broadcast(
@@ -860,6 +1045,20 @@ async def handle_socket(connection):
 
     room.updated_at = time.time()
     log(f"[sala] {room_id}: assento {seat} conectado")
+
+    # Deck escolhido no lobby (id de data/decks.json, lido do localStorage daquele
+    # navegador). So vale antes da partida comecar: depois disso o estado ja foi
+    # montado dos dois lados e trocar o baralho divergiria as telas.
+    escolha_deck = str(hello.get("deck") or parametro("deck") or "").strip()
+    if escolha_deck and room.decks is None and not room.started:
+        if escolha_deck in deck_presets():
+            room.deck_choices[seat] = escolha_deck
+            log(f"[decks] {room_id}: assento {seat} escolheu o preset {escolha_deck}")
+        else:
+            log(
+                f"[aviso] {room_id}: assento {seat} pediu deck desconhecido "
+                f"({escolha_deck}); vale o deck pela seed"
+            )
     await send_message(
         connection,
         {
@@ -904,9 +1103,19 @@ async def handle_socket(connection):
 
 
 async def cleanup_loop():
-    """Limpeza periodica das salas ociosas/finalizadas."""
+    """Relogio de turno + limpeza periodica das salas ociosas/finalizadas.
+
+    O intervalo e curto porque o mesmo loop passa a vez dos turnos estourados
+    (`expirar_turno`); a limpeza por TTL so percorre as salas em memoria, entao
+    rodar junto nao custa nada.
+    """
     while True:
-        await asyncio.sleep(300)
+        await asyncio.sleep(2)
+        for room in list(REGISTRY.rooms.values()):
+            try:
+                await expirar_turno(room)
+            except Exception as error:  # noqa: BLE001 - relogio nunca derruba a sala
+                log(f"[aviso] falha ao conferir o relogio: {error}")
         removed = REGISTRY.cleanup()
         if removed:
             log(f"[limpeza] salas removidas da memoria: {', '.join(removed)}")

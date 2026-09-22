@@ -19,7 +19,7 @@
     'use strict';
 
     const TOKEN_KEY_PREFIX = 'xmPvpToken:';
-    const DECK_SIZE = 50;
+    const DECK_SIZE = 40;
 
     let seatLocal = null;
     let roomIdLocal = null;
@@ -270,7 +270,7 @@
         return `${protocolo}://${location.host}/ws`;
     }
 
-    function bootstrap() {
+    async function bootstrap() {
         if (typeof document === 'undefined' || typeof WebSocket === 'undefined') return null;
 
         setSeat(parseSeat(location.pathname));
@@ -282,6 +282,11 @@
 
         marcarAssento();
         restringirFuncoesGlobais(seatLocal);
+
+        // A escolha do deck acontece aqui, antes de qualquer socket: o `HELLO` já
+        // nasce com o id confirmado (a partida espera os dois assentos, então
+        // ninguém é empurrado para uma mesa sem o outro ter escolhido).
+        await escolherDeckDeEntrada();
 
         socket = new WebSocket(webSocketUrl());
         socket.addEventListener('open', enviarHello);
@@ -314,13 +319,66 @@
         return session;
     }
 
+    /**
+     * Deck confirmado na entrada da sala (id de data/decks.json). `null` significa
+     * deck aleatório — ou catálogo indisponível. É o valor que viaja no `HELLO`.
+     */
+    let deckEscolhido = null;
+
+    /**
+     * Escolha do deck na ENTRADA da sala: abre o mesmo modal do hotseat (a
+     * preferência marcada no lobby já vem pré-selecionada) e só depois o socket
+     * conecta. Como o `HELLO` leva o id confirmado e o servidor só inicia a
+     * partida com os dois assentos, ninguém começa antes do outro escolher.
+     */
+    async function escolherDeckDeEntrada() {
+        if (!window.DeckSelect?.abrir) return null;
+
+        // No PvP o tabuleiro sozinho nunca carrega as cartas (o deck vem do
+        // servidor), mas o resumo do seletor precisa delas. Os dois catálogos
+        // entram na conta: `deckCatalog` vazio derruba o modal para o aleatório.
+        if (!window.cardsDatabase || !window.deckCatalog) {
+            try {
+                if (typeof loadCardSystem === 'function') {
+                    await loadCardSystem();
+                }
+                if (!window.deckCatalog && typeof loadDeckCatalog === 'function') {
+                    await loadDeckCatalog();
+                }
+            } catch (error) {
+                console.warn('pvp-game: catálogo indisponível para o seletor de decks', error);
+            }
+        }
+
+        deckEscolhido = await window.DeckSelect.abrir();
+        return deckEscolhido;
+    }
+
+    /**
+     * Embaralha o deck que veio do servidor (o preset é a receita, não a ordem do
+     * baralho). O RNG é o da sala — mulberry32 da seed —, então um F5 reencontra
+     * exatamente a mesma ordem: o replay dos DRAW do ledger precisa do mesmo topo
+     * de baralho, senão as revelações registradas apontariam para outra carta.
+     */
+    function embaralharDeck(definicoes, seed) {
+        const rng = mulberrySala(seed);
+        if (typeof window.DeckBuilder?.embaralhar === 'function') {
+            return window.DeckBuilder.embaralhar(definicoes, rng);
+        }
+        console.warn('pvp-game: DeckBuilder ausente; o deck segue na ordem do servidor');
+        return [...definicoes];
+    }
+
     function enviarHello() {
         const token = window.sessionStorage?.getItem(TOKEN_KEY_PREFIX + roomIdLocal) || null;
         socket.send(JSON.stringify({
             type: 'HELLO',
             room: roomIdLocal,
             seat: seatLocal,
-            token
+            token,
+            // O servidor resolve o preset deste assento (o do oponente é segredo):
+            // só o id viaja, nenhuma definição de carta aqui.
+            deck: deckEscolhido
         }));
         atualizarBadges('aguardando o oponente…');
     }
@@ -336,6 +394,13 @@
 
         // Sincronização primeiro (COMMAND, COMMAND_LOG, DICE_RESULT, STATE_HASH…).
         session.handleMessage(mensagem);
+
+        // Relógio de turno: cada mensagem que carrega o prazo reajusta o contador
+        // (o relógio do servidor é a autoridade; o local só desenha).
+        const prazoPublicado = mensagem.prazoTurno ?? mensagem.state?.prazoTurno;
+        if (Number.isFinite(Number(prazoPublicado)) && prazoPublicado !== null) {
+            window.reiniciarTempoDeTurno?.(Number(prazoPublicado));
+        }
 
         switch (mensagem.type) {
             case 'ROOM_STATE':
@@ -409,7 +474,7 @@
         window.gameState.rng = rngSala;
 
         const decksPrivados = Array.isArray(mensagem.deck) && mensagem.deck.length > 0
-            ? mensagem.deck
+            ? embaralharDeck(mensagem.deck, mensagem.seed)
             : gerarDeckLocal(mensagem.seed, assento);
         const tamanhoDeckOculto = Number(mensagem.opponentDeckSize ?? DECK_SIZE);
         window.__gameOverEnviado = false;
@@ -420,7 +485,18 @@
             {
                 idFactory: window.PvpState.createPvpIdFactory(mensagem.seed),
                 initialPv: mensagem.config?.initialPv,
-                initialEnergy: mensagem.config?.initialEnergy
+                initialEnergy: mensagem.config?.initialEnergy,
+                // Preset do proprio assento (o servidor so anuncia o deck do dono):
+                // o gear "Decks" mostra o nome escolhido no lobby.
+                deckSelections: mensagem.deckId
+                    ? {
+                        [assento]: {
+                            id: mensagem.deckId,
+                            nome: mensagem.deckNome || mensagem.deckId,
+                            emblema: null
+                        }
+                    }
+                    : {}
             }
         );
         window.PvpState.installHiddenZones(window.gameState, oponente, {
@@ -436,6 +512,11 @@
         marcarAssento();
         vincularControlesLocais(assento);
         estadoDaPartida = 'em partida';
+        // Relógio de turno vindo do servidor (autoridade): o contador nasce com o
+        // tempo que ele publicou, não com o relógio desta máquina.
+        window.reiniciarTempoDeTurno?.(
+            Number(mensagem.state?.prazoTurno) || Number(mensagem.config?.turnSeconds) || 0
+        );
         atualizarBadges('em partida');
         window.renderHandsFromState?.();
         window.renderPlayerStats?.();
@@ -821,5 +902,8 @@
     api.buildReveal = buildReveal;
     api.aplicarComandoDoLedger = aplicarComandoDoLedger;
     api.gerarDeckLocal = gerarDeckLocal;
+    api.deckEscolhido = () => deckEscolhido;
+    api.escolherDeckDeEntrada = escolherDeckDeEntrada;
+    api.embaralharDeck = embaralharDeck;
     return api;
 });

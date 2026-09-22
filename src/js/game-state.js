@@ -75,13 +75,28 @@
     }
 
     function createInitialGameState(options = {}) {
+        // Fallback de fixture: a partida real sempre recebe o config (hotseat:
+        // `window.gameConfig`; PvP: `MATCH_START.config`) — hoje `initialPv: 300`,
+        // definido em `src/js/game.js` e em `server.py DEFAULT_CONFIG` (um teste
+        // trava a sincronia dos dois com as telas).
         const initialPv = options.initialPv ?? 200;
         const initialEnergy = options.initialEnergy ?? 6;
+        // Deck escolhido por assento no seletor (`{ id, nome, emblema }`). Vive no
+        // estado, e não num global paralelo, para o Reset reusar a mesma escolha.
+        const deckSelections = options.deckSelections || {};
 
         return attachLegacyAliases({
             currentPlayer: 'p1',
             currentPhase: 'energy',
             turn: 1,
+            // Quem abre a partida: p1 joga os turnos ímpares e p2 os pares. A regra
+            // "sem ataque direto no primeiro turno de cada jogador" (`CardRules`)
+            // lê este campo para saber qual é o primeiro turno de quem.
+            startingPlayer: 'p1',
+            deckSelections: {
+                p1: deckSelections.p1 || null,
+                p2: deckSelections.p2 || null
+            },
             // RNG padrão do estado (sobrescrito pelo bootstrap PvP com seed).
             rng: Math.random,
             diceUsed: { p1: false, p2: false },

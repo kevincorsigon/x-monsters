@@ -6,6 +6,7 @@
     <title>X Monsters - Jogo PVP</title>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="src/css/game.css">
+    <link rel="stylesheet" href="src/css/deck-select.css">
 </head>
 <body>
         <!-- Header com informações dos jogadores -->
@@ -35,7 +36,7 @@
             <div class="player-name" onclick="editName('p2')" style="color: var(--primary-color); cursor: pointer; margin: 5px 0;">Jogador 2</div>
             <div class="stat">
                 <span class="stat-label">PV:</span>
-                <span class="stat-value pv-value" id="pv-p2" onclick="editStatValue('pv', 'p2')" style="cursor: pointer;">200</span>
+                <span class="stat-value pv-value" id="pv-p2" onclick="editStatValue('pv', 'p2')" style="cursor: pointer;">300</span>
             </div>
             <div class="stat stat-energy">
                 <span class="stat-label">Energia:</span>
@@ -53,6 +54,7 @@
             <div class="game-info-panel">
                 <div>Turno: <span id="current-player">Jogador 1</span></div>
                 <div>Fase: <span id="current-phase">Energia</span></div>
+                <div>⏱ Turno: <span id="turn-timer" class="turn-timer">45s</span></div>
                 <div id="combat-info">
                     <div id="combat-instruction">Selecione uma carta para atacar</div>
                 </div>
@@ -76,7 +78,7 @@
             <div class="player-name" onclick="editName('p1')" style="color: var(--primary-color); cursor: pointer; margin: 5px 0;">Jogador 1</div>
             <div class="stat">
                 <span class="stat-label">PV:</span>
-                <span class="stat-value pv-value" id="pv-p1" onclick="editStatValue('pv', 'p1')" style="cursor: pointer;">200</span>
+                <span class="stat-value pv-value" id="pv-p1" onclick="editStatValue('pv', 'p1')" style="cursor: pointer;">300</span>
             </div>
             <div class="stat stat-energy">
                 <span class="stat-label">Energia:</span>
@@ -106,6 +108,28 @@
             <div>Pilha de descarte</div>
             <div style="font-size: 12px; color: var(--primary-color);">Player 1</div>
             <div id="discard-count-p1" style="font-size: 10px; margin-top: 5px;">0 cartas</div>
+        </div>
+    </div>
+
+    <!-- Seletor de decks: aparece assim que a partida abre. Bloqueante de
+         propósito — a mesa só é montada depois da escolha (o deck aleatório é
+         uma das opções, então nunca há beco sem saída). -->
+    <div class="deck-select-modal" id="deckSelectModal" role="dialog" aria-modal="true"
+         aria-labelledby="deckSelectTitle">
+        <div class="deck-select-card">
+            <div class="deck-select-head">
+                <span class="deck-select-badge">Escolha de deck</span>
+                <h2 id="deckSelectTitle">Como você vai entrar na arena?</h2>
+                <p class="deck-select-subtitle" id="deckSelectSubtitle">
+                    Escolha um deck pronto ou deixe a sorte montar o seu. O oponente entra com um deck aleatório.
+                </p>
+            </div>
+            <div class="deck-select-grid" id="deckSelectGrid"></div>
+            <div class="deck-select-detail" id="deckSelectDetail"></div>
+            <div class="deck-select-actions">
+                <button type="button" class="deck-select-confirm" id="deckSelectConfirm"
+                        onclick="confirmarSelecaoDeDeck()" disabled>Jogar com este deck</button>
+            </div>
         </div>
     </div>
 
@@ -148,6 +172,7 @@
     <div class="gear-menu" id="gearMenu">
         <button class="gear-btn" onclick="toggleGearMenu()" title="Opções">⚙️</button>
         <div class="gear-dropdown" id="gearDropdown">
+            <button onclick="trocarDeck(); toggleGearMenu()">🎴 Trocar deck</button>
             <button onclick="showDeckInfo(); toggleGearMenu()">📦 Decks</button>
             <button onclick="resetGame(); toggleGearMenu()">🔄 Reset</button>
         </div>
@@ -171,6 +196,7 @@
     <script src="src/js/card-rules.js"></script>
     <script src="src/js/card-abilities.js"></script>
     <script src="src/js/deck_system.js"></script>
+    <script src="src/js/deck-select.js"></script>
     <script src="src/js/manual_abilities.js"></script>
     <script src="src/js/game.js"></script>
 </body>
