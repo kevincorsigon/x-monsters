@@ -1,6 +1,34 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-23 — Deck Builder: cards de tamanho fixo e tela em 3 colunas
+
+Pedido: "ainda ha quebras de tamanho do card no deck por conta do tamanho de
+texto" e "descer pra preencher o formulário do deck tá muito ruim; a parte de
+Identidade & Prévia deveria estar ao lado de seu deck".
+
+Decisão (só apresentação — nenhuma regra, dado ou API mudou):
+- `deck-builder.html`: o `<form id="builderForm">` saiu de dentro do
+  `.builder-deck` e virou a terceira coluna (`<aside class="builder-identidade">`).
+- `src/css/deck-builder.css`: app shell (wrapper `height: 100vh` +
+  `overflow: hidden`, container `flex`), `.builder-colunas` em
+  `grid-template-areas: "catalogo deck identidade"`; cada coluna rola por
+  dentro (catálogo: filtros fixos + `.builder-grade` com scroll; deck: topo
+  sticky + resto na própria coluna; identidade: coluna com o cabeçalho sticky).
+  Quebras: 3 colunas ≥1281px, 2 colunas (catálogo | deck sobre identidade) em
+  992–1280px, coluna única com a página rolando ≤992px (app shell desligado).
+- Cards com medida fixa (fim das quebras por texto): `--builder-card-h` (252px
+  catálogo) e `--builder-mini-h` (200px lista do deck), imagem em `flex: 1` +
+  `object-fit: cover` e nome em caixa fixa de 2 linhas (`-webkit-line-clamp`),
+  então cópia/pílula/ações ficam alinhadas. Filtros passam a
+  `repeat(auto-fit, minmax(190px, 1fr))` (o texto do `<select>` não corta mais).
+- `src/js/deck-builder.js`: `mostrarErro`/`mostrarOk` fazem `scrollIntoView`
+  na mensagem — o clique em "Salvar deck" acontece na coluna do meio e o aviso
+  fica na coluna da identidade.
+- Validação: 258/258 unit, 26/26 browser, e checagem CDP dedicada do builder
+  (3 colunas no topo comum, página sem scroll, alturas únicas de mini card e
+  de card do catálogo, sticky headers, aba "Meus decks").
+
 ## 2026-09-22 — Deck Builder com decks customizados (spec `deck-builder-custom.md`)
 
 Pedido: tela de deck builder com seleção de cartas, preview do deck, stats em

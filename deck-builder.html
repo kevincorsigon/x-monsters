@@ -56,6 +56,7 @@
                                      aria-valuemin="0" aria-valuemax="40" aria-valuenow="0">
                                     <div class="builder-progresso-barra" id="builderProgressoBarra"></div>
                                 </div>
+                                <p class="builder-editando" id="builderEditando" hidden></p>
                             </div>
                             <div class="builder-deck-acoes">
                                 <button type="button" class="deck-select-confirm builder-btn-limpar" id="builderLimpar" title="Limpar todas as cartas">Limpar</button>
@@ -73,10 +74,13 @@
                             </div>
                             <div class="deck-cards-grid builder-lista" id="builderLista"></div>
                         </div>
+                    </aside>
 
+                    <aside class="builder-identidade" id="builderIdentidade">
                         <form class="builder-form" id="builderForm">
                             <div class="builder-secao-header">
                                 <h3>Identidade & Prévia</h3>
+                                <button type="button" class="deck-select-confirm builder-btn-novo" id="builderNovo" hidden title="Sair da edição e começar um deck novo">＋ Novo deck</button>
                             </div>
 
                             <div class="builder-preview-bloco">

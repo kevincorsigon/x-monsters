@@ -6139,6 +6139,49 @@ test('decks customizados: validacao, ordem no seletor e exclusao protegida', () 
     assert.match(deckSystem, /xmDecksCustom/, 'fallback local no navegador');
     assert.match(deckSystem, /mesclarCustomsLocais/, 'o catalogo junta JSON + local');
 
+    // Editar um deck carregado: o id do custom volta no payload (o servidor
+    // atualiza o mesmo registro) e a identidade é reaplicada no formulário.
+    const builderUi = readSourceText('src/js/deck-builder.js');
+    assert.match(builderUi, /let deckEmEdicao = null;/, 'o builder guarda o custom carregado');
+    assert.match(deckSystem,
+        /String\(deck\.id\)\.startsWith\(CUSTOM_DECK_ID_PREFIXO\) \? deck\.id : gerarIdDeckCustom/,
+        'o salvar reaproveita o id do custom em vez de gerar outro');
+    assert.match(builderUi, /form\.id = deckEmEdicao\.id;/, 'o id do custom viaja no payload do salvar');
+    assert.match(builderUi, /form\.criadoEm = deckEmEdicao\.criadoEm;/, 'o criadoEm original é preservado');
+    assert.match(builderUi, /\['builderCorPrimaria', cores\.primaria, '#d4af37'\]/,
+        'carregarDeck reaplica a cor primaria no colorpicker');
+    assert.match(builderUi, /\['builderCorSecundaria', cores\.secundaria, '#1a1e28'\]/,
+        'carregarDeck reaplica a cor secundaria no colorpicker');
+    assert.match(builderUi, /\['builderCorAcento', cores\.acento, '#f8fafc'\]/,
+        'carregarDeck reaplica a cor de acento no colorpicker');
+    assert.match(builderUi, /#builderTraitsForm input\[type="checkbox"\]/,
+        'carregarDeck reaplica os traits do tema');
+    assert.match(builderUi, /normalize\('NFD'\)/,
+        'carregarDeck reconhece traits com ou sem acentos');
+    assert.match(builderUi, /painelTraits\.classList\.remove\('fechado'\)/,
+        'carregarDeck abre o painel para mostrar os traits aplicados');
+    assert.match(builderUi, /=> carregarDeck\(deck\)\)/, 'o botao Carregar usa carregarDeck');
+    assert.match(builderUi, /'Atualizar deck' : 'Salvar deck'/, 'o botao muda de rotulo na edicao');
+    assert.match(builderUi, /novoDeck/, 'da para sair da edicao e comecar outro deck');
+    assert.match(readSourceText('deck-builder.html'), /id="builderNovo"/,
+        'o botao de deck novo esta junto da identidade do deck');
+    assert.match(deckSystem, /atualizado: jaExistia/, 'o fallback local marca atualizacao');
+    assert.match(deckSystem, /codificarPayloadDeDeck/, 'o JSON do deck viaja em base64');
+    assert.match(deckSystem, /'X-Deck-Payload': payload/,
+        'o POST manda o deck no header (websockets recusa request com corpo)');
+    assert.match(servidor, /_DECK_PAYLOAD_HEADER = "X-Deck-Payload"/,
+        'o servidor le o payload do header');
+    const processRequest = servidor.match(/async def process_request[\s\S]*?(?=\n\nasync def send_message)/)?.[0] || '';
+    assert.ok(!/connection\.recv\(/.test(processRequest),
+        'process_request nao tenta ler corpo do POST (o parser recusa)');
+    assert.match(servidor, /"atualizado": atualizando/,
+        'o servidor responde se criou ou atualizou o custom');
+    assert.match(servidor, /Deck oficial não pode ser sobrescrito/,
+        'oficial tambem nao e sobrescrito pelo POST');
+    assert.match(servidor, /\(existente or \{\}\)\.get\("criadoEm"\)/,
+        'a edicao no servidor preserva o criadoEm');
+
+
     
 });
 test('Bilugação Astral deixa a criatura intransponível por um turno', () => {

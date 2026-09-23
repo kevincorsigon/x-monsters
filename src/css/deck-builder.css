@@ -19,8 +19,13 @@ body {
 }
 
 /* ── 2. Wrapper da Página com Fundo Radial Oficial ────────────────────────── */
+/* App shell: no desktop a página não rola — cada coluna rola por dentro. */
 .builder-page-wrapper {
     min-height: 100vh;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     padding: clamp(14px, 2.5vh, 32px) clamp(10px, 2vw, 24px);
     background: radial-gradient(120% 90% at 50% 0%, rgba(20, 26, 44, 0.94) 0%, rgba(5, 7, 12, 0.97) 70%);
     box-sizing: border-box;
@@ -30,6 +35,11 @@ body {
 .deck-select-card.builder-container {
     width: min(1560px, 100%);
     margin: 0 auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     padding: clamp(16px, 2.2vw, 28px);
     border: 2px solid var(--primary-color, #d4af37);
     border-radius: 18px;
@@ -41,9 +51,10 @@ body {
 /* ── 4. Cabeçalho Oficial ────────────────────────────────────────────────── */
 .deck-select-head.builder-head {
     position: relative;
+    flex-shrink: 0;
     text-align: center;
-    margin-bottom: 20px;
-    padding-bottom: 16px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
     border-bottom: 1px solid rgba(212, 175, 55, 0.25);
 }
 
@@ -74,7 +85,8 @@ body {
     display: flex;
     justify-content: center;
     gap: 12px;
-    margin-bottom: 20px;
+    flex-shrink: 0;
+    margin-bottom: 14px;
 }
 
 .builder-aba {
@@ -103,12 +115,49 @@ body {
     color: #fff;
 }
 
+/* ── 5b. Painéis (construir / meus decks) ────────────────────────────────── */
+/* O painel de construção ocupa a altura restante e distribui as 3 colunas. */
+.builder-painel-construir {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+}
+
+.builder-painel-meus {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* `hidden` precisa vencer o display:flex declarado acima. */
+.builder-painel-construir[hidden],
+.builder-painel-meus[hidden] {
+    display: none !important;
+}
+
 /* ── 6. Colunas do Builder ───────────────────────────────────────────────── */
+/* Catálogo | Seu deck | Identidade & Prévia — as três lado a lado no desktop. */
 .builder-colunas {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
     display: grid;
-    grid-template-columns: minmax(0, 1.38fr) minmax(390px, 1fr);
-    gap: 22px;
-    align-items: start;
+    grid-template-columns: minmax(0, 1.5fr) minmax(290px, 0.72fr) minmax(320px, 0.86fr);
+    grid-template-areas: "catalogo deck identidade";
+    gap: 16px;
+    align-items: stretch;
+}
+
+.builder-catalogo {
+    grid-area: catalogo;
+}
+
+.builder-deck.deck-select-detail {
+    grid-area: deck;
+}
+
+.builder-identidade {
+    grid-area: identidade;
 }
 
 /* ── 7. Coluna da Esquerda: Catálogo ─────────────────────────────────────── */
@@ -121,13 +170,17 @@ body {
     border-radius: 14px;
     padding: 16px;
     min-width: 0;
+    min-height: 0;
+    overflow: hidden;
     box-sizing: border-box;
 }
 
 .builder-filtros {
     display: grid;
-    grid-template-columns: 1.5fr 1fr 1fr 1fr;
+    /* auto-fit: cada filtro mantém largura legível (o texto do <select> não corta). */
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
     gap: 10px;
+    flex-shrink: 0;
 }
 
 .builder-filtros input,
@@ -156,10 +209,13 @@ body {
 }
 
 .builder-grade {
+    flex: 1 1 auto;
+    min-height: 0;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
+    grid-auto-rows: min-content;
+    align-content: start;
     gap: 12px;
-    max-height: calc(100vh - 210px);
     overflow-y: auto;
     padding-right: 6px;
 }
@@ -185,7 +241,9 @@ body {
     flex-direction: column;
     justify-content: space-between;
     width: 100%;
-    min-height: 200px;
+    /* Altura fixa: o texto nunca mais desalinha a grade do catálogo. */
+    height: var(--builder-card-h, 252px);
+    overflow: hidden;
     padding: 5px;
     border: 2px solid rgba(255, 255, 255, 0.14);
     border-radius: 10px;
@@ -233,22 +291,30 @@ body {
 }
 
 .deck-card-mini.builder-catalogo-card .deck-card-mini-img {
+    flex: 1 1 auto;
     width: 100%;
-    aspect-ratio: 3 / 4;
+    min-height: 0;
+    aspect-ratio: auto;
     border-radius: 6px;
     object-fit: cover;
 }
 
 .deck-card-mini.builder-catalogo-card .deck-card-mini-nome {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    flex-shrink: 0;
+    /* Caixa de 2 linhas: nome curto e nome longo ocupam o mesmo espaço. */
+    min-height: 2.5em;
+    max-height: 2.5em;
     font-size: 0.72rem;
     font-weight: 700;
     line-height: 1.25;
     margin: 3px 0 2px;
     color: #f1f5f9;
     text-align: center;
-    white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
+    word-break: break-word;
     padding: 0 2px;
 }
 
@@ -257,6 +323,8 @@ body {
     justify-content: center;
     align-items: center;
     gap: 6px;
+    flex-shrink: 0;
+    min-height: 1.2em;
     font-size: 0.72rem;
     font-weight: 700;
     margin-bottom: 3px;
@@ -281,6 +349,10 @@ body {
 
 .deck-card-mini.builder-catalogo-card .deck-card-mini-copias {
     align-self: center;
+    flex-shrink: 0;
+    min-height: 1.5em;
+    display: inline-flex;
+    align-items: center;
     padding: 1px 8px;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.1);
@@ -322,37 +394,40 @@ body {
     transform: scale(1.15);
 }
 
-/* ── 9. Coluna da Direita: Gerenciador do Deck ────────────────────────────── */
+/* ── 9. Coluna do Meio: Gerenciador do Deck ──────────────────────────────── */
+/* Topo fixo (título/progresso/ações) e o resto rolando dentro da coluna. */
 .builder-deck.deck-select-detail {
-    position: sticky;
-    top: 14px;
-    max-height: calc(100vh - 60px);
+    position: static;
+    min-height: 0;
+    max-height: none;
     overflow-y: auto;
     background: rgba(0, 0, 0, 0.32);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 14px;
-    padding: 18px;
+    padding: 14px 16px;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
     margin-top: 0;
 }
 
 /* Topo do Gerenciador de Deck */
 .builder-deck-topo {
     position: sticky;
-    top: -18px;
+    top: -14px;
     z-index: 10;
-    margin: -18px -18px 0;
-    padding: 14px 18px 12px;
+    margin: -14px -16px 0;
+    padding: 12px 16px 10px;
+    border-radius: 13px 13px 0 0;
     background: rgba(13, 16, 24, 0.98);
     border-bottom: 1px solid rgba(212, 175, 55, 0.3);
     backdrop-filter: blur(8px);
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
 }
 
 .builder-deck-titulo-area {
@@ -416,6 +491,45 @@ body {
     box-shadow: 0 0 14px rgba(248, 113, 113, 0.4) !important;
 }
 
+/* Edição de um custom carregado: aviso no topo + botão de sair da edição. */
+.builder-editando {
+    margin: 2px 0 0;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    color: var(--primary-color, #d4af37);
+}
+
+.builder-btn-novo {
+    border-color: rgba(212, 175, 55, 0.55) !important;
+    background: rgba(212, 175, 55, 0.12) !important;
+    padding: 6px 10px !important;
+    font-size: 0.72rem !important;
+    white-space: nowrap;
+}
+
+/* Coluna estreita: stats/curva compactos para sobrar altura para as cartas. */
+.builder-deck .deck-detalhe-stats,
+.builder-afinidades .deck-detalhe-stats {
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.builder-deck .deck-detalhe-stat {
+    padding: 3px 9px;
+    font-size: 0.7rem;
+}
+
+.builder-afinidades {
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.builder-afinidades .deck-detalhe-curva {
+    margin-bottom: 8px;
+}
+
 /* ── 10. Grade de Cartas no Deck ─────────────────────────────────────────── */
 .builder-secao-deck {
     display: flex;
@@ -443,11 +557,14 @@ body {
 
 .deck-cards-grid.builder-lista {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+    grid-auto-rows: min-content;
+    align-content: start;
     gap: 8px;
-    max-height: 240px;
-    overflow-y: auto;
-    padding-right: 4px;
+    /* O scroll é o da própria coluna: aqui a lista cresce à vontade. */
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
 }
 
 .builder-lista-vazia {
@@ -462,6 +579,9 @@ body {
 }
 
 .deck-card-mini.builder-mini-item {
+    /* Altura fixa: cards de 1 ou 2 linhas de nome ficam sempre alinhados. */
+    height: var(--builder-mini-h, 200px);
+    overflow: hidden;
     cursor: default;
     padding: 4px;
 }
@@ -471,9 +591,41 @@ body {
     cursor: pointer;
 }
 
+.deck-card-mini.builder-mini-item .deck-card-mini-img {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 0;
+    aspect-ratio: auto;
+    object-fit: cover;
+}
+
+.deck-card-mini.builder-mini-item .deck-card-mini-nome {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    flex-shrink: 0;
+    min-height: 2.4em;
+    max-height: 2.4em;
+    line-height: 1.2;
+    overflow: hidden;
+    word-break: break-word;
+    padding: 0 2px;
+}
+
+.deck-card-mini.builder-mini-item .deck-card-mini-copias {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    min-width: 36px;
+    min-height: 1.5em;
+    line-height: 1.2;
+}
+
 .builder-card-mini-overlay-acoes {
     display: flex;
     justify-content: center;
+    flex-shrink: 0;
     gap: 3px;
     margin-top: 3px;
 }
@@ -520,11 +672,35 @@ body {
     color: #0b0e15;
 }
 
-/* ── 11. Formulário de Identidade & Prévia ─────────────────────────────────── */
+/* ── 11. Coluna de Identidade & Prévia ─────────────────────────────────────── */
+/* Terceira coluna: o formulário fica sempre à vista, ao lado do deck. */
+.builder-identidade {
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.32);
+    box-sizing: border-box;
+}
+
 .builder-form {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    padding: 14px 16px 16px;
+}
+
+/* Cabeçalho da seção travado no topo enquanto a coluna rola. */
+.builder-form > .builder-secao-header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    margin: -14px -16px 0;
+    padding: 12px 16px 10px;
+    border-radius: 13px 13px 0 0;
+    background: rgba(13, 16, 24, 0.98);
+    backdrop-filter: blur(8px);
 }
 
 .builder-preview-bloco {
@@ -549,6 +725,26 @@ body {
     pointer-events: none;
     margin: 0;
     box-sizing: border-box;
+}
+
+/* Prévia compacta: a identidade tem que caber sem empurrar os campos p/ baixo. */
+.builder-preview-listagem .deck-stack {
+    height: 106px;
+}
+
+.builder-preview-listagem .deck-stack-card {
+    width: 68px;
+    height: 96px;
+    margin-left: -34px;
+}
+
+.builder-preview-listagem .deck-stack-emblema {
+    top: 52px;
+    font-size: 24px;
+}
+
+.builder-preview-listagem .deck-option-stats {
+    font-size: 0.72rem;
 }
 
 .builder-campos-duplos {
@@ -842,7 +1038,8 @@ body {
 /* ── 14. Barras de Rolagem Estilizadas ───────────────────────────────────── */
 .builder-grade,
 .builder-deck,
-.deck-cards-grid.builder-lista,
+.builder-identidade,
+.builder-painel-meus,
 #builderTraitsForm,
 .builder-emoji-grade,
 .card-modal .modal-card {
@@ -852,7 +1049,8 @@ body {
 
 .builder-grade::-webkit-scrollbar,
 .builder-deck::-webkit-scrollbar,
-.deck-cards-grid.builder-lista::-webkit-scrollbar,
+.builder-identidade::-webkit-scrollbar,
+.builder-painel-meus::-webkit-scrollbar,
 #builderTraitsForm::-webkit-scrollbar,
 .builder-emoji-grade::-webkit-scrollbar,
 .card-modal .modal-card::-webkit-scrollbar {
@@ -862,7 +1060,8 @@ body {
 
 .builder-grade::-webkit-scrollbar-thumb,
 .builder-deck::-webkit-scrollbar-thumb,
-.deck-cards-grid.builder-lista::-webkit-scrollbar-thumb,
+.builder-identidade::-webkit-scrollbar-thumb,
+.builder-painel-meus::-webkit-scrollbar-thumb,
 #builderTraitsForm::-webkit-scrollbar-thumb,
 .builder-emoji-grade::-webkit-scrollbar-thumb,
 .card-modal .modal-card::-webkit-scrollbar-thumb {
@@ -872,7 +1071,8 @@ body {
 
 .builder-grade::-webkit-scrollbar-thumb:hover,
 .builder-deck::-webkit-scrollbar-thumb:hover,
-.deck-cards-grid.builder-lista::-webkit-scrollbar-thumb:hover,
+.builder-identidade::-webkit-scrollbar-thumb:hover,
+.builder-painel-meus::-webkit-scrollbar-thumb:hover,
 #builderTraitsForm::-webkit-scrollbar-thumb:hover,
 .builder-emoji-grade::-webkit-scrollbar-thumb:hover,
 .card-modal .modal-card::-webkit-scrollbar-thumb:hover {
@@ -881,7 +1081,8 @@ body {
 
 .builder-grade::-webkit-scrollbar-track,
 .builder-deck::-webkit-scrollbar-track,
-.deck-cards-grid.builder-lista::-webkit-scrollbar-track,
+.builder-identidade::-webkit-scrollbar-track,
+.builder-painel-meus::-webkit-scrollbar-track,
 #builderTraitsForm::-webkit-scrollbar-track,
 .builder-emoji-grade::-webkit-scrollbar-track,
 .card-modal .modal-card::-webkit-scrollbar-track {
@@ -889,35 +1090,81 @@ body {
 }
 
 /* ── 15. Responsividade ──────────────────────────────────────────────────── */
-@media (max-width: 1100px) {
+/* 992–1280px: 2 colunas — catálogo à esquerda, deck e identidade à direita. */
+@media (max-width: 1280px) {
     .builder-colunas {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr) minmax(300px, 0.66fr);
+        grid-template-rows: minmax(0, 1.15fr) minmax(0, 0.85fr);
+        grid-template-areas:
+            "catalogo deck"
+            "catalogo identidade";
     }
-    .builder-deck.deck-select-detail {
-        position: static;
+}
+
+/* ≤992px: coluna única e a página volta a rolar (app shell desligado). */
+@media (max-width: 992px) {
+    .builder-page-wrapper {
+        height: auto;
+        min-height: 100vh;
+        overflow: visible;
+    }
+    .deck-select-card.builder-container {
+        flex: 0 0 auto;
+        overflow: visible;
+    }
+    .builder-painel-construir {
+        display: block;
+    }
+    .builder-colunas {
+        height: auto;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: none;
+        grid-template-areas:
+            "catalogo"
+            "deck"
+            "identidade";
+    }
+    .builder-catalogo,
+    .builder-deck.deck-select-detail,
+    .builder-identidade,
+    .builder-painel-meus {
         max-height: none;
+        overflow: visible;
+    }
+    .builder-grade {
+        max-height: 56vh;
     }
     .builder-deck-topo {
         position: static;
         margin: 0;
         padding: 0 0 12px 0;
-        border-bottom: 1px solid rgba(212, 175, 55, 0.25);
+        border-radius: 0;
+        background: transparent;
+        backdrop-filter: none;
     }
-    .builder-grade {
-        max-height: 60vh;
+    .builder-form > .builder-secao-header {
+        position: static;
+        margin: 0;
+        padding: 0 0 10px 0;
+        border-radius: 0;
+        background: transparent;
+        backdrop-filter: none;
     }
 }
 
 @media (max-width: 768px) {
-    .builder-filtros {
-        grid-template-columns: 1fr 1fr;
-    }
     .builder-grade {
         grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));
         max-height: 52vh;
     }
-    .deck-card-mini.builder-catalogo-card {
-        min-height: 185px;
+    .builder-catalogo {
+        --builder-card-h: 212px;
+    }
+    .deck-cards-grid.builder-lista {
+        grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    }
+    .deck-card-mini.builder-mini-item {
+        --builder-mini-h: 186px;
     }
     .builder-campos-duplos {
         grid-template-columns: 1fr;
@@ -929,9 +1176,6 @@ body {
 }
 
 @media (max-width: 520px) {
-    .builder-filtros {
-        grid-template-columns: 1fr;
-    }
     .builder-cores {
         grid-template-columns: 1fr;
     }

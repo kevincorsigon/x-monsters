@@ -363,7 +363,23 @@ function validarDeckCustom(deck, catalogoDeCartas = null) {
     return { ok: erros.length === 0, erros };
 }
 
-/** Persiste um custom: `POST /api/decks`, com fallback no `localStorage`. */
+// Limite de linha do parser HTTP do servidor (8 KiB): acima disso o POST seria
+// recusado e é melhor salvar só local do que perder o deck.
+const PAYLOAD_DECK_MAX = 6000;
+
+/** JSON do deck em base64 para o header `X-Deck-Payload` (o servidor recusa corpo). */
+function codificarPayloadDeDeck(deck) {
+    const bytes = new TextEncoder().encode(JSON.stringify(deck));
+    let binario = '';
+    bytes.forEach(byte => { binario += String.fromCharCode(byte); });
+    return btoa(binario);
+}
+
+/**
+ * Persiste um custom: `POST /api/decks` cria com id novo ou atualiza o registro
+ * que já tem aquele id (edição do builder). Fallback no `localStorage`, com a
+ * mesma regra: o id repetido sobrescreve em vez de duplicar.
+ */
 async function salvarDeckCustom(deck) {
     const validacao = validarDeckCustom(deck);
     if (!validacao.ok) return { ok: false, erros: validacao.erros, onde: null };
@@ -373,15 +389,31 @@ async function salvarDeckCustom(deck) {
         custom: true,
         criadoEm: deck.criadoEm || new Date().toISOString()
     };
+    const jaExistia = [...listarDecksCustom(), ...lerCustomsLocais()]
+        .some(item => item.id === registro.id);
+    const payload = codificarPayloadDeDeck(registro);
     try {
-        const resposta = await fetch('/api/decks', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(registro)
-        });
-        if (resposta.ok) {
-            await recarregarCatalogoDeDecks();
-            return { ok: true, erros: [], onde: 'servidor', deck: registro };
+        if (payload.length > PAYLOAD_DECK_MAX) {
+            console.warn('DeckBuilder: deck grande demais para o header do servidor; salvando local.');
+        } else {
+            // Sem corpo: o parser HTTP do websockets recusa request com corpo — era
+            // o motivo do save cair sempre no localStorage.
+            const resposta = await fetch('/api/decks', {
+                method: 'POST',
+                headers: { 'X-Deck-Payload': payload }
+            });
+            if (resposta.ok) {
+                // O servidor diz se criou ou atualizou: a UI usa isso na mensagem.
+                const corpo = await resposta.json().catch(() => null);
+                await recarregarCatalogoDeDecks();
+                return {
+                    ok: true,
+                    erros: [],
+                    onde: 'servidor',
+                    deck: corpo?.deck || registro,
+                    atualizado: typeof corpo?.atualizado === 'boolean' ? corpo.atualizado : jaExistia
+                };
+            }
         }
     } catch (error) {
         console.warn('DeckBuilder: servidor indisponível, salvando local:', error);
@@ -392,7 +424,7 @@ async function salvarDeckCustom(deck) {
     gravarCustomsLocais([...extras, ...atuais, registro]);
     decksCatalogCache = mesclarCustomsLocais(decksCatalogCache);
     if (typeof window !== 'undefined') window.deckCatalog = decksCatalogCache;
-    return { ok: true, erros: [], onde: 'local', deck: registro };
+    return { ok: true, erros: [], onde: 'local', deck: registro, atualizado: jaExistia };
 }
 
 /** Exclui um custom: `DELETE /api/decks/<id>` ou remove do `localStorage`. */

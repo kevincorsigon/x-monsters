@@ -16,6 +16,9 @@
     let cartas = [];
     let draft = [];
     let emblema = '🃏';
+    // Custom carregado para edição: o id viaja no salvar para o registro ser
+    // atualizado em vez de duplicado; `null` = rascunho novo.
+    let deckEmEdicao = null;
 
     const janela = typeof window !== 'undefined' ? window : null;
     const $ = id => (typeof document !== 'undefined' ? document.getElementById(id) : null);
@@ -430,8 +433,115 @@
         }
     }
 
+    /** Cor aceita pelo `<input type=color>`: `#rrggbb` (a forma curta `#rgb` é expandida). */
+    function corDoCampo(valor, padrao) {
+        const bruto = String(valor || '').trim();
+        const curto = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(bruto);
+        const cheia = curto
+            ? `#${curto[1]}${curto[1]}${curto[2]}${curto[2]}${curto[3]}${curto[3]}`
+            : bruto;
+        return /^#[0-9a-f]{6}$/i.test(cheia) ? cheia.toLowerCase() : padrao;
+    }
+
+    /** Emblema do rascunho: campo de texto + destaque na grade de emojis. */
+    function marcarEmblema(valor) {
+        emblema = valor || '🃏';
+        const campo = $('builderEmblema');
+        if (campo) campo.value = emblema;
+        document.querySelectorAll('#builderEmojiGrade .builder-emoji').forEach(el =>
+            el.classList.toggle('selecionado', el.textContent === emblema));
+    }
+
+    /** Topo do deck: edição de um custom existente ou rascunho novo. */
+    function atualizarEstadoDeEdicao() {
+        const botaoSalvar = $('builderSalvar');
+        const botaoNovo = $('builderNovo');
+        const aviso = $('builderEditando');
+        if (botaoSalvar) botaoSalvar.textContent = deckEmEdicao ? 'Atualizar deck' : 'Salvar deck';
+        if (botaoNovo) botaoNovo.hidden = !deckEmEdicao;
+        if (aviso) {
+            aviso.hidden = !deckEmEdicao;
+            aviso.textContent = deckEmEdicao ? `Editando «${deckEmEdicao.nome}»` : '';
+        }
+    }
+
+    /**
+     * Carrega um custom no rascunho: cartas, identidade completa (cores do
+     * colorpicker, traits e emblema) e o id — salvar depois atualiza este deck.
+     */
+    function carregarDeck(deck) {
+        if (!deck) return;
+        deckEmEdicao = deck;
+        draft = [...(deck.cartas || [])];
+        const nome = $('builderNome');
+        const tema = $('builderTema');
+        const descricao = $('builderDescricao');
+        if (nome) nome.value = deck.nome || '';
+        if (tema) tema.value = deck.tema || '';
+        if (descricao) descricao.value = deck.descricao || '';
+        marcarEmblema(deck.emblema);
+        const cores = deck.cores || {};
+        [
+            ['builderCorPrimaria', cores.primaria, '#d4af37'],
+            ['builderCorSecundaria', cores.secundaria, '#1a1e28'],
+            ['builderCorAcento', cores.acento, '#f8fafc']
+        ].forEach(([id, valor, padrao]) => {
+            const campo = $(id);
+            if (campo) campo.value = corDoCampo(valor, padrao);
+        });
+        const normalizarTrait = valor => String(valor || '')
+            .trim()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+        const traits = new Set((deck.traits || []).map(normalizarTrait));
+        document.querySelectorAll('#builderTraitsForm input[type="checkbox"]').forEach(el => {
+            const rotulo = janela?.DeckSelect?.TRAIT_LABELS?.[el.value]?.rotulo;
+            el.checked = traits.has(normalizarTrait(el.value))
+                || traits.has(normalizarTrait(rotulo));
+        });
+        // O painel nasce recolhido; abra-o ao carregar para deixar visíveis
+        // as traits marcadas e indicar onde editar o tema.
+        const painelTraits = document.querySelector('.builder-traits-form');
+        const botaoTraits = $('builderTraitsToggle');
+        if (painelTraits && botaoTraits) {
+            painelTraits.classList.remove('fechado');
+            botaoTraits.setAttribute('aria-expanded', 'true');
+            botaoTraits.textContent = 'Traits do tema ▾';
+        }
+        atualizarEstadoDeEdicao();
+        renderizarTudo();
+        trocarAba('construir');
+        mostrarOk(`Deck «${deck.nome}» carregado: salvar atualiza este deck.`);
+    }
+
+    /** Rascunho em branco: o próximo salvar cria um custom novo. */
+    function novoDeck() {
+        deckEmEdicao = null;
+        draft = [];
+        ['builderNome', 'builderTema', 'builderDescricao'].forEach(id => {
+            const campo = $(id);
+            if (campo) campo.value = '';
+        });
+        marcarEmblema('🃏');
+        [
+            ['builderCorPrimaria', '#d4af37'],
+            ['builderCorSecundaria', '#1a1e28'],
+            ['builderCorAcento', '#f8fafc']
+        ].forEach(([id, padrao]) => {
+            const campo = $(id);
+            if (campo) campo.value = padrao;
+        });
+        document.querySelectorAll('#builderTraitsForm input[type="checkbox"]')
+            .forEach(el => { el.checked = false; });
+        atualizarEstadoDeEdicao();
+        renderizarTudo();
+        mostrarErro('');
+        mostrarOk('');
+    }
+
     function lerFormulario() {
-        return {
+        const form = {
             nome: ($('builderNome')?.value || '').trim(),
             tema: ($('builderTema')?.value || '').trim(),
             descricao: ($('builderDescricao')?.value || '').trim(),
@@ -444,6 +554,13 @@
             },
             cartas: [...draft]
         };
+        // Edição: o id do custom carregado viaja no payload para o servidor
+        // atualizar o mesmo registro em vez de criar outro.
+        if (deckEmEdicao?.id) {
+            form.id = deckEmEdicao.id;
+            form.criadoEm = deckEmEdicao.criadoEm;
+        }
+        return form;
     }
 
     /** Rascunho atual no formato de um deck do catálogo (alimenta a prévia). */
@@ -480,15 +597,19 @@
         if (!el) return;
         el.textContent = msg;
         el.hidden = !msg;
+        // A coluna de identidade tem scroll próprio: traz a mensagem para a vista.
+        if (msg) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
     function mostrarOk(msg) {
         const el = $('builderOk');
         if (!el) return;
         el.textContent = msg;
         el.hidden = !msg;
+        if (msg) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         mostrarErro('');
     }
     async function salvar() {
+        const editando = Boolean(deckEmEdicao?.id);
         const deck = lerFormulario();
         const acao = janela?.salvarDeckCustom;
         const resultado = acao ? await acao(deck) : { ok: false, erros: ['Sistema indisponivel.'] };
@@ -496,8 +617,14 @@
             mostrarErro((resultado.erros || ['Nao foi possivel salvar.']).join(' '));
             return;
         }
-        mostrarOk(`Deck "${resultado.deck.nome}" salvo.`);
+        // O registro devolvido carrega o id: o próximo salvar continua sendo
+        // uma edição deste deck (nunca uma segunda cópia).
+        deckEmEdicao = resultado.deck || null;
+        atualizarEstadoDeEdicao();
         await renderizarMeusDecks();
+        const nome = resultado.deck?.nome || deck.nome;
+        const atualizou = resultado.atualizado === undefined ? editando : Boolean(resultado.atualizado);
+        mostrarOk(atualizou ? `Deck «${nome}» atualizado.` : `Deck «${nome}» salvo.`);
     }
     async function renderizarMeusDecks() {
         const lista = $('builderMeusLista');
@@ -516,15 +643,7 @@
                     <button type="button" data-editar>Carregar</button>
                     <button type="button" data-excluir>Excluir</button>
                 </div>`;
-            card.querySelector('[data-editar]').addEventListener('click', () => {
-                draft = [...deck.cartas];
-                if ($('builderNome')) $('builderNome').value = deck.nome || '';
-                if ($('builderTema')) $('builderTema').value = deck.tema || '';
-                if ($('builderDescricao')) $('builderDescricao').value = deck.descricao || '';
-                if ($('builderEmblema')) $('builderEmblema').value = deck.emblema || '🃏';
-                renderizarTudo();
-                trocarAba('construir');
-            });
+            card.querySelector('[data-editar]').addEventListener('click', () => carregarDeck(deck));
             card.querySelector('[data-excluir]').addEventListener('click', async () => {
                 const confirmado = await mostrarConfirmacaoDoJogo(
                     'Excluir deck',
@@ -578,7 +697,9 @@
             $(id)?.addEventListener('change', renderizarCatalogo);
         });
         $('builderLimpar')?.addEventListener('click', () => { draft = []; renderizarTudo(); });
+        $('builderNovo')?.addEventListener('click', novoDeck);
         $('builderSalvar')?.addEventListener('click', salvar);
+        atualizarEstadoDeEdicao();
         // Identidade (nome, tema, cores, emblema) alimenta a prévia em tempo real.
         $('builderForm')?.addEventListener('input', renderizarPreview);
         // Collapses do formulário nascem fechados; ligarCollapse cuida do toggle.
@@ -614,5 +735,16 @@
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
         else iniciar();
     }
-    return { adicionarCarta, removerCarta, calcularPainel, lerFormulario, renderizarPreview, salvar, iniciar };
+    return {
+        adicionarCarta,
+        removerCarta,
+        calcularPainel,
+        lerFormulario,
+        renderizarPreview,
+        salvar,
+        iniciar,
+        carregarDeck,
+        novoDeck,
+        estadoDeEdicao: () => deckEmEdicao
+    };
 });

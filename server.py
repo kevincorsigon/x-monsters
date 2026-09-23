@@ -19,6 +19,7 @@ Uso:
 
 import argparse
 import asyncio
+import base64
 import json
 import mimetypes
 import os
@@ -516,18 +517,63 @@ def salvar_decks_json(decks):
     temp.replace(alvo)
 
 
+_DECK_PAYLOAD_HEADER = "X-Deck-Payload"
+
+
+def payload_do_deck(request):
+    """JSON do deck em base64 no header `X-Deck-Payload` (None se ausente/invalido).
+
+    O parser HTTP do `websockets` recusa qualquer request com corpo
+    (`ValueError: unsupported request body`), então ler o corpo em
+    `process_request` nunca funcionou — o POST caía no fallback local do
+    navegador e o deck não aparecia em `data/decks.json`. O header tem limite de
+    linha de 8 KiB e o cliente respeita isso.
+    """
+    bruto = request.headers.get(_DECK_PAYLOAD_HEADER)
+    if not bruto:
+        return None
+    try:
+        return json.loads(base64.b64decode(bruto).decode("utf-8"))
+    except (ValueError, UnicodeDecodeError) as error:
+        log(f"[aviso] payload do deck invalido: {error}")
+        return None
+
+
 async def criar_deck_custom(deck):
-    """`POST /api/decks`: valida e anexa um `custom-*` ao `data/decks.json`."""
+    """`POST /api/decks`: valida e grava um `custom-*` em `data/decks.json`.
+
+    Id que já existe (`custom-*`) vira **atualização** do mesmo registro — é assim
+    que o builder salva um deck carregado sem duplicá-lo. Id novo (ou ausente)
+    ganha um `custom-deck-<hex>` e entra no fim da lista.
+    """
     global _DECK_PRESETS
     erros = _validar_deck_custom(deck)
     if erros:
         return json_response({"ok": False, "erros": erros}, status=400)
+    try:
+        dados = json.loads(DECKS_CATALOG.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        return json_response({"ok": False, "erros": [f"Não foi possível ler o catálogo: {error}"]}, status=500)
+    lista = dados.get("decks") if isinstance(dados, dict) else None
+    if not isinstance(lista, list):
+        lista = []
+
     deck_id = str(deck.get("id") or "")
-    if not _CUSTOM_ID_RE.match(deck_id):
-        deck_id = f"custom-deck-{secrets.token_hex(2)}"
-    presets = deck_presets()
-    while deck_id in presets:
-        deck_id = f"custom-deck-{secrets.token_hex(2)}"
+    existente = next(
+        (item for item in lista if isinstance(item, dict) and item.get("id") == deck_id),
+        None,
+    ) if _CUSTOM_ID_RE.match(deck_id) else None
+    if existente is not None and existente.get("custom") is not True:
+        return json_response({"ok": False, "erros": ["Deck oficial não pode ser sobrescrito."]}, status=403)
+    atualizando = existente is not None
+    if not atualizando:
+        if not _CUSTOM_ID_RE.match(deck_id) or any(
+            isinstance(item, dict) and item.get("id") == deck_id for item in lista
+        ):
+            deck_id = f"custom-deck-{secrets.token_hex(2)}"
+        while any(isinstance(item, dict) and item.get("id") == deck_id for item in lista):
+            deck_id = f"custom-deck-{secrets.token_hex(2)}"
+
     registro = {
         "id": deck_id,
         "nome": str(deck.get("nome") or "Deck customizado")[:40],
@@ -538,20 +584,25 @@ async def criar_deck_custom(deck):
         "cores": deck.get("cores") or {},
         "cartas": [str(c) for c in deck.get("cartas")],
         "custom": True,
-        "criadoEm": deck.get("criadoEm") or now_iso(),
+        # `criadoEm` do registro original sobrevive à edição.
+        "criadoEm": (existente or {}).get("criadoEm") or deck.get("criadoEm") or now_iso(),
     }
+    if atualizando:
+        registro["atualizadoEm"] = now_iso()
+    nova_lista = [
+        registro if isinstance(item, dict) and item.get("id") == deck_id else item
+        for item in lista
+    ] if atualizando else lista + [registro]
     try:
-        dados = json.loads(DECKS_CATALOG.read_text(encoding="utf-8"))
-        lista = dados.get("decks") if isinstance(dados, dict) else None
-        if not isinstance(lista, list):
-            lista = []
-        lista.append(registro)
-        await asyncio.to_thread(salvar_decks_json, lista)
+        await asyncio.to_thread(salvar_decks_json, nova_lista)
     except OSError as error:
         return json_response({"ok": False, "erros": [f"Não foi possível salvar: {error}"]}, status=500)
     _DECK_PRESETS = None
-    log(f"[decks] custom salvo: {deck_id}")
-    return json_response({"ok": True, "onde": "servidor", "deck": registro}, status=201)
+    log(f"[decks] custom {'atualizado' if atualizando else 'salvo'}: {deck_id}")
+    return json_response(
+        {"ok": True, "onde": "servidor", "deck": registro, "atualizado": atualizando},
+        status=200 if atualizando else 201,
+    )
 
 
 def excluir_deck_custom(deck_id):
@@ -880,7 +931,18 @@ async def handle_api(method, path_only, host, corpo=None):
         if method == "GET":
             return json_response({"decks": [deck for deck in deck_presets().values()]})
         if method == "POST":
-            return await criar_deck_custom(corpo if isinstance(corpo, dict) else {})
+            if not isinstance(corpo, dict):
+                return json_response(
+                    {
+                        "ok": False,
+                        "erros": [
+                            "Payload ausente: envie o deck em base64 no header "
+                            f"{_DECK_PAYLOAD_HEADER}."
+                        ],
+                    },
+                    status=400,
+                )
+            return await criar_deck_custom(corpo)
         return http_response(405, "Method Not Allowed", b"Use GET ou POST em /api/decks")
 
     match_deck = re.match(r"^/api/decks/([A-Za-z0-9_-]{4,64})$", path_only)
@@ -946,17 +1008,20 @@ async def handle_http(method, path_only, host, corpo=None):
 
 
 async def process_request(connection, request):
-    """Unico ponto de entrada HTTP: /ws vira WebSocket, o resto e estatico/API."""
+    """Unico ponto de entrada HTTP: /ws vira WebSocket, o resto e estatico/API.
+
+    `connection` fica na assinatura porque e o contrato do hook do websockets;
+    o corpo de um POST **nao** pode ser lido por aqui (o parser recusa request
+    com corpo), entao o JSON do deck chega em `_DECK_PAYLOAD_HEADER`.
+    """
     path_only = urlsplit(request.path).path
     if path_only == "/ws":
         return None  # deixa o websockets concluir o handshake
-    corpo = None
-    if request.method == "POST" and path_only == "/api/decks":
-        try:
-            bruto = await asyncio.wait_for(connection.recv(), timeout=5)
-            corpo = json.loads(bruto) if isinstance(bruto, str) else {}
-        except Exception:  # noqa: BLE001 - corpo ausente vira {} e a validação acusa
-            corpo = {}
+    corpo = (
+        payload_do_deck(request)
+        if request.method == "POST" and path_only == "/api/decks"
+        else None
+    )
     return await handle_http(request.method, path_only, request.headers.get("Host"), corpo)
 
 
