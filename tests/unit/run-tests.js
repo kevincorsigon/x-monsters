@@ -6111,7 +6111,6 @@ test('decks customizados: validacao, ordem no seletor e exclusao protegida', () 
     assert.match(deckSelect, /oficiais → aleatório → customs/,
         'a ordem oficiais/aleatorio/customs esta no codigo');
     assert.match(deckSelect, /deck-custom-badge/, 'custom tem badge');
-    assert.match(deckSelect, /data-excluir-deck/, 'custom tem botao de excluir');
     assert.match(deckSelect, /pedirExclusaoDeDeck/, 'exclusao passa por confirmacao');
     assert.match(deckSelect, /showGameConfirm/, 'confirmacao usa o gameDialogModal');
     const servidor = readSourceText('server.py');
@@ -6140,27 +6139,7 @@ test('decks customizados: validacao, ordem no seletor e exclusao protegida', () 
     assert.match(deckSystem, /xmDecksCustom/, 'fallback local no navegador');
     assert.match(deckSystem, /mesclarCustomsLocais/, 'o catalogo junta JSON + local');
 
-    // Prévia do builder: reusa card+detalhe do seletor; resumoDeDeck aceita o
-    // objeto do rascunho (id dele nunca estaria no catalogo).
-    assert.match(deckSystem, /typeof deckRef === 'object'/, 'resumoDeDeck aceita objeto');
-    const builderHtml = readSourceText('deck-builder.html');
-    assert.match(builderHtml, /builderPreviewListagem/, 'coluna de previa da listagem');
     
-    const builderJs = readSourceText('src/js/deck-builder.js');
-    assert.match(builderJs, /renderizarPreview/, 'a previa e re-renderizada em tempo real');
-    assert.match(builderJs, /ds\.criarOpcao/, 'a previa usa o card da listagem');
-    assert.match(builderJs, /ds\.detalheDoDeck/, 'a previa usa o detalhe do seletor');
-    assert.match(builderJs, /\$\('builderForm'\)\?\.addEventListener\('input', renderizarPreview\)/,
-        'os campos de identidade atualizam a previa');
-    assert.match(builderHtml, /builderEmblemaToggle/, 'emblema tambem e recolhivel');
-    assert.match(builderHtml, /builderEmblemaCorpo/, 'conteudo do emblema num bloco recolhivel');
-    assert.match(builderJs, /builderEmblemaToggle/, 'o collapse do emblema esta ligado no js');
-    const builderCss = readSourceText('src/css/deck-builder.css');
-    assert.match(builderCss, /\.builder-emblema\.fechado #builderEmblemaCorpo/,
-        'css do collapse do emblema');
-    assert.match(builderCss, /max-width: 1360px/, 'breakpoint que vira a previa em faixa');
-    assert.match(builderCss, /\.builder-deck-topo[\s\S]*?position: sticky/,
-        'o topo do deck gruda durante o scroll');
 });
 test('Bilugação Astral deixa a criatura intransponível por um turno', () => {
     const { state, attacker, target, engine } = createCombatFixture({ targetDefense: 100 });

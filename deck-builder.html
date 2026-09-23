@@ -10,98 +10,122 @@
     <link rel="stylesheet" href="src/css/deck-builder.css">
 </head>
 <body>
-    <div class="builder-container">
-        <header class="builder-head">
-            <a class="builder-voltar" href="game.html">Voltar ao jogo</a>
-            <div>
-                <h1>Deck Builder</h1>
-                <p class="builder-subtitulo">Monte seu deck (40 cartas) com afinidade, traits e custo.</p>
-            </div>
-        </header>
-        <nav class="builder-abas">
-            <button type="button" class="builder-aba ativa" data-aba="construir">Construir</button>
-            <button type="button" class="builder-aba" data-aba="meus">Meus decks <span id="builderCustomCount">(0)</span></button>
-        </nav>
-        <section class="builder-painel-construir" data-painel="construir">
-            <div class="builder-colunas">
-                <div class="builder-catalogo">
-                    <div class="builder-filtros">
-                        <input type="search" id="builderBusca" placeholder="Buscar carta..." autocomplete="off">
-                        <select id="builderFiltroTipo">
-                            <option value="">Todos os tipos</option>
-                            <option value="criatura">Criatura</option>
-                            <option value="suporte">Suporte</option>
-                            <option value="evolução">Evolução</option>
-                        </select>
-                        <select id="builderFiltroCusto">
-                            <option value="">Todos os custos</option>
-                            <option value="baixo">Custo 1-3</option>
-                            <option value="medio">Custo 4-6</option>
-                            <option value="alto">Custo 7+</option>
-                        </select>
-                        <select id="builderFiltroTrait">
-                            <option value="">Todas as traits</option>
-                        </select>
-                    </div>
-                    <div class="builder-grade" id="builderGrade"></div>
+    <div class="builder-page-wrapper">
+        <div class="deck-select-card builder-container">
+            <header class="deck-select-head builder-head">
+                <span class="deck-select-badge">Deck Builder</span>
+                <h2>Monte seu deck</h2>
+                <p class="deck-select-subtitle">Monte seu deck (40 cartas) com afinidade, traits e custo.</p>
+                <div class="builder-head-acoes">
+                    <a class="deck-select-confirm builder-voltar" href="game.html">Voltar ao jogo</a>
                 </div>
+            </header>
+            <nav class="builder-abas">
+                <button type="button" class="builder-aba ativa" data-aba="construir">⚔️ Construir</button>
+                <button type="button" class="builder-aba" data-aba="meus">📚 Meus decks <span id="builderCustomCount">(0)</span></button>
+            </nav>
+            <section class="builder-painel-construir" data-painel="construir">
+                <div class="builder-colunas">
+                    <div class="builder-catalogo">
+                        <div class="builder-filtros">
+                            <input type="search" id="builderBusca" placeholder="🔍 Buscar carta..." autocomplete="off">
+                            <select id="builderFiltroTipo">
+                                <option value="">Todos os tipos</option>
+                                <option value="criatura">Criatura</option>
+                                <option value="suporte">Suporte</option>
+                                <option value="evolução">Evolução</option>
+                            </select>
+                            <select id="builderFiltroCusto">
+                                <option value="">Todos os custos</option>
+                                <option value="baixo">Custo 1-3</option>
+                                <option value="medio">Custo 4-6</option>
+                                <option value="alto">Custo 7+</option>
+                            </select>
+                            <select id="builderFiltroTrait">
+                                <option value="">Todas as traits</option>
+                            </select>
+                        </div>
+                        <div class="builder-grade" id="builderGrade"></div>
+                    </div>
 
-                <aside class="builder-deck">
-                    <div class="builder-deck-topo">
-                        <h2>Seu deck <span id="builderTotal">(0/40)</span></h2>
-                        <div class="builder-deck-acoes">
-                            <button type="button" id="builderLimpar">Limpar</button>
-                            <button type="button" id="builderSalvar" disabled>Salvar deck</button>
-                        </div>
-                    </div>
-                    <div class="builder-progresso" id="builderProgresso" role="progressbar"
-                         aria-valuemin="0" aria-valuemax="40" aria-valuenow="0">
-                        <div class="builder-progresso-barra" id="builderProgressoBarra"></div>
-                    </div>
-                    <div class="builder-stats" id="builderStats"></div>
-                    <div class="builder-afinidades" id="builderAfinidades"></div>
-                    <div class="builder-traits" id="builderTraits"></div>
-                    <div class="builder-lista" id="builderLista"></div>
-                    <form class="builder-form" id="builderForm">
-                        <h2>Identidade do deck</h2>
-                        <label>Nome<input id="builderNome" maxlength="40" placeholder="Ex: Furia Selvagem" required></label>
-                        <label>Tema<input id="builderTema" placeholder="Ex: Feras velozes"></label>
-                        <label>Descricao<textarea id="builderDescricao" rows="3" placeholder="Plano de jogo..."></textarea></label>
-                        <div class="builder-cores">
-                            <label>Primaria<input type="color" id="builderCorPrimaria" value="#d4af37"></label>
-                            <label>Secundaria<input type="color" id="builderCorSecundaria" value="#1a1e28"></label>
-                            <label>Acento<input type="color" id="builderCorAcento" value="#f8fafc"></label>
-                        </div>
-                        <fieldset class="builder-traits-form">
-                            <legend><button type="button" id="builderTraitsToggle" aria-expanded="true">Traits do tema ▾</button></legend>
-                            <div id="builderTraitsForm"></div>
-                        </fieldset>
-                        <fieldset class="builder-emblema">
-                            <legend><button type="button" id="builderEmblemaToggle" aria-expanded="true">Emblema ▾</button></legend>
-                            <div class="builder-emblema-corpo" id="builderEmblemaCorpo">
-                                <div class="builder-emoji-grade" id="builderEmojiGrade"></div>
-                                <label>Ou digite<input id="builderEmblema" maxlength="8" value="🃏"></label>
+                    <aside class="builder-deck deck-select-detail">
+                        <div class="builder-deck-topo">
+                            <div class="builder-deck-titulo-area">
+                                <h2>Seu deck <span id="builderTotal">(0/40)</span></h2>
+                                <div class="builder-progresso" id="builderProgresso" role="progressbar"
+                                     aria-valuemin="0" aria-valuemax="40" aria-valuenow="0">
+                                    <div class="builder-progresso-barra" id="builderProgressoBarra"></div>
+                                </div>
                             </div>
-                        </fieldset>
-                        <p class="builder-erro" id="builderErro" hidden></p>
-                        <p class="builder-ok" id="builderOk" hidden></p>
-                    </form>
-                </aside>
+                            <div class="builder-deck-acoes">
+                                <button type="button" class="deck-select-confirm builder-btn-limpar" id="builderLimpar" title="Limpar todas as cartas">Limpar</button>
+                                <button type="button" class="deck-select-confirm" id="builderSalvar" disabled title="Salve o deck ao completar 40 cartas">Salvar deck</button>
+                            </div>
+                        </div>
 
-                <aside class="builder-preview">
-                    <div class="builder-preview-topo">
-                        <h2>Prévia</h2>
-                        <span class="builder-subtitulo">como aparece na listagem</span>
-                    </div>
-                    <div class="builder-preview-listagem" id="builderPreviewListagem"></div>
-                </aside>
-            </div>
-        </section>
-        <section class="builder-painel-meus" data-painel="meus" hidden>
-            <h2>Meus decks</h2>
-            <div class="builder-meus-lista" id="builderMeusLista"></div>
-        </section>
+                        <div class="deck-detalhe-stats builder-stats" id="builderStats"></div>
+                        <div class="builder-afinidades" id="builderAfinidades"></div>
+                        <div class="deck-traits deck-traits-detalhe builder-traits" id="builderTraits"></div>
+
+                        <div class="builder-secao-deck">
+                            <div class="builder-secao-header">
+                                <h3>Cartas no deck</h3>
+                            </div>
+                            <div class="deck-cards-grid builder-lista" id="builderLista"></div>
+                        </div>
+
+                        <form class="builder-form" id="builderForm">
+                            <div class="builder-secao-header">
+                                <h3>Identidade & Prévia</h3>
+                            </div>
+
+                            <div class="builder-preview-bloco">
+                                <div class="builder-preview-rotulo">Prévia no seletor</div>
+                                <div class="builder-preview-listagem" id="builderPreviewListagem"></div>
+                            </div>
+
+                            <div class="builder-campos-duplos">
+                                <label>Nome do deck *<input id="builderNome" maxlength="40" placeholder="Ex: Fúria Selvagem" required></label>
+                                <label>Tema<input id="builderTema" placeholder="Ex: Feras velozes"></label>
+                            </div>
+                            <label>Descrição<textarea id="builderDescricao" rows="2" placeholder="Plano de jogo e estratégia..."></textarea></label>
+                            <div class="builder-cores">
+                                <label><span>Primária</span><input type="color" id="builderCorPrimaria" value="#d4af37"></label>
+                                <label><span>Secundária</span><input type="color" id="builderCorSecundaria" value="#1a1e28"></label>
+                                <label><span>Acento</span><input type="color" id="builderCorAcento" value="#f8fafc"></label>
+                            </div>
+                            <fieldset class="builder-traits-form fechado">
+                                <legend><button type="button" id="builderTraitsToggle" aria-expanded="false">Traits do tema ▸</button></legend>
+                                <div id="builderTraitsForm"></div>
+                            </fieldset>
+                            <fieldset class="builder-emblema fechado">
+                                <legend><button type="button" id="builderEmblemaToggle" aria-expanded="false">Emblema ▸</button></legend>
+                                <div class="builder-emblema-corpo" id="builderEmblemaCorpo">
+                                    <div class="builder-emoji-grade" id="builderEmojiGrade"></div>
+                                    <label class="builder-emblema-custom">Ou digite o emoji<input id="builderEmblema" maxlength="8" value="🃏"></label>
+                                </div>
+                            </fieldset>
+                            <p class="builder-erro" id="builderErro" hidden></p>
+                            <p class="builder-ok" id="builderOk" hidden></p>
+                        </form>
+                    </aside>
+                </div>
+            </section>
+            <section class="builder-painel-meus" data-painel="meus" hidden>
+                <h2>Meus decks</h2>
+                <div class="builder-meus-lista" id="builderMeusLista"></div>
+            </section>
+        </div>
     </div>
+
+    <!-- Modal para visualizar carta idêntico ao do game.html -->
+    <div class="card-modal" id="cardModal">
+        <div class="modal-card">
+            <button class="modal-close" onclick="fecharModalCarta()">&times;</button>
+            <div id="modalCardContent"></div>
+        </div>
+    </div>
+
     <div class="game-dialog-modal" id="gameDialogModal">
         <div class="game-dialog-card">
             <button class="modal-close" onclick="closeGameDialog()">&times;</button>

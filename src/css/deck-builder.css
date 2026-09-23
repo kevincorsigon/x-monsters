@@ -1,672 +1,938 @@
-/* deck-builder.css — página de construção de decks customizados. */
-.builder-container {
-    width: min(1560px, 100%);
-    margin: 0 auto;
-    padding: 18px;
+/* ==========================================================================
+   deck-builder.css — Interface e Identidade Visual do Deck Builder (X Monsters)
+   Harmonizado 100% com a identidade visual de game.html e deck-select.css
+   ========================================================================== */
+
+/* ── 1. Resets Globais e Desbloqueio de Scroll ────────────────────────────── */
+/* Garante que a página do builder role livremente, sobrepondo o overflow:hidden do game.css */
+html,
+body {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    margin: 0;
+    padding: 0;
+    background: #05070c !important;
+    font-family: 'Cinzel', serif;
     color: var(--text-color, #f1f5f9);
 }
-.builder-head {
-    display: flex;
-    gap: 16px;
-    align-items: center;
-    margin-bottom: 12px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+
+/* ── 2. Wrapper da Página com Fundo Radial Oficial ────────────────────────── */
+.builder-page-wrapper {
+    min-height: 100vh;
+    padding: clamp(14px, 2.5vh, 32px) clamp(10px, 2vw, 24px);
+    background: radial-gradient(120% 90% at 50% 0%, rgba(20, 26, 44, 0.94) 0%, rgba(5, 7, 12, 0.97) 70%);
+    box-sizing: border-box;
 }
-.builder-voltar {
+
+/* ── 3. Container Principal (Moldura Idêntica ao Seletor) ─────────────────── */
+.deck-select-card.builder-container {
+    width: min(1560px, 100%);
+    margin: 0 auto;
+    padding: clamp(16px, 2.2vw, 28px);
+    border: 2px solid var(--primary-color, #d4af37);
+    border-radius: 18px;
+    background: linear-gradient(135deg, var(--card-bg-color, #1a1e28) 0%, #10131c 100%);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.75);
+    box-sizing: border-box;
+}
+
+/* ── 4. Cabeçalho Oficial ────────────────────────────────────────────────── */
+.deck-select-head.builder-head {
+    position: relative;
+    text-align: center;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.25);
+}
+
+.deck-select-head.builder-head h2 {
+    margin: 10px 0 6px;
     color: var(--primary-color, #d4af37);
+    font-size: clamp(1.3rem, 2.4vw, 1.8rem);
+    letter-spacing: 0.05em;
+    font-family: 'Cinzel', serif;
+}
+
+.builder-head-acoes {
+    position: absolute;
+    top: 0;
+    right: 0;
+}
+
+.builder-voltar {
+    display: inline-block;
+    padding: 8px 20px;
+    font-size: 0.82rem;
     text-decoration: none;
-    padding: 7px 14px;
-    border: 1px solid rgba(212, 175, 55, 0.55);
-    border-radius: 999px;
-    font-size: 0.85rem;
-    transition: background 0.16s ease;
+    line-height: 1;
 }
-.builder-voltar:hover { background: rgba(212, 175, 55, 0.16); }
-.builder-subtitulo { opacity: 0.8; margin: 4px 0 0; }
-.builder-abas { display: flex; gap: 8px; margin-bottom: 14px; }
+
+/* ── 5. Abas de Navegação ────────────────────────────────────────────────── */
+.builder-abas {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
 .builder-aba {
-    padding: 8px 18px;
-    border: 1px solid var(--primary-color, #d4af37);
+    padding: 10px 24px;
+    border: 2px solid rgba(255, 255, 255, 0.16);
     border-radius: 999px;
-    background: transparent;
-    color: inherit;
-    font: inherit;
+    background: linear-gradient(160deg, rgba(26, 30, 40, 0.8) 0%, rgba(10, 13, 20, 0.95) 100%);
+    color: var(--text-color, #f1f5f9);
+    font-family: 'Cinzel', serif;
+    font-size: 0.88rem;
+    font-weight: 700;
     cursor: pointer;
-    transition: background 0.16s ease, box-shadow 0.16s ease;
+    transition: all 0.18s ease;
 }
-.builder-aba:hover { background: rgba(212, 175, 55, 0.12); }
+
+.builder-aba:hover {
+    border-color: var(--primary-color, #d4af37);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+}
+
 .builder-aba.ativa {
-    background: rgba(212, 175, 55, 0.2);
-    box-shadow: 0 0 12px rgba(212, 175, 55, 0.35);
+    border-color: var(--primary-color, #d4af37);
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.22) 0%, rgba(26, 30, 40, 0.9) 100%);
+    box-shadow: 0 0 16px rgba(212, 175, 55, 0.35);
+    color: #fff;
 }
-.builder-aba:focus-visible,
-.builder-carta:focus-visible,
-.builder-emoji:focus-visible,
-.builder-deck-acoes button:focus-visible,
-.builder-meus-acoes button:focus-visible {
-    outline: 2px solid var(--primary-color, #d4af37);
-    outline-offset: 2px;
-}
+
+/* ── 6. Colunas do Builder ───────────────────────────────────────────────── */
 .builder-colunas {
     display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr) minmax(280px, 0.9fr);
-    gap: 16px;
+    grid-template-columns: minmax(0, 1.38fr) minmax(390px, 1fr);
+    gap: 22px;
     align-items: start;
 }
-/* Colunas nunca estouram o grid por conteúdo largo (nomes/imagens). */
-.builder-colunas > * { min-width: 0; }
+
+/* ── 7. Coluna da Esquerda: Catálogo ─────────────────────────────────────── */
+.builder-catalogo {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    padding: 16px;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
 .builder-filtros {
     display: grid;
-    grid-template-columns: 1.4fr 1fr 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 12px;
+    grid-template-columns: 1.5fr 1fr 1fr 1fr;
+    gap: 10px;
 }
+
 .builder-filtros input,
 .builder-filtros select,
-.builder-form input,
+.builder-form input:not([type=color]):not([type=checkbox]),
 .builder-form textarea {
     width: 100%;
-    padding: 8px 10px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 9px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
     border-radius: 8px;
-    background: rgba(0, 0, 0, 0.35);
+    background: rgba(0, 0, 0, 0.55);
     color: inherit;
     font: inherit;
+    font-size: 0.85rem;
+    box-sizing: border-box;
     transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
+
 .builder-filtros input:focus,
 .builder-filtros select:focus,
 .builder-form input:focus,
 .builder-form textarea:focus {
     outline: none;
     border-color: var(--primary-color, #d4af37);
-    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.28);
+    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.35);
 }
-/* Scrollbars discretas em todos os painéis roláveis do builder. */
-.builder-grade,
-.builder-deck,
-.builder-lista,
-.builder-preview,
-#builderTraitsForm {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(212, 175, 55, 0.55) transparent;
-}
-.builder-grade::-webkit-scrollbar,
-.builder-deck::-webkit-scrollbar,
-.builder-lista::-webkit-scrollbar,
-.builder-preview::-webkit-scrollbar,
-#builderTraitsForm::-webkit-scrollbar { width: 8px; height: 8px; }
-.builder-grade::-webkit-scrollbar-thumb,
-.builder-deck::-webkit-scrollbar-thumb,
-.builder-lista::-webkit-scrollbar-thumb,
-.builder-preview::-webkit-scrollbar-thumb,
-#builderTraitsForm::-webkit-scrollbar-thumb {
-    border-radius: 8px;
-    background: rgba(212, 175, 55, 0.55);
-}
-.builder-grade::-webkit-scrollbar-track,
-.builder-deck::-webkit-scrollbar-track,
-.builder-lista::-webkit-scrollbar-track,
-.builder-preview::-webkit-scrollbar-track,
-#builderTraitsForm::-webkit-scrollbar-track { background: transparent; }
+
 .builder-grade {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 10px;
-    max-height: 70vh;
+    gap: 12px;
+    max-height: calc(100vh - 210px);
     overflow-y: auto;
-    align-items: start;
+    padding-right: 6px;
 }
-/* Wrapper do catálogo: posiciona o botão ℹ sobre o canto da carta. */
+
+.builder-catalogo-vazio {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px 16px;
+    opacity: 0.7;
+    font-size: 0.95rem;
+}
+
+/* ── 8. Cards do Catálogo (Miniatura Rica com Imagem, Stats e Custo) ──────── */
 .builder-carta-wrap {
     position: relative;
+    display: flex;
+    width: 100%;
 }
-.builder-carta {
+
+.deck-card-mini.builder-catalogo-card {
+    position: relative;
     display: flex;
     flex-direction: column;
-    height: 250px;
+    justify-content: space-between;
     width: 100%;
-    padding: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    min-height: 200px;
+    padding: 5px;
+    border: 2px solid rgba(255, 255, 255, 0.14);
     border-radius: 10px;
-    background: rgba(0, 0, 0, 0.3);
-    color: inherit;
+    background: linear-gradient(160deg, #1a1e28 0%, #0a0d14 100%);
+    color: var(--text-color, #f1f5f9);
     font: inherit;
     cursor: pointer;
     text-align: center;
-    overflow: hidden;
     transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.builder-carta:hover {
-    transform: translateY(-3px);
+
+.deck-card-mini.builder-catalogo-card:hover:not(.no-limite) {
+    transform: translateY(-3px) scale(1.02);
     border-color: var(--primary-color, #d4af37);
-    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+    z-index: 2;
 }
-.builder-carta:focus-visible {
-    outline: none;
-    border-color: var(--primary-color, #d4af37);
-    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.4);
+
+.deck-card-mini.builder-catalogo-card.no-deck {
+    border-color: rgba(212, 175, 55, 0.65);
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
 }
-.builder-carta.adicionada { border-color: rgba(90, 191, 122, 0.8); }
-.builder-carta:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-.builder-carta img {
-    width: 100%;
-    height: 150px;
-    object-fit: cover;
-    border-radius: 6px;
-    flex-shrink: 0;
+
+.deck-card-mini.builder-catalogo-card.no-limite {
+    opacity: 0.45;
+    border-style: dashed;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
-.builder-carta-nome {
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+
+.deck-card-mini.builder-catalogo-card .deck-card-mini-custo {
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 2px 7px;
+    border-radius: 8px 0 8px 0;
+    background: var(--energy-color, #fbbf24);
+    color: #10131c;
     font-size: 0.78rem;
-    line-height: 1.25;
-    margin-top: 4px;
+    font-weight: 800;
+    line-height: 1.2;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+    z-index: 2;
 }
-.builder-carta-meta {
-    flex-shrink: 0;
+
+.deck-card-mini.builder-catalogo-card .deck-card-mini-img {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    border-radius: 6px;
+    object-fit: cover;
+}
+
+.deck-card-mini.builder-catalogo-card .deck-card-mini-nome {
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.25;
+    margin: 3px 0 2px;
+    color: #f1f5f9;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 2px;
+}
+
+.builder-carta-combate {
     display: flex;
     justify-content: center;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 4px;
-    font-size: 0.68rem;
-    opacity: 0.9;
-    line-height: 1.3;
-    margin-top: 3px;
+    gap: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    margin-bottom: 3px;
 }
-.builder-carta-custo {
+
+.builder-carta-combate .attack {
+    color: #f87171;
+}
+
+.builder-carta-combate .defense {
+    color: #60a5fa;
+}
+
+.builder-carta-tipo-tag {
+    font-size: 0.65rem;
     padding: 1px 5px;
-    border-radius: 999px;
-    background: rgba(212, 175, 55, 0.18);
-    color: var(--primary-color, #d4af37);
-    font-weight: 600;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+    text-transform: capitalize;
 }
-.builder-carta-atk { color: #f87171; font-weight: 600; }
-.builder-carta-def { color: #60a5fa; font-weight: 600; }
-.builder-carta-copias { opacity: 0.7; }
-/* Botão de info (ℹ) flutuante no canto inferior direito do card. */
+
+.deck-card-mini.builder-catalogo-card .deck-card-mini-copias {
+    align-self: center;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #cbd5e1;
+}
+
+.deck-card-mini.builder-catalogo-card .deck-card-mini-copias.ativa {
+    background: rgba(212, 175, 55, 0.25);
+    color: var(--primary-color, #d4af37);
+    border: 1px solid rgba(212, 175, 55, 0.5);
+}
+
 .builder-carta-info {
     position: absolute;
-    bottom: 6px;
+    top: 4px;
     right: 4px;
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    z-index: 3;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
-    background: rgba(0, 0, 0, 0.6);
-    color: rgba(255, 255, 255, 0.75);
-    font-size: 0.7rem;
-    line-height: 1;
-    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(0, 0, 0, 0.75);
+    color: #f1f5f9;
+    font-size: 0.72rem;
+    font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.15s ease, color 0.15s ease;
-    z-index: 1;
+    cursor: pointer;
+    transition: all 0.15s ease;
 }
+
 .builder-carta-info:hover {
     background: var(--primary-color, #d4af37);
-    color: #10131b;
+    color: #0d1017;
     border-color: transparent;
+    transform: scale(1.15);
 }
-.builder-carta.no-limite { opacity: 0.4; border-style: dashed; }
 
-.builder-deck {
+/* ── 9. Coluna da Direita: Gerenciador do Deck ────────────────────────────── */
+.builder-deck.deck-select-detail {
     position: sticky;
-    top: 12px;
+    top: 14px;
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.32);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    padding: 18px;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    max-height: calc(100vh - 24px);
-    overflow-y: auto;
-    padding: 14px;
-    border: 1px solid rgba(212, 175, 55, 0.4);
-    border-radius: 14px;
-    background: linear-gradient(160deg, rgba(15, 12, 8, 0.9) 0%, rgba(0, 0, 0, 0.42) 100%);
-    backdrop-filter: blur(6px);
+    gap: 14px;
+    margin-top: 0;
 }
-/* Cabeçalho fixo dentro do scroll do painel: Salvar sempre à vista. */
+
+/* Topo do Gerenciador de Deck */
 .builder-deck-topo {
     position: sticky;
-    top: -14px;
-    z-index: 2;
+    top: -18px;
+    z-index: 10;
+    margin: -18px -18px 0;
+    padding: 14px 18px 12px;
+    background: rgba(13, 16, 24, 0.98);
+    border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+    backdrop-filter: blur(8px);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 8px;
-    margin: -14px -14px 0;
-    padding: 12px 14px 8px;
-    background: rgba(10, 12, 18, 0.96);
-    border-bottom: 1px solid rgba(212, 175, 55, 0.35);
+    gap: 12px;
 }
-.builder-deck-acoes { display: flex; gap: 8px; }
-.builder-deck-acoes button,
-.builder-meus-acoes button {
-    padding: 7px 14px;
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.07);
-    color: inherit;
-    font: inherit;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
-}
-.builder-deck-acoes button:hover:not(:disabled),
-.builder-meus-acoes button:hover:not(:disabled) {
-    border-color: var(--primary-color, #d4af37);
-    background: rgba(212, 175, 55, 0.16);
-    transform: translateY(-1px);
-}
-#builderSalvar {
-    border-color: var(--primary-color, #d4af37);
-    background: linear-gradient(160deg, rgba(212, 175, 55, 0.9), rgba(160, 124, 24, 0.9));
-    color: #10131b;
-    font-weight: 700;
-}
-#builderSalvar:disabled { opacity: 0.45; cursor: not-allowed; }
-.builder-stats, .builder-afinidades, .builder-traits {
+
+.builder-deck-titulo-area {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+}
+
+.builder-deck-topo h2 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-family: 'Cinzel', serif;
+    letter-spacing: 0.04em;
+    color: #f1f5f9;
+}
+
+.builder-deck-topo h2 span {
+    color: var(--primary-color, #d4af37);
+}
+
+.builder-progresso {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.builder-progresso-barra {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #d4af37 0%, #fbbf24 100%);
+    border-radius: 999px;
+    transition: width 0.2s ease;
+}
+
+.builder-progresso-barra.completa {
+    background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+}
+
+.builder-deck-acoes {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.builder-deck-acoes button {
+    padding: 8px 16px;
     font-size: 0.82rem;
 }
-.builder-stat, .builder-trait-chip, .builder-afinidade {
-    padding: 2px 10px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.1);
+
+.builder-btn-limpar {
+    border-color: rgba(255, 255, 255, 0.25) !important;
+    background: rgba(255, 255, 255, 0.06) !important;
 }
-.builder-lista {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+
+.builder-btn-limpar:hover {
+    border-color: #f87171 !important;
+    color: #f87171 !important;
+    box-shadow: 0 0 14px rgba(248, 113, 113, 0.4) !important;
+}
+
+/* ── 10. Grade de Cartas no Deck ─────────────────────────────────────────── */
+.builder-secao-deck {
+    display: flex;
+    flex-direction: column;
     gap: 8px;
-    max-height: 30vh;
-    overflow-y: auto;
 }
-.builder-lista-item { text-align: center; font-size: 0.72rem; }
-.builder-lista-item img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 6px; }
-.builder-lista-controles { display: flex; justify-content: center; gap: 4px; margin-top: 2px; }
-.builder-lista-controles button {
-    width: 24px;
-    height: 24px;
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.07);
-    color: inherit;
-    font: inherit;
-    font-size: 0.85rem;
-    line-height: 1;
-    cursor: pointer;
-    transition: border-color 0.16s ease, background 0.16s ease;
+
+.builder-secao-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.25);
+    padding-bottom: 6px;
+    margin-top: 4px;
 }
-.builder-lista-controles button:hover {
-    border-color: var(--primary-color, #d4af37);
-    background: rgba(212, 175, 55, 0.16);
+
+.builder-secao-header h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--primary-color, #d4af37);
+    font-family: 'Cinzel', serif;
 }
-.builder-form { display: flex; flex-direction: column; gap: 8px; }
-.builder-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
-.builder-traits-form,
-.builder-emblema {
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 8px;
-    padding: 8px;
-}
-.builder-traits-form legend,
-.builder-emblema legend { padding: 0 6px; }
-.builder-traits-form legend button,
-.builder-emblema legend button {
-    background: none;
-    border: none;
-    color: inherit;
-    font: inherit;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    padding: 0;
-}
-.builder-traits-form.fechado #builderTraitsForm,
-.builder-emblema.fechado #builderEmblemaCorpo { display: none; }
-#builderTraitsForm {
+
+.deck-cards-grid.builder-lista {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 4px 10px;
-    max-height: 180px;
+    grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+    gap: 8px;
+    max-height: 240px;
     overflow-y: auto;
+    padding-right: 4px;
 }
-#builderTraitsForm label { flex-direction: row; align-items: center; gap: 6px; font-size: 0.8rem; }
-#builderTraitsForm input { width: auto; }
-.builder-cores { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+.builder-lista-vazia {
+    grid-column: 1 / -1;
+    padding: 24px 12px;
+    text-align: center;
+    font-size: 0.85rem;
+    opacity: 0.7;
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    line-height: 1.4;
+}
+
+.deck-card-mini.builder-mini-item {
+    cursor: default;
+    padding: 4px;
+}
+
+.deck-card-mini.builder-mini-item .deck-card-mini-img,
+.deck-card-mini.builder-mini-item .deck-card-mini-nome {
+    cursor: pointer;
+}
+
+.builder-card-mini-overlay-acoes {
+    display: flex;
+    justify-content: center;
+    gap: 3px;
+    margin-top: 3px;
+}
+
+.builder-card-mini-overlay-acoes button {
+    flex: 1;
+    padding: 3px 0;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.6);
+    color: #f1f5f9;
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    line-height: 1;
+    transition: all 0.15s ease;
+}
+
+.builder-card-mini-overlay-acoes button:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.builder-mini-btn-add:hover:not(:disabled) {
+    background: #10b981;
+    border-color: #10b981;
+    color: #fff;
+}
+
+.builder-mini-btn-add:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.builder-mini-btn-rem:hover {
+    background: #ef4444;
+    border-color: #ef4444;
+    color: #fff;
+}
+
+.builder-mini-btn-info:hover {
+    background: var(--primary-color, #d4af37);
+    border-color: var(--primary-color, #d4af37);
+    color: #0b0e15;
+}
+
+/* ── 11. Formulário de Identidade & Prévia ─────────────────────────────────── */
+.builder-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.builder-preview-bloco {
+    padding: 12px;
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.35);
+}
+
+.builder-preview-rotulo {
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--primary-color, #d4af37);
+    margin-bottom: 8px;
+    font-weight: 700;
+}
+
+.builder-preview-listagem .deck-option {
+    width: 100%;
+    cursor: default;
+    pointer-events: none;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+.builder-campos-duplos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.builder-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.builder-cores {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+}
+
 .builder-cores label {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
     align-items: center;
-    padding: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
     background: rgba(0, 0, 0, 0.25);
-}
-.builder-cores label.has-preview { border-color: rgba(212, 175, 55, 0.5); }
-.builder-cores .builder-tipo-cor {
     font-size: 0.72rem;
-    opacity: 0.75;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
 }
+
 .builder-cores input[type=color] {
     width: 100%;
-    height: 38px;
+    height: 32px;
     padding: 0;
     border: none;
-    border-radius: 6px;
+    border-radius: 4px;
     cursor: pointer;
     background: transparent;
 }
-.builder-cores input[type=color]::-webkit-color-swatch { border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; }
-.builder-emoji-grade { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.builder-cores input[type=color]::-webkit-color-swatch {
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+}
+
+/* Collapses */
+.builder-traits-form,
+.builder-emblema {
+    border: 1px solid rgba(212, 175, 55, 0.25);
+    border-radius: 10px;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.builder-traits-form legend,
+.builder-emblema legend {
+    width: 100%;
+    padding: 0;
+    float: left;
+}
+
+.builder-traits-form legend button,
+.builder-emblema legend button {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border: none;
+    border-bottom: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--primary-color, #d4af37);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.16s ease;
+}
+
+.builder-traits-form legend button:hover,
+.builder-emblema legend button:hover {
+    background: rgba(212, 175, 55, 0.12);
+}
+
+.builder-traits-form.fechado #builderTraitsForm,
+.builder-emblema.fechado #builderEmblemaCorpo {
+    display: none !important;
+}
+
+.builder-traits-form:not(.fechado) legend button,
+.builder-emblema:not(.fechado) legend button {
+    border-bottom-color: rgba(212, 175, 55, 0.2);
+}
+
+#builderTraitsForm {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 6px 10px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 12px;
+    box-sizing: border-box;
+    clear: both;
+}
+
+#builderTraitsForm label {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    font-weight: normal;
+    cursor: pointer;
+}
+
+#builderTraitsForm input {
+    width: auto;
+    cursor: pointer;
+}
+
+.builder-emblema-corpo {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    clear: both;
+}
+
+.builder-emoji-grade {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
 .builder-emoji {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 1.3rem;
     padding: 0;
     border-radius: 6px;
-    border: 1px solid transparent;
-    background: rgba(0, 0, 0, 0.3);
-    cursor: pointer;
-    transition: background 0.15s ease, transform 0.15s ease;
-}
-.builder-emoji:hover { background: rgba(255, 255, 255, 0.1); transform: scale(1.15); }
-.builder-emoji.selecionado { border-color: var(--primary-color, #d4af37); background: rgba(212, 175, 55, 0.18); }
-.builder-erro { color: #ff6b6b; font-size: 0.82rem; margin: 0; }
-.builder-ok { color: #5abf7a; font-size: 0.82rem; margin: 0; }
-.builder-meus-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-.builder-meus-card {
-    padding: 12px;
-    border: 1px solid rgba(212, 175, 55, 0.28);
-    border-radius: 12px;
-    background: rgba(0, 0, 0, 0.3);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    transition: border-color 0.16s ease, transform 0.16s ease;
-}
-.builder-meus-card:hover {
-    border-color: var(--primary-color, #d4af37);
-    transform: translateY(-2px);
-}
-.builder-meus-acoes { display: flex; gap: 8px; margin-top: 8px; }
-
-/* ── acabamento: cabeçalho, controles, foco e scrollbars ──────────────────── */
-.builder-head {
-    padding-bottom: 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-.builder-head h1 { letter-spacing: 0.04em; }
-.builder-voltar {
-    padding: 6px 14px;
-    border: 1px solid rgba(212, 175, 55, 0.5);
-    border-radius: 999px;
-    text-decoration: none;
-    white-space: nowrap;
-    transition: background 0.15s ease, border-color 0.15s ease;
-}
-.builder-voltar:hover {
-    background: rgba(212, 175, 55, 0.15);
-    border-color: var(--primary-color, #d4af37);
-}
-.builder-aba { transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease; }
-.builder-aba:hover { background: rgba(212, 175, 55, 0.12); }
-.builder-deck-acoes button,
-.builder-meus-acoes button {
-    padding: 6px 14px;
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.06);
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
-}
-.builder-deck-acoes button:hover,
-.builder-meus-acoes button:hover {
-    border-color: var(--primary-color, #d4af37);
-    background: rgba(212, 175, 55, 0.16);
-}
-#builderSalvar {
-    background: rgba(212, 175, 55, 0.85);
-    border-color: transparent;
-    color: #0b0e15;
-    font-weight: 600;
-}
-#builderSalvar:hover:not(:disabled) {
-    background: var(--primary-color, #d4af37);
-    transform: translateY(-1px);
-}
-#builderSalvar:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
-button:focus-visible, a:focus-visible,
-input:focus-visible, select:focus-visible, textarea:focus-visible {
-    outline: 2px solid var(--primary-color, #d4af37);
-    outline-offset: 2px;
-}
-.builder-filtros input:focus, .builder-filtros select:focus,
-.builder-form input:focus, .builder-form textarea:focus {
-    border-color: rgba(212, 175, 55, 0.65);
-    outline: none;
-}
-.builder-carta {
-    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-}
-.builder-carta:hover {
-    transform: translateY(-3px);
-    border-color: rgba(212, 175, 55, 0.65);
-    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
-}
-.builder-emoji { transition: transform 0.12s ease, border-color 0.12s ease; }
-.builder-emoji:hover { transform: scale(1.15); }
-.builder-lista-controles button {
-    padding: 2px 9px;
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.06);
-    color: inherit;
-    font: inherit;
-    cursor: pointer;
-}
-.builder-lista-controles button:hover {
-    border-color: var(--primary-color, #d4af37);
-    background: rgba(212, 175, 55, 0.16);
-}
-.builder-meus-card { transition: border-color 0.15s ease, transform 0.15s ease; }
-.builder-meus-card:hover {
-    border-color: rgba(212, 175, 55, 0.55);
-    transform: translateY(-2px);
-}
-.builder-grade, .builder-lista, .builder-deck, .builder-preview, #builderTraitsForm {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(212, 175, 55, 0.55) transparent;
-}
-.builder-grade::-webkit-scrollbar, .builder-lista::-webkit-scrollbar,
-.builder-deck::-webkit-scrollbar, .builder-preview::-webkit-scrollbar,
-#builderTraitsForm::-webkit-scrollbar { width: 8px; height: 8px; }
-.builder-grade::-webkit-scrollbar-thumb, .builder-lista::-webkit-scrollbar-thumb,
-.builder-deck::-webkit-scrollbar-thumb, .builder-preview::-webkit-scrollbar-thumb,
-#builderTraitsForm::-webkit-scrollbar-thumb {
-    border-radius: 999px;
-    background: rgba(212, 175, 55, 0.45);
-}
-.builder-grade::-webkit-scrollbar-thumb:hover, .builder-lista::-webkit-scrollbar-thumb:hover,
-.builder-deck::-webkit-scrollbar-thumb:hover, .builder-preview::-webkit-scrollbar-thumb:hover,
-#builderTraitsForm::-webkit-scrollbar-thumb:hover { background: rgba(212, 175, 55, 0.7); }
-.builder-grade::-webkit-scrollbar-track, .builder-lista::-webkit-scrollbar-track,
-.builder-deck::-webkit-scrollbar-track, .builder-preview::-webkit-scrollbar-track,
-#builderTraitsForm::-webkit-scrollbar-track { background: transparent; }
-
-/* Prévia à direita: mostra apenas o card de listagem. */
-.builder-preview {
-    position: sticky;
-    top: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    max-height: calc(100vh - 24px);
-    overflow-y: auto;
-    padding: 14px;
-    border: 1px solid var(--primary-color, #d4af37);
-    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
     background: rgba(0, 0, 0, 0.35);
-}
-.builder-preview-topo { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-/* Card da listagem na prévia: sem hover/seleção. */
-.builder-preview-listagem .deck-option {
-    width: 100%;
-    cursor: default;
-    pointer-events: none;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
 }
 
-/* ── Modal de detalhes da carta ────────────────────────────────────────────── */
-.builder-carta-modal {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.72);
-    z-index: 1000;
+.builder-emoji:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: scale(1.1);
+}
+
+.builder-emoji.selecionado {
+    border-color: var(--primary-color, #d4af37);
+    background: rgba(212, 175, 55, 0.25);
+    box-shadow: 0 0 8px rgba(212, 175, 55, 0.4);
+}
+
+.builder-emblema-custom {
+    flex-direction: row !important;
     align-items: center;
-    justify-content: center;
+    gap: 8px;
+    font-size: 0.8rem;
+}
+
+.builder-emblema-custom input {
+    width: 60px !important;
+    text-align: center;
+    font-size: 1.1rem;
+}
+
+.builder-erro {
+    color: #f87171;
+    font-size: 0.85rem;
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(248, 113, 113, 0.12);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.builder-ok {
+    color: #34d399;
+    font-size: 0.85rem;
+    margin: 0;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(52, 211, 153, 0.12);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+/* ── 12. Aba Meus Decks ──────────────────────────────────────────────────── */
+.builder-painel-meus {
+    padding: 10px 0;
+}
+
+.builder-painel-meus h2 {
+    color: var(--primary-color, #d4af37);
+    font-family: 'Cinzel', serif;
+    font-size: 1.3rem;
+    margin: 0 0 16px;
+    letter-spacing: 0.04em;
+}
+
+.builder-meus-lista {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 14px;
+}
+
+.builder-meus-card {
     padding: 16px;
-}
-.builder-carta-modal.aberto { display: flex; }
-.builder-carta-modal-card {
-    position: relative;
-    width: min(620px, 100%);
-    max-height: 90vh;
-    overflow-y: auto;
-    background: linear-gradient(160deg, #0f0c08 0%, #12161f 100%);
-    border: 1px solid rgba(212, 175, 55, 0.5);
-    border-radius: 16px;
-    padding: 24px;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(212, 175, 55, 0.45) transparent;
-}
-.builder-carta-modal-fechar {
-    position: absolute;
-    top: 12px;
-    right: 14px;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.08);
-    color: inherit;
-    font-size: 1.1rem;
-    line-height: 1;
-    cursor: pointer;
+    border: 2px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    background: linear-gradient(160deg, #1a1e28 0%, #0a0d14 100%);
     display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s ease;
+    flex-direction: column;
+    gap: 8px;
+    transition: border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
 }
-.builder-carta-modal-fechar:hover { background: rgba(255, 255, 255, 0.18); }
-.builder-cm-layout {
-    display: flex;
-    gap: 18px;
-    align-items: flex-start;
+
+.builder-meus-card:hover {
+    border-color: var(--primary-color, #d4af37);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
 }
-.builder-cm-img {
-    width: 140px;
-    flex-shrink: 0;
-    border-radius: 10px;
-    object-fit: cover;
-    aspect-ratio: 3 / 4;
-}
-.builder-cm-info { flex: 1; min-width: 0; }
-.builder-cm-nome {
-    margin: 0 0 8px;
-    font-size: 1.1rem;
-    font-weight: 700;
+
+.builder-meus-card b {
+    font-size: 1.05rem;
     color: var(--primary-color, #d4af37);
 }
-.builder-cm-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    margin-bottom: 10px;
-}
-.builder-cm-tipo, .builder-cm-custo, .builder-cm-trait {
-    padding: 2px 9px;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    background: rgba(255, 255, 255, 0.1);
-}
-.builder-cm-tipo { background: rgba(212, 175, 55, 0.15); color: var(--primary-color, #d4af37); }
-.builder-cm-combate {
-    display: flex;
-    gap: 14px;
-    margin-bottom: 10px;
-    font-size: 0.88rem;
-}
-.builder-cm-combate span:first-child { color: #f87171; }
-.builder-cm-combate span:last-child  { color: #60a5fa; }
-.builder-cm-habilidade {
-    font-size: 0.88rem;
-    line-height: 1.55;
-    opacity: 0.9;
-    margin: 0 0 14px;
-    white-space: pre-line;
-}
-.builder-cm-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
-.builder-cm-btn-add, .builder-cm-btn-rem {
-    padding: 7px 14px;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    background: rgba(255, 255, 255, 0.07);
-    color: inherit;
-    font: inherit;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
-}
-.builder-cm-btn-add { border-color: rgba(212, 175, 55, 0.5); background: rgba(212, 175, 55, 0.12); }
-.builder-cm-btn-add:hover:not(:disabled) { background: rgba(212, 175, 55, 0.25); }
-.builder-cm-btn-add:disabled { opacity: 0.4; cursor: not-allowed; }
-.builder-cm-btn-rem:hover { border-color: #f87171; background: rgba(248, 113, 113, 0.12); }
 
-/* ── responsivo ─────────────────────────────────────────────────────────────── */
-@media (max-width: 1360px) {
-    .builder-colunas { grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); }
-    .builder-preview {
-        grid-column: 1 / -1;
+.builder-meus-acoes {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.builder-meus-acoes button {
+    padding: 8px 16px;
+    border-radius: 999px;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.builder-meus-acoes [data-editar] {
+    border: 2px solid var(--primary-color, #d4af37);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(0, 0, 0, 0.35) 100%);
+    color: var(--text-color, #f1f5f9);
+}
+
+.builder-meus-acoes [data-editar]:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 16px var(--primary-color, #d4af37);
+}
+
+.builder-meus-acoes [data-excluir] {
+    border: 1px solid rgba(248, 113, 113, 0.5);
+    background: rgba(248, 113, 113, 0.12);
+    color: #f87171;
+}
+
+.builder-meus-acoes [data-excluir]:hover {
+    background: rgba(248, 113, 113, 0.25);
+    border-color: #f87171;
+    box-shadow: 0 0 14px rgba(248, 113, 113, 0.35);
+    transform: translateY(-1px);
+}
+
+/* ── 13. Ajustes do Modal de Carta (.card-modal) ─────────────────────────── */
+.card-modal .modal-card {
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 22px 24px;
+}
+
+/* ── 14. Barras de Rolagem Estilizadas ───────────────────────────────────── */
+.builder-grade,
+.builder-deck,
+.deck-cards-grid.builder-lista,
+#builderTraitsForm,
+.builder-emoji-grade,
+.card-modal .modal-card {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(212, 175, 55, 0.5) transparent;
+}
+
+.builder-grade::-webkit-scrollbar,
+.builder-deck::-webkit-scrollbar,
+.deck-cards-grid.builder-lista::-webkit-scrollbar,
+#builderTraitsForm::-webkit-scrollbar,
+.builder-emoji-grade::-webkit-scrollbar,
+.card-modal .modal-card::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.builder-grade::-webkit-scrollbar-thumb,
+.builder-deck::-webkit-scrollbar-thumb,
+.deck-cards-grid.builder-lista::-webkit-scrollbar-thumb,
+#builderTraitsForm::-webkit-scrollbar-thumb,
+.builder-emoji-grade::-webkit-scrollbar-thumb,
+.card-modal .modal-card::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(212, 175, 55, 0.5);
+}
+
+.builder-grade::-webkit-scrollbar-thumb:hover,
+.builder-deck::-webkit-scrollbar-thumb:hover,
+.deck-cards-grid.builder-lista::-webkit-scrollbar-thumb:hover,
+#builderTraitsForm::-webkit-scrollbar-thumb:hover,
+.builder-emoji-grade::-webkit-scrollbar-thumb:hover,
+.card-modal .modal-card::-webkit-scrollbar-thumb:hover {
+    background: rgba(212, 175, 55, 0.8);
+}
+
+.builder-grade::-webkit-scrollbar-track,
+.builder-deck::-webkit-scrollbar-track,
+.deck-cards-grid.builder-lista::-webkit-scrollbar-track,
+#builderTraitsForm::-webkit-scrollbar-track,
+.builder-emoji-grade::-webkit-scrollbar-track,
+.card-modal .modal-card::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* ── 15. Responsividade ──────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+    .builder-colunas {
+        grid-template-columns: 1fr;
+    }
+    .builder-deck.deck-select-detail {
         position: static;
         max-height: none;
     }
+    .builder-deck-topo {
+        position: static;
+        margin: 0;
+        padding: 0 0 12px 0;
+        border-bottom: 1px solid rgba(212, 175, 55, 0.25);
+    }
+    .builder-grade {
+        max-height: 60vh;
+    }
 }
-@media (max-width: 900px) {
-    .builder-colunas { grid-template-columns: 1fr; }
-    .builder-deck { position: static; max-height: none; }
-    .builder-deck-topo { position: static; margin: 0; padding: 0; border-bottom: none; }
-    .builder-preview { position: static; }
-    .builder-filtros { grid-template-columns: 1fr 1fr; }
-    .builder-grade { max-height: none; }
+
+@media (max-width: 768px) {
+    .builder-filtros {
+        grid-template-columns: 1fr 1fr;
+    }
+    .builder-grade {
+        grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));
+        max-height: 52vh;
+    }
+    .deck-card-mini.builder-catalogo-card {
+        min-height: 185px;
+    }
+    .builder-campos-duplos {
+        grid-template-columns: 1fr;
+    }
+    .builder-head-acoes {
+        position: static;
+        margin-top: 12px;
+    }
 }
-@media (max-width: 600px) {
-    .builder-container { padding: 10px; }
-    .builder-head { flex-wrap: wrap; gap: 8px; }
-    .builder-filtros { grid-template-columns: 1fr; }
-    .builder-grade { grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); }
-    .builder-carta { height: 220px; }
-    .builder-carta img { height: 128px; }
-    .builder-deck-topo { flex-wrap: wrap; }
-    .builder-cores { grid-template-columns: 1fr; }
-    .builder-cm-layout { flex-direction: column; }
-    .builder-cm-img { width: 100%; aspect-ratio: 16 / 9; }
+
+@media (max-width: 520px) {
+    .builder-filtros {
+        grid-template-columns: 1fr;
+    }
+    .builder-cores {
+        grid-template-columns: 1fr;
+    }
 }

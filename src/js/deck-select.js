@@ -170,13 +170,9 @@
         botao.style.setProperty('--deck-primaria', deck.cores?.primaria || '#d4af37');
         botao.style.setProperty('--deck-secundaria', deck.cores?.secundaria || '#1a1e28');
         botao.style.setProperty('--deck-acento', deck.cores?.acento || '#f8fafc');
-        // Customs ganham badge + lixeira; oficiais/aleatório nunca têm excluir.
+        // Customs ganham badge de identificação; exclusão fica concentrada no Deck Builder.
         const selo = deck.custom === true ? '<span class="deck-custom-badge">✨ Meu deck</span>' : '';
-        const lixeira = deck.custom === true
-            ? `<span class="deck-option-excluir" role="button" tabindex="0" title="Excluir deck" data-excluir-deck="${deck.id}">🗑️</span>`
-            : '';
         botao.innerHTML = `
-            ${lixeira}
             <span class="deck-stack" aria-hidden="true">${pilhaDeCartas()}</span>
             <span class="deck-stack-emblema" aria-hidden="true">${deck.emblema || '🎴'}</span>
             ${selo}
@@ -186,18 +182,6 @@
                 <span class="deck-option-stats">${linhaDeStats(deck)}</span>
                 <span class="deck-traits">${chipsDeTraits(deck.traits)}</span>
             </span>`;
-        const alvoLixeira = botao.querySelector('[data-excluir-deck]');
-        if (alvoLixeira) {
-            const pedir = evento => {
-                evento.stopPropagation();
-                evento.preventDefault();
-                pedirExclusaoDeDeck(deck.id, deck.nome);
-            };
-            alvoLixeira.addEventListener('click', pedir);
-            alvoLixeira.addEventListener('keydown', evento => {
-                if (evento.key === 'Enter' || evento.key === ' ') pedir(evento);
-            });
-        }
         return botao;
     }
 
@@ -443,7 +427,10 @@
         if (resultado && resultado.ok && typeof document !== 'undefined') {
             // Re-render preservando a promessa do `abrir()` (o boot/hotseat
             // espera nela): reabrir criaria uma promessa nova e órfã.
-            if (!redesenhar()) window.location?.reload?.();
+            const modal = document.getElementById('deckSelectModal');
+            if (modal && modal.classList.contains('visible')) {
+                if (!redesenhar()) window.location?.reload?.();
+            }
         }
         return resultado;
     }

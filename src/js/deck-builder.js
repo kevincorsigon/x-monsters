@@ -37,39 +37,102 @@
         });
     }
 
+    let acaoDeDialogoPendente = null;
+
+    function fecharDialogoDoJogo() {
+        const modal = $('gameDialogModal');
+        if (modal) modal.classList.remove('visible');
+        if (acaoDeDialogoPendente?.resolver) {
+            acaoDeDialogoPendente.resolver(false);
+            acaoDeDialogoPendente = null;
+        }
+    }
+
+    function confirmarDialogoDoJogo() {
+        const modal = $('gameDialogModal');
+        if (modal) modal.classList.remove('visible');
+        if (acaoDeDialogoPendente?.resolver) {
+            acaoDeDialogoPendente.resolver(true);
+            acaoDeDialogoPendente = null;
+        }
+    }
+
+    function mostrarConfirmacaoDoJogo(titulo, mensagem, rotuloConfirmar = 'OK') {
+        return new Promise(resolve => {
+            const modal = $('gameDialogModal');
+            if (!modal) {
+                resolve(typeof confirm === 'function' ? confirm(`${titulo}\n${mensagem}`) : false);
+                return;
+            }
+            const icone = $('gameDialogIcon');
+            const tituloEl = $('gameDialogTitle');
+            const mensagemEl = $('gameDialogMessage');
+            const confirmarBtn = $('gameDialogConfirmBtn');
+            const cancelarBtn = $('gameDialogCancelBtn');
+            if (icone) icone.textContent = '🗑️';
+            if (tituloEl) tituloEl.textContent = titulo;
+            if (mensagemEl) mensagemEl.textContent = mensagem;
+            if (confirmarBtn) confirmarBtn.textContent = rotuloConfirmar;
+            if (cancelarBtn) {
+                cancelarBtn.style.display = '';
+                cancelarBtn.onclick = () => {
+                    fecharDialogoDoJogo();
+                    resolve(false);
+                };
+            }
+            acaoDeDialogoPendente = { resolver: resolve };
+            modal.classList.add('visible');
+        });
+    }
+
+    if (janela) {
+        janela.closeGameDialog = fecharDialogoDoJogo;
+        janela.confirmGameDialog = confirmarDialogoDoJogo;
+        janela.showGameConfirm = mostrarConfirmacaoDoJogo;
+        janela.fecharModalCarta = fecharModalCarta;
+        janela.closeCardModal = fecharModalCarta;
+    }
+
     function renderizarCatalogo() {
         const grade = $('builderGrade');
         if (!grade) return;
         const limite = janela?.limiteDeCopias || (() => 3);
         grade.innerHTML = '';
-        cartasFiltradas().forEach(carta => {
+        const filtradas = cartasFiltradas();
+        if (filtradas.length === 0) {
+            grade.innerHTML = '<div class="builder-catalogo-vazio">Nenhuma carta encontrada com esses filtros.</div>';
+            return;
+        }
+        filtradas.forEach(carta => {
             const copias = draft.filter(id => id === carta.id).length;
-            const noLimite = copias >= limite(carta.id);
+            const maxCopias = limite(carta.id);
+            const noLimite = copias >= maxCopias;
 
             const wrapper = document.createElement('div');
             wrapper.className = 'builder-carta-wrap';
 
             const botao = document.createElement('button');
             botao.type = 'button';
-            botao.className = 'builder-carta' + (noLimite ? ' no-limite' : '');
-            botao.title = `${carta.name} — clique para adicionar ao deck (${copias}/${limite(carta.id)})`;
+            botao.className = 'deck-card-mini builder-catalogo-card' + (noLimite ? ' no-limite' : '') + (copias > 0 ? ' no-deck' : '');
+            botao.title = `${carta.name} (${carta.type}) — Clique para adicionar (${copias}/${maxCopias})`;
 
             const atkDef = carta.type === 'criatura' || carta.type === 'evolução'
-                ? `<span class="builder-carta-atk">⚔${carta.attack ?? '?'}</span><span class="builder-carta-def">🛡${carta.defense ?? '?'}</span>`
-                : '';
+                ? `<span class="attack" title="Ataque">⚔ ${carta.attack ?? 0}</span> <span class="defense" title="Defesa">🛡 ${carta.defense ?? 0}</span>`
+                : `<span class="builder-carta-tipo-tag">${carta.type}</span>`;
+
             botao.innerHTML = `
-                ${carta.image ? `<img src="${carta.image}" alt="${carta.name}" loading="lazy">` : ''}
-                <div class="builder-carta-nome" title="${carta.name}">${carta.name}</div>
-                <div class="builder-carta-meta">
-                    <span class="builder-carta-custo">C${carta.cost}</span>${atkDef}<span class="builder-carta-copias">${copias}x</span>
-                </div>`;
+                <span class="deck-card-mini-custo" title="Custo: ${carta.cost} de energia">${carta.cost}</span>
+                ${carta.image ? `<img class="deck-card-mini-img" src="${carta.image}" alt="${carta.name}" loading="lazy">` : '<span class="deck-card-mini-img is-vazia">🎴</span>'}
+                <span class="deck-card-mini-nome" title="${carta.name}">${carta.name}</span>
+                <div class="builder-carta-combate">${atkDef}</div>
+                <span class="deck-card-mini-copias ${copias > 0 ? 'ativa' : ''}" title="Cópias no deck">${copias}/${maxCopias}</span>`;
             botao.addEventListener('click', () => adicionarCarta(carta.id));
 
             const btnInfo = document.createElement('button');
             btnInfo.type = 'button';
             btnInfo.className = 'builder-carta-info';
-            btnInfo.title = 'Ver descrição';
-            btnInfo.setAttribute('aria-label', `Ver descrição de ${carta.name}`);
+            btnInfo.title = 'Ver detalhes e habilidade da carta';
+            btnInfo.setAttribute('aria-label', `Ver detalhes de ${carta.name}`);
             btnInfo.textContent = 'ℹ';
             btnInfo.addEventListener('click', e => {
                 e.stopPropagation();
@@ -82,26 +145,26 @@
         });
     }
 
-    /** Abre o modal de detalhes/habilidade de uma carta. */
+    /** Abre o modal de detalhes/habilidade com a mesmíssima estética de showCardModal do jogo. */
     function abrirModalCarta(carta) {
-        let modal = $('builderCartaModal');
+        let modal = $('cardModal') || $('builderCartaModal');
         if (!modal) {
             modal = document.createElement('div');
-            modal.id = 'builderCartaModal';
-            modal.className = 'builder-carta-modal';
+            modal.id = 'cardModal';
+            modal.className = 'card-modal';
             modal.setAttribute('role', 'dialog');
             modal.setAttribute('aria-modal', 'true');
             modal.innerHTML = `
-                <div class="builder-carta-modal-card">
-                    <button class="builder-carta-modal-fechar" aria-label="Fechar">×</button>
-                    <div id="builderCartaModalCorpo"></div>
+                <div class="modal-card">
+                    <button class="modal-close" aria-label="Fechar">&times;</button>
+                    <div id="modalCardContent"></div>
                 </div>`;
-            modal.querySelector('.builder-carta-modal-fechar').addEventListener('click', () => fecharModalCarta());
+            modal.querySelector('.modal-close').addEventListener('click', () => fecharModalCarta());
             modal.addEventListener('click', e => { if (e.target === modal) fecharModalCarta(); });
             document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharModalCarta(); });
             document.body.appendChild(modal);
         }
-        const corpo = $('builderCartaModalCorpo');
+        const corpo = modal.querySelector('#modalCardContent') || modal.querySelector('.modal-card');
         if (!corpo) return;
 
         const limite = janela?.limiteDeCopias || (() => 3);
@@ -109,43 +172,61 @@
         const noLimite = copias >= limite(carta.id);
         const tamanho = janela?.DECK_SIZE || 40;
 
-        const atkDef = carta.type === 'criatura' || carta.type === 'evolução'
-            ? `<div class="builder-cm-combate"><span>⚔ Ataque: <b>${carta.attack ?? '—'}</b></span><span>🛡 Defesa: <b>${carta.defense ?? '—'}</b></span></div>`
-            : '';
+        const typeMapping = { 'suporte': 'support', 'criatura': 'monster', 'evolução': 'monster' };
+        const cssType = typeMapping[carta.type] || carta.type;
+
+        const traitsDaCarta = janela?.DeckSelect?.traitsDaCarta?.(carta) || carta.traits || [];
+        const chipsTraits = janela?.DeckSelect?.chipsDeTraits
+            ? janela.DeckSelect.chipsDeTraits(traitsDaCarta)
+            : traitsDaCarta.map(t => `<span class="trait-chip">${t}</span>`).join('');
+        const blocoDeTraits = traitsDaCarta.length > 0 ? `
+            <div class="modal-card-traits">
+                <h3 class="modal-card-section-title">Características:</h3>
+                <div class="deck-traits modal-traits">${chipsTraits}</div>
+            </div>` : '';
+
+        const atkDef = carta.type === 'criatura' || carta.type === 'evolução' ? `
+            <div class="card-stats">
+                <span class="attack">${carta.attack ?? 0}</span>
+                <span>/</span>
+                <span class="defense">${carta.defense ?? 0}</span>
+            </div>` : '';
+
         corpo.innerHTML = `
-            <div class="builder-cm-layout">
-                ${carta.image ? `<img class="builder-cm-img" src="${carta.image}" alt="${carta.name}">` : ''}
-                <div class="builder-cm-info">
-                    <h3 class="builder-cm-nome">${carta.name}</h3>
-                    <div class="builder-cm-tags">
-                        <span class="builder-cm-tipo">${carta.type}</span>
-                        <span class="builder-cm-custo">Custo ${carta.cost}</span>
-                        ${(carta.traits || []).map(t => `<span class="builder-cm-trait">${t}</span>`).join('')}
-                    </div>
+            <div class="modal-card-content">
+                <div class="card ${cssType}" style="width: 280px; height: 390px; margin: 0 auto; position: relative;">
+                    <div class="card-cost">${carta.cost}</div>
+                    ${carta.image ? `<img src="${carta.image}" alt="${carta.name}" class="card-image-real">` : '<div class="card-image"></div>'}
+                    <div class="card-name">${carta.name}</div>
                     ${atkDef}
-                    <p class="builder-cm-habilidade">${carta.hability || '<em>Sem habilidade especial.</em>'}</p>
-                    <div class="builder-cm-acoes">
-                        <button type="button" class="builder-cm-btn-add" ${noLimite || draft.length >= tamanho ? 'disabled' : ''}>
-                            + Adicionar ao deck (${copias}/${limite(carta.id)})
-                        </button>
-                        ${copias > 0 ? `<button type="button" class="builder-cm-btn-rem">− Remover uma cópia</button>` : ''}
-                    </div>
+                </div>
+                ${blocoDeTraits}
+                <div style="margin-top: 14px; padding: 12px; background: rgba(0,0,0,0.35); border-radius: 8px; width: 100%; box-sizing: border-box;">
+                    <h3 style="color: var(--primary-color, #d4af37); margin-bottom: 8px; text-align: center; font-size: 1rem;">Habilidade:</h3>
+                    <p style="font-size: 0.9rem; line-height: 1.45; text-align: center; color: var(--text-color, #f1f5f9); margin: 0;">${carta.hability || 'Sem habilidade especial.'}</p>
+                </div>
+                <div class="builder-modal-acoes" style="display: flex; gap: 10px; margin-top: 14px; justify-content: center; flex-wrap: wrap; width: 100%;">
+                    <button type="button" class="deck-select-confirm builder-modal-btn-add" ${noLimite || draft.length >= tamanho ? 'disabled' : ''}>
+                        + Adicionar ao deck (${copias}/${limite(carta.id)})
+                    </button>
+                    ${copias > 0 ? `<button type="button" class="deck-select-confirm builder-modal-btn-rem" style="border-color: #ef4444; color: #ef4444;">− Remover uma cópia</button>` : ''}
                 </div>
             </div>`;
-        corpo.querySelector('.builder-cm-btn-add')?.addEventListener('click', () => {
+
+        corpo.querySelector('.builder-modal-btn-add')?.addEventListener('click', () => {
             adicionarCarta(carta.id);
             abrirModalCarta(carta);
         });
-        corpo.querySelector('.builder-cm-btn-rem')?.addEventListener('click', () => {
+        corpo.querySelector('.builder-modal-btn-rem')?.addEventListener('click', () => {
             removerCarta(carta.id);
             abrirModalCarta(carta);
         });
-        modal.classList.add('aberto');
-        modal.querySelector('.builder-carta-modal-fechar')?.focus();
+        modal.classList.add('visible');
     }
 
     function fecharModalCarta() {
-        $('builderCartaModal')?.classList.remove('aberto');
+        const modal = $('cardModal') || $('builderCartaModal');
+        if (modal) modal.classList.remove('visible');
     }
 
 
@@ -211,53 +292,91 @@
         const painel = calcularPainel();
         const totalEl = $('builderTotal');
         if (totalEl) totalEl.textContent = `(${painel.total}/${painel.tamanho})`;
+
         const statsEl = $('builderStats');
         if (statsEl) {
+            statsEl.className = 'deck-detalhe-stats builder-stats';
             statsEl.innerHTML = `
-                <span class="builder-stat">Criaturas <b>${painel.stats.criaturas}</b></span>
-                <span class="builder-stat">Suportes <b>${painel.stats.suportes}</b></span>
-                <span class="builder-stat">Evolucoes <b>${painel.stats.evolucoes}</b></span>
-                <span class="builder-stat">Custo medio <b>${painel.stats.custoMedio}</b></span>
-                <span class="builder-stat">Curva <b>${painel.curva.baixo}/${painel.curva.medio}/${painel.curva.alto}</b></span>`;
+                <span class="deck-detalhe-stat"><b>${painel.total}</b>/<b>${painel.tamanho}</b> cartas</span>
+                <span class="deck-detalhe-stat"><b>${painel.stats.criaturas}</b> criaturas</span>
+                <span class="deck-detalhe-stat"><b>${painel.stats.suportes}</b> suportes</span>
+                ${painel.stats.evolucoes ? `<span class="deck-detalhe-stat"><b>${painel.stats.evolucoes}</b> evolução</span>` : ''}
+                <span class="deck-detalhe-stat"><b>${painel.stats.custoMedio}</b> custo médio</span>`;
         }
+
         const afEl = $('builderAfinidades');
         if (afEl) {
             const pct = valor => `${Math.round(valor * 100)}%`;
+            const maximo = Math.max(1, painel.curva.baixo, painel.curva.medio, painel.curva.alto);
+            const linhaDeCurva = (rotulo, valor) => {
+                const largura = Math.round((valor / maximo) * 100);
+                return `
+                    <span class="deck-curva-linha">
+                        <span class="deck-curva-rotulo">${rotulo}</span>
+                        <span class="deck-curva-trilha"><span class="deck-curva-barra" style="width:${largura}%"></span></span>
+                        <span class="deck-curva-valor">${valor}</span>
+                    </span>`;
+            };
             afEl.innerHTML = `
-                <span class="builder-afinidade">Dominancia <b>${painel.top ? painel.top[0] : '-'} ${pct(painel.dominancia)}</b></span>
-                <span class="builder-afinidade">No tema <b>${pct(painel.adesao)}</b></span>
-                <span class="builder-afinidade">Equipamentos <b>${pct(painel.sinergia)}</b></span>`;
+                <div class="deck-detalhe-curva">
+                    ${linhaDeCurva('1–3', painel.curva.baixo)}
+                    ${linhaDeCurva('4–6', painel.curva.medio)}
+                    ${linhaDeCurva('7+', painel.curva.alto)}
+                </div>
+                <div class="deck-detalhe-stats" style="margin-top: 6px;">
+                    <span class="deck-detalhe-stat">Dominância: <b>${painel.top ? painel.top[0] : '-'} (${pct(painel.dominancia)})</b></span>
+                    <span class="deck-detalhe-stat">No tema: <b>${pct(painel.adesao)}</b></span>
+                    <span class="deck-detalhe-stat">Sinergia: <b>${pct(painel.sinergia)}</b></span>
+                </div>`;
         }
+
         const trEl = $('builderTraits');
         if (trEl) {
-            trEl.innerHTML = Object.entries(painel.contagemTrait)
-                .sort((a, b) => b[1] - a[1])
-                .map(([trait, n]) => `<span class="builder-trait-chip">${trait} <b>${n}</b></span>`).join('')
-                || '<span class="builder-trait-chip">Sem traits no deck</span>';
+            trEl.className = 'deck-traits deck-traits-detalhe builder-traits';
+            const traitsDoDeck = Object.keys(painel.contagemTrait);
+            trEl.innerHTML = traitsDoDeck.length > 0 && janela?.DeckSelect?.chipsDeTraits
+                ? janela.DeckSelect.chipsDeTraits(traitsDoDeck)
+                : '<span class="trait-chip">Sem traits no deck</span>';
         }
+
         const lista = $('builderLista');
         if (lista) {
             lista.innerHTML = '';
+            lista.className = 'deck-cards-grid builder-lista';
             const porId = {};
             definicoesDoDraft().forEach(def => {
                 porId[def.id] = porId[def.id] || { def, n: 0 };
                 porId[def.id].n += 1;
             });
-            Object.values(porId).forEach(({ def, n }) => {
-                const item = document.createElement('div');
-                item.className = 'builder-lista-item';
-                item.innerHTML = `
-                    ${def.image ? `<img src="${def.image}" alt="${def.name}">` : ''}
-                    <div>${def.name} x${n}</div>
-                    <div class="builder-lista-controles">
-                        <button type="button" data-add="${def.id}">+</button>
-                        <button type="button" data-remove="${def.id}">-</button>
-                    </div>`;
-                item.querySelector('[data-add]').addEventListener('click', () => adicionarCarta(def.id));
-                item.querySelector('[data-remove]').addEventListener('click', () => removerCarta(def.id));
-                lista.appendChild(item);
-            });
+            const itens = Object.values(porId).sort((a, b) => (a.def.cost - b.def.cost) || a.def.name.localeCompare(b.def.name));
+            if (itens.length === 0) {
+                lista.innerHTML = '<div class="builder-lista-vazia">Seu deck está vazio.<br>Clique nas cartas do catálogo para adicioná-las.</div>';
+            } else {
+                const limite = janela?.limiteDeCopias || (() => 3);
+                itens.forEach(({ def, n }) => {
+                    const cardBtn = document.createElement('div');
+                    cardBtn.className = 'deck-card-mini builder-mini-item';
+                    const noLimite = n >= limite(def.id) || draft.length >= (janela?.DECK_SIZE || 40);
+                    cardBtn.innerHTML = `
+                        <span class="deck-card-mini-custo">${def.cost}</span>
+                        ${def.image ? `<img class="deck-card-mini-img" src="${def.image}" alt="${def.name}" loading="lazy">` : '<span class="deck-card-mini-img is-vazia">🎴</span>'}
+                        <span class="deck-card-mini-nome">${def.name}</span>
+                        <span class="deck-card-mini-copias">×${n}</span>
+                        <div class="builder-card-mini-overlay-acoes">
+                            <button type="button" class="builder-mini-btn-add" data-add="${def.id}" title="Adicionar cópia" ${noLimite ? 'disabled' : ''}>+</button>
+                            <button type="button" class="builder-mini-btn-rem" data-remove="${def.id}" title="Remover cópia">−</button>
+                            <button type="button" class="builder-mini-btn-info" data-info="${def.id}" title="Ver detalhes">ℹ</button>
+                        </div>`;
+                    cardBtn.querySelector('.deck-card-mini-img')?.addEventListener('click', () => abrirModalCarta(def));
+                    cardBtn.querySelector('.deck-card-mini-nome')?.addEventListener('click', () => abrirModalCarta(def));
+                    cardBtn.querySelector('[data-add]').addEventListener('click', e => { e.stopPropagation(); adicionarCarta(def.id); });
+                    cardBtn.querySelector('[data-remove]').addEventListener('click', e => { e.stopPropagation(); removerCarta(def.id); });
+                    cardBtn.querySelector('[data-info]').addEventListener('click', e => { e.stopPropagation(); abrirModalCarta(def); });
+                    lista.appendChild(cardBtn);
+                });
+            }
         }
+
         const barra = $('builderProgressoBarra');
         if (barra) {
             const pct = Math.min(100, Math.round((painel.total / painel.tamanho) * 100));
@@ -407,9 +526,14 @@
                 trocarAba('construir');
             });
             card.querySelector('[data-excluir]').addEventListener('click', async () => {
-                const pedir = janela?.DeckSelect?.pedirExclusaoDeDeck;
-                if (pedir) await pedir(deck.id, deck.nome);
-                else if (janela?.excluirDeckCustom) await janela.excluirDeckCustom(deck.id);
+                const confirmado = await mostrarConfirmacaoDoJogo(
+                    'Excluir deck',
+                    `Excluir "${deck.nome}"? Esta ação não pode ser desfeita.`,
+                    'Excluir'
+                );
+                if (!confirmado) return;
+                const excluir = janela?.excluirDeckCustom || (typeof excluirDeckCustom === 'function' ? excluirDeckCustom : null);
+                if (excluir) await excluir(deck.id);
                 await renderizarMeusDecks();
                 renderizarCatalogo();
             });
@@ -473,6 +597,16 @@
         });
         document.querySelectorAll('.builder-aba').forEach(el =>
             el.addEventListener('click', () => trocarAba(el.dataset.aba)));
+        const modalCarta = $('cardModal');
+        if (modalCarta) {
+            modalCarta.addEventListener('click', e => { if (e.target === modalCarta) fecharModalCarta(); });
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharModalCarta(); });
+        }
+        const modalDialog = $('gameDialogModal');
+        if (modalDialog) {
+            modalDialog.addEventListener('click', e => { if (e.target === modalDialog) fecharDialogoDoJogo(); });
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharDialogoDoJogo(); });
+        }
         renderizarTudo();
         await renderizarMeusDecks();
     }

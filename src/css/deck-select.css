@@ -1,3 +1,10 @@
+.deck-card-mini-custo {
+    background: var(--energy-color, #fbbf24);
+}
+
+.deck-option-stats span:first-child { color: rgba(248, 113, 113, 0.7); }
+
+.deck-option-stats span:last-child { color: rgba(96, 165, 250, 0.7); }
 /* deck-select.css — seletor de decks (modal do hotseat + picker do lobby PvP).
    Componente compartilhado por game.html e pvp-lobby.html: por isso vive em
    arquivo próprio em vez de dentro do game.css. As cores de identidade de cada
