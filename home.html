@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#070c18">
+    <meta name="description" content="Entre no universo X Monsters: monte seu deck, enfrente a CPU ou desafie alguém online.">
+    <title>X Monsters — Escolha sua batalha</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            color-scheme: dark;
+            --noite: #070c18;
+            --painel: rgba(13, 23, 43, .82);
+            --borda: rgba(111, 196, 245, .2);
+            --gelo: #a8e6ff;
+            --ouro: #e4c47b;
+            --texto: #f1f6ff;
+            --suave: #aebbd0;
+        }
+        * { box-sizing: border-box; }
+        body {
+            min-height: 100vh;
+            margin: 0;
+            overflow-x: hidden;
+            color: var(--texto);
+            background:
+                radial-gradient(ellipse at 73% 26%, rgba(0, 139, 221, .2), transparent 37rem),
+                radial-gradient(ellipse at 0% 100%, rgba(46, 71, 152, .18), transparent 35rem),
+                var(--noite);
+            font-family: Inter, system-ui, sans-serif;
+        }
+        a { color: inherit; text-decoration: none; }
+        .shell { width: min(1160px, calc(100% - 48px)); margin: 0 auto; }
+        .topbar { display: flex; align-items: center; justify-content: space-between; min-height: 84px; border-bottom: 1px solid rgba(168, 230, 255, .12); }
+        .marca { display: inline-flex; align-items: center; gap: 12px; font: 700 1.18rem Cinzel, serif; letter-spacing: .12em; }
+        .marca-x { display: grid; width: 38px; aspect-ratio: 1; place-items: center; border: 1px solid rgba(168, 230, 255, .6); color: var(--gelo); transform: rotate(45deg); box-shadow: 0 0 24px rgba(24, 181, 255, .24), inset 0 0 16px rgba(24, 181, 255, .2); }
+        .marca-x span { transform: rotate(-45deg); font: 700 1.25rem Cinzel, serif; }
+        .toplink { color: var(--suave); font-size: .88rem; transition: color .2s; }
+        .toplink:hover { color: var(--gelo); }
+        .hero { display: grid; grid-template-columns: 1.08fr .92fr; align-items: center; gap: clamp(32px, 7vw, 96px); min-height: 535px; padding: 42px 0 30px; }
+        .eyebrow { display: inline-flex; align-items: center; gap: 9px; color: var(--gelo); font-size: .72rem; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; }
+        .eyebrow::before { width: 25px; height: 1px; content: ""; background: var(--gelo); box-shadow: 0 0 10px var(--gelo); }
+        h1 { max-width: 660px; margin: 17px 0 16px; font: 700 clamp(2.7rem, 6.5vw, 5.4rem)/.99 Cinzel, Georgia, serif; letter-spacing: -.045em; }
+        h1 em { color: var(--gelo); font-style: normal; text-shadow: 0 0 28px rgba(76, 200, 255, .38); }
+        .intro { max-width: 510px; margin: 0; color: var(--suave); font-size: clamp(1rem, 1.8vw, 1.14rem); line-height: 1.75; }
+        .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+        .button { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; gap: 10px; padding: 0 19px; border: 1px solid var(--borda); border-radius: 7px; background: rgba(12, 25, 47, .72); font-weight: 700; font-size: .9rem; transition: transform .18s, border-color .18s, background .18s; }
+        .button:hover { transform: translateY(-2px); border-color: var(--gelo); background: rgba(15, 46, 75, .92); }
+        .button-primary { border-color: #8edfff; color: #07111f; background: linear-gradient(120deg, #c1efff, #70cafa); box-shadow: 0 8px 32px rgba(36, 169, 241, .22); }
+        .button-primary:hover { color: #07111f; background: linear-gradient(120deg, #ddf7ff, #87d7ff); }
+        .button .arrow { font-size: 1.1rem; }
+        .card-stage { position: relative; display: grid; min-height: 430px; place-items: center; isolation: isolate; }
+        .card-stage::before { position: absolute; z-index: -1; width: 78%; aspect-ratio: 1; border-radius: 50%; content: ""; background: #007dcc; filter: blur(100px); opacity: .25; }
+        .card-back { position: relative; width: min(280px, 62vw); max-height: 390px; aspect-ratio: 0.72; overflow: hidden; border: 1px solid rgba(175, 232, 255, .74); border-radius: 17px; background: #081327; box-shadow: 0 24px 80px rgba(0, 0, 0, .6), 0 0 55px rgba(0, 156, 255, .27); transform: rotate(5deg); }
+        .card-back img { width: 100%; height: 100%; object-fit: cover; }
+        .card-back::after { position: absolute; inset: 8px; border: 1px solid rgba(168, 230, 255, .36); border-radius: 11px; content: ""; pointer-events: none; }
+        .card-caption { position: absolute; right: 4%; bottom: 10%; padding: 11px 16px; border: 1px solid rgba(168, 230, 255, .23); border-radius: 6px; background: rgba(7, 12, 24, .77); color: #d8f4ff; font: 600 .68rem Cinzel, serif; letter-spacing: .2em; backdrop-filter: blur(10px); }
+        .rune { position: absolute; color: rgba(168, 230, 255, .65); font: 1rem Cinzel, serif; text-shadow: 0 0 12px #47c7ff; }
+        .rune-one { top: 15%; left: 9%; }.rune-two { top: 27%; right: 5%; }.rune-three { bottom: 17%; left: 10%; }
+        .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 3px 0 16px; }
+        .section-heading h2 { margin: 0; font: 600 1.1rem Cinzel, serif; letter-spacing: .06em; }
+        .section-heading p { margin: 0; color: var(--suave); font-size: .82rem; }
+        .portals { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; padding-bottom: 38px; }
+        .portal { position: relative; display: flex; min-height: 142px; flex-direction: column; justify-content: space-between; padding: 17px; overflow: hidden; border: 1px solid var(--borda); border-radius: 9px; background: linear-gradient(145deg, rgba(17, 34, 60, .88), rgba(8, 15, 29, .93)); transition: transform .2s, border-color .2s, box-shadow .2s; }
+        .portal::after { position: absolute; top: -46px; right: -37px; width: 110px; height: 110px; border: 1px solid rgba(128, 214, 255, .12); border-radius: 50%; content: ""; box-shadow: 0 0 0 12px rgba(128, 214, 255, .025), 0 0 0 25px rgba(128, 214, 255, .02); }
+        .portal:hover { transform: translateY(-4px); border-color: rgba(126, 218, 255, .68); box-shadow: 0 15px 35px rgba(0, 106, 180, .13); }
+        .portal-icon { color: var(--gelo); font-size: 1.3rem; line-height: 1; }
+        .portal:nth-child(3) .portal-icon { color: var(--ouro); }
+        .portal:nth-child(4) .portal-icon { color: var(--ouro); }
+        .portal-title { display: block; margin-top: 18px; font: 600 .88rem Cinzel, serif; }
+        .portal-note { display: block; margin-top: 5px; color: var(--suave); font-size: .72rem; line-height: 1.45; }
+        .portal-button { width: 100%; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+        .rules-overlay { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(1, 5, 14, .82); opacity: 0; visibility: hidden; transition: opacity .2s, visibility .2s; }
+        .rules-overlay.visible { opacity: 1; visibility: visible; }
+        .rules-dialog { position: relative; width: min(650px, 100%); max-height: min(82vh, 760px); overflow: auto; padding: 28px clamp(20px, 5vw, 38px); border: 1px solid rgba(128, 214, 255, .55); border-radius: 12px; background: linear-gradient(145deg, #101e34, #080e1c 68%); box-shadow: 0 20px 70px #000, 0 0 40px rgba(0, 145, 220, .18); }
+        .rules-dialog h2, .rules-dialog h3 { font-family: Cinzel, Georgia, serif; }
+        .rules-dialog h2 { margin: 0 38px 24px 0; color: var(--gelo); font-size: 1.35rem; }
+        .rules-dialog h3 { margin: 24px 0 9px; padding-bottom: 6px; border-bottom: 1px solid rgba(168, 230, 255, .2); color: var(--ouro); font-size: .98rem; }
+        .rules-dialog h3:first-of-type { margin-top: 0; }
+        .rules-dialog p, .rules-dialog li { color: #d5deed; font-size: .9rem; line-height: 1.7; }
+        .rules-dialog p { margin: 0 0 12px; }
+        .rules-dialog ul { padding-left: 22px; }
+        .rules-close { position: absolute; top: 12px; right: 16px; width: 36px; height: 36px; border: 0; background: transparent; color: var(--gelo); font-size: 1.8rem; cursor: pointer; }
+        .rules-close:hover { color: #fff; }
+        footer { display: flex; justify-content: space-between; gap: 16px; padding: 16px 0 25px; border-top: 1px solid rgba(168, 230, 255, .1); color: #78879f; font-size: .72rem; }
+        @media (max-width: 900px) { .hero { min-height: 460px; gap: 24px; }.card-back { width: min(240px, 60vw); }.portals { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 650px) {
+            .shell { width: min(100% - 32px, 500px); }.topbar { min-height: 70px; }.toplink { font-size: .76rem; }
+            .hero { grid-template-columns: 1fr; gap: 4px; padding: 44px 0 24px; }.hero-copy { position: relative; z-index: 1; }.card-stage { min-height: 300px; margin-top: -3px; }.card-back { width: 185px; max-height: 260px; }.card-caption { right: 12%; bottom: 8%; }.rune-one { top: 12%; left: 16%; }.rune-two { top: 19%; right: 12%; }.rune-three { bottom: 12%; left: 16%; }
+            h1 { max-width: 500px; font-size: clamp(2.8rem, 12vw, 4.1rem); }.section-heading { display: block; }.section-heading p { margin-top: 5px; }.portals { grid-template-columns: repeat(2, 1fr); gap: 9px; }.portal { min-height: 132px; padding: 14px; }.portal:last-child { grid-column: 1 / -1; min-height: 105px; }
+            footer { flex-direction: column; gap: 6px; }
+        }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+    </style>
+</head>
+<body>
+    <header class="shell topbar">
+        <a class="marca" href="home.html" aria-label="X Monsters, início"><span class="marca-x"><span>X</span></span><span>MONSTERS</span></a>
+        <a class="toplink" href="index.html">Contador para cartas físicas <span aria-hidden="true">↗</span></a>
+    </header>
+
+    <main class="shell">
+        <section class="hero" aria-labelledby="hero-title">
+            <div class="hero-copy">
+                <span class="eyebrow">O campo está aberto</span>
+                <h1 id="hero-title">Escolha sua <em>batalha.</em></h1>
+                <p class="intro">Monte sua estratégia, reúna seus monstros e descubra quem domina o campo. Jogue online, enfrente a CPU ou prepare um deck para sua próxima partida.</p>
+                <div class="hero-actions">
+                    <a class="button button-primary" href="pvp-lobby.html">⚡ Jogar PvP <span class="arrow" aria-hidden="true">→</span></a>
+                    <a class="button" href="game.html">Jogar contra CPU <span class="arrow" aria-hidden="true">→</span></a>
+                </div>
+            </div>
+            <div class="card-stage" aria-label="Verso oficial das cartas X Monsters">
+                <span class="rune rune-one" aria-hidden="true">✦</span><span class="rune rune-two" aria-hidden="true">✧</span><span class="rune rune-three" aria-hidden="true">✦</span>
+                <div class="card-back"><img src="assets/verso.jpeg" alt="Verso azul luminoso das cartas X Monsters"></div>
+                <span class="card-caption">UM JOGO DE CARTAS ORIGINAL</span>
+            </div>
+        </section>
+
+        <section aria-labelledby="portals-title">
+            <div class="section-heading"><h2 id="portals-title">Entre no universo X Monsters</h2><p>Escolha por onde começar</p></div>
+            <nav class="portals" aria-label="Modos e ferramentas">
+                <a class="portal" href="pvp-lobby.html"><span class="portal-icon" aria-hidden="true">⌁</span><span><strong class="portal-title">Lobby PvP</strong><span class="portal-note">Crie uma sala e desafie outro jogador.</span></span></a>
+                <a class="portal" href="game.html"><span class="portal-icon" aria-hidden="true">⚔</span><span><strong class="portal-title">Jogar vs CPU</strong><span class="portal-note">Treine sua estratégia contra a máquina.</span></span></a>
+                <a class="portal" href="deck-builder.html"><span class="portal-icon" aria-hidden="true">▧</span><span><strong class="portal-title">Deck Builder</strong><span class="portal-note">Crie e ajuste seu deck de 40 cartas.</span></span></a>
+                <button class="portal portal-button" type="button" id="openRules"><span class="portal-icon" aria-hidden="true">✧</span><span><strong class="portal-title">Regras do jogo</strong><span class="portal-note">Consulte as regras antes de entrar no campo.</span></span></button>
+                <a class="portal" href="index.html"><span class="portal-icon" aria-hidden="true">◉</span><span><strong class="portal-title">Contador de pontos</strong><span class="portal-note">Acompanhe PV e energia nas partidas com cartas físicas.</span></span></a>
+            </nav>
+        </section>
+    </main>
+    <div class="rules-overlay" id="rulesModal" aria-hidden="true">
+        <section class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="rulesTitle" tabindex="-1">
+            <button class="rules-close" type="button" id="closeRules" aria-label="Fechar regras">&times;</button>
+            <h2 id="rulesTitle">Regras do Jogo X Monsters</h2>
+            <h3>1. Objetivo e Condição de Vitória</h3>
+            <p>O objetivo principal do jogo é ser o único jogador com monstros em campo e/ou reduzir os pontos de vida do seu oponente a zero.</p>
+            <p><strong>Pontos de Vida (PV):</strong> Cada jogador começa com 300 pontos de vida. Se o seu PV chegar a zero ou menos, você perde a partida.</p>
+            <h3>2. Sistema de Energia</h3>
+            <p>A energia é o recurso principal do jogo, usado para invocar monstros e equipar cartas de suporte.</p>
+            <p><strong>Energia Inicial:</strong> Cada jogador começa o jogo com 6 pontos de energia.</p>
+            <p><strong>Aumento de Energia:</strong> A cada virada de turno, quando volta para o seu turno na Fase de Energia, você ganha 1 ponto de energia adicional.</p>
+            <p><strong>Mecânica de Gasto:</strong> Dentro do seu turno, você pode gastar toda a sua energia disponível. No turno seguinte, você volta com o total máximo que tinha no turno anterior mais 1 ponto.</p>
+            <p><strong>Progressão:</strong> Por exemplo: turno 1 (6 energia), turno 2 (7 energia), turno 3 (8 energia), e assim por diante até o limite máximo.</p>
+            <p><strong>Limite Máximo:</strong> A energia máxima que você pode acumular é de 20 pontos.</p>
+            <p><strong>Dado da Sorte:</strong> Uma vez por jogo, cada jogador pode gastar 2 pontos de energia para rolar um dado da sorte e ganhar de 1 a 6 pontos de energia adicionais (sem ultrapassar o limite de 20).</p>
+            <h3>3. Fases do Turno</h3>
+            <p>Cada turno de um jogador é dividido em três fases obrigatórias, que devem ser seguidas em sequência:</p>
+            <ul>
+                <li><strong>Fase de Energia:</strong> Sua energia total aumenta em 1 ponto (até o limite de 20). Seu novo máximo de energia será o máximo do turno anterior + 1.</li>
+                <li><strong>Fase de Invocação:</strong> Nesta fase, você pode gastar sua energia para jogar cartas da sua mão. Você pode invocar qualquer número de monstros e equipar cartas de suporte, desde que tenha energia suficiente para pagar o custo de cada carta.</li>
+                <li><strong>Fase de Combate:</strong> Você pode declarar ataques com seus monstros contra os monstros do oponente. Cada um dos seus monstros pode atacar uma vez por turno, a menos que sua habilidade especial diga o contrário.</li>
+            </ul>
+            <h3>4. Combate e Dano</h3>
+            <p><strong>Ataque:</strong> Para atacar, escolha um de seus monstros e declare-o como atacante, escolhendo um monstro do oponente como alvo.</p>
+            <p><strong>Cálculo de Dano:</strong> O dano de um ataque é calculado subtraindo a Defesa do monstro do oponente do Ataque do seu monstro.</p>
+            <p><strong>Derrota:</strong> Se a Defesa de um monstro chegar a 0 ou menos, ele é considerado derrotado e é removido do campo.</p>
+            <p><strong>Dano aos Pontos de Vida:</strong> Se o Ataque de um monstro for maior que a Defesa do monstro alvo, o dano restante é aplicado diretamente aos pontos de vida do oponente.</p>
+            <p><strong>Ataque direto ao oponente:</strong> algumas criaturas (e alguns suportes, como Atravessava) podem atacar os PV do oponente ignorando os monstros. <strong>Ninguém ataca direto no próprio primeiro turno</strong> — a restrição vale para cada jogador, inclusive para ataque direto concedido por carta.</p>
+            <h3>5. Mecânicas Adicionais</h3>
+            <p><strong>Evolução:</strong> Alguns monstros têm uma forma evoluída. O custo para evoluir é a diferença de energia entre a criatura básica e sua versão evoluída. A carta evoluída substitui a criatura básica no campo.</p>
+            <p><strong>Cartas de Suporte:</strong> Essas cartas são itens equipáveis que fornecem bônus de Ataque e Defesa, além de habilidades especiais. Cada carta de suporte tem seu próprio custo de energia para ser equipada em um monstro.</p>
+        </section>
+    </div>
+    <footer class="shell"><span>© 2003–2026 X Monsters</span><span>Estratégia, criaturas e batalhas.</span></footer>
+    <script>
+        const regras = document.getElementById('rulesModal');
+        const dialogoRegras = regras.querySelector('[role="dialog"]');
+        function abrirRegras() {
+            regras.classList.add('visible');
+            regras.setAttribute('aria-hidden', 'false');
+            dialogoRegras.focus();
+        }
+        function fecharRegras() {
+            regras.classList.remove('visible');
+            regras.setAttribute('aria-hidden', 'true');
+            document.getElementById('openRules').focus();
+        }
+        document.getElementById('openRules').addEventListener('click', abrirRegras);
+        document.getElementById('closeRules').addEventListener('click', fecharRegras);
+        regras.addEventListener('click', evento => { if (evento.target === regras) fecharRegras(); });
+        document.addEventListener('keydown', evento => { if (evento.key === 'Escape' && regras.classList.contains('visible')) fecharRegras(); });
+    </script>
+</body>
+</html>
