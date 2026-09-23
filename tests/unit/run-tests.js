@@ -6074,7 +6074,52 @@ test('o catalogo tem variedade: decks distintos, pouca repeticao e cartas barata
     assert.deepEqual([...usadas].sort(), cardsDatabase.cards.map(c => c.id).sort(),
         'nenhuma carta do catálogo ficou fora dos decks');
 });
-test('o PvP embaralha o deck do servidor com o RNG da sala e o fallback local funciona', () => {
+test('decks customizados: validacao, ordem no seletor e exclusao protegida', () => {
+    const oficiais = decksDatabase.decks.filter(deck => deck.custom !== true);
+    assert.ok(oficiais.length >= 9, 'os oficiais seguem no catalogo');
+    const base40 = [];
+    while (base40.length < 40) {
+        for (const carta of cardsDatabase.cards) {
+            if (base40.length >= 40) break;
+            if (carta.id !== 'card_089') base40.push(carta.id);
+        }
+    }
+    assert.equal(base40.length, 40);
+    assert.deepEqual(DeckSystem.validarDeckCustom(
+        { nome: 'Meu deck', cartas: base40 }, cardsDatabase).erros, []);
+    assert.ok(!DeckSystem.validarDeckCustom(
+        { nome: 'Curto', cartas: base40.slice(0, 39) }, cardsDatabase).ok,
+        'deck com 39 cartas nao salva');
+    assert.ok(!DeckSystem.validarDeckCustom(
+        { nome: 'X', cartas: [...Array(40).fill('card_089')] }, cardsDatabase).ok,
+        'Apelino x40 estoura o teto de 1 copia');
+    assert.ok(!DeckSystem.validarDeckCustom(
+        { nome: 'X', cartas: [...base40.slice(0, 39), 'card_999'] }, cardsDatabase).ok,
+        'id fora do catalogo nao salva');
+    const fakeCatalogo = { decks: [
+        ...oficiais.slice(0, 1),
+        { id: 'custom-teste-1', nome: 'Custom', custom: true, cartas: base40 }
+    ] };
+    assert.equal(DeckSystem.listarDecksCustom(fakeCatalogo).length, 1,
+        'listarDecksCustom filtra pela flag');
+    assert.match(DeckSystem.gerarIdDeckCustom('Meu Deck!'), /^custom-/,
+        'id de custom nasce com o prefixo');
+    assert.ok(DeckSelect.ehDeckCustom('custom-x'), 'custom detectado pelo prefixo');
+    assert.ok(!DeckSelect.ehDeckCustom('robotico'), 'oficial nao e custom');
+    assert.ok(!DeckSelect.ehDeckCustom(DeckSelect.RANDOM_ID), 'aleatorio nao e custom');
+    const deckSelect = readSourceText('src/js/deck-select.js');
+    assert.match(deckSelect, /oficiais → aleatório → customs/,
+        'a ordem oficiais/aleatorio/customs esta no codigo');
+    assert.match(deckSelect, /deck-custom-badge/, 'custom tem badge');
+    assert.match(deckSelect, /data-excluir-deck/, 'custom tem botao de excluir');
+    assert.match(deckSelect, /pedirExclusaoDeDeck/, 'exclusao passa por confirmacao');
+    assert.match(deckSelect, /showGameConfirm/, 'confirmacao usa o gameDialogModal');
+    const servidor = readSourceText('server.py');
+    assert.match(servidor, /\/api\/decks/, 'o servidor tem a rota de decks custom');
+    assert.match(servidor, /def criar_deck_custom/, 'POST valida e anexa o custom');
+    assert.match(servidor, /def excluir_deck_custom/, 'DELETE remove o custom');
+    assert.match(servidor, /Deck oficial não pode ser excluído/,
+        'oficial nunca e excluido pelo endpoint');
     const deckSystem = readSourceText('src/js/deck_system.js');
     assert.match(deckSystem, /static embaralhar\(definicoes, rng = Math\.random\)/,
         'o embaralhamento e um unico estatico do DeckBuilder');
@@ -6092,6 +6137,30 @@ test('o PvP embaralha o deck do servidor com o RNG da sala e o fallback local fu
 
     // O preset do hotseat tambem entra embaralhado na mesa.
     assert.match(deckSystem, /player1: DeckBuilder\.embaralhar\(definicoes, alvo\.rng\)/);
+    assert.match(deckSystem, /xmDecksCustom/, 'fallback local no navegador');
+    assert.match(deckSystem, /mesclarCustomsLocais/, 'o catalogo junta JSON + local');
+
+    // Prévia do builder: reusa card+detalhe do seletor; resumoDeDeck aceita o
+    // objeto do rascunho (id dele nunca estaria no catalogo).
+    assert.match(deckSystem, /typeof deckRef === 'object'/, 'resumoDeDeck aceita objeto');
+    const builderHtml = readSourceText('deck-builder.html');
+    assert.match(builderHtml, /builderPreviewListagem/, 'coluna de previa da listagem');
+    
+    const builderJs = readSourceText('src/js/deck-builder.js');
+    assert.match(builderJs, /renderizarPreview/, 'a previa e re-renderizada em tempo real');
+    assert.match(builderJs, /ds\.criarOpcao/, 'a previa usa o card da listagem');
+    assert.match(builderJs, /ds\.detalheDoDeck/, 'a previa usa o detalhe do seletor');
+    assert.match(builderJs, /\$\('builderForm'\)\?\.addEventListener\('input', renderizarPreview\)/,
+        'os campos de identidade atualizam a previa');
+    assert.match(builderHtml, /builderEmblemaToggle/, 'emblema tambem e recolhivel');
+    assert.match(builderHtml, /builderEmblemaCorpo/, 'conteudo do emblema num bloco recolhivel');
+    assert.match(builderJs, /builderEmblemaToggle/, 'o collapse do emblema esta ligado no js');
+    const builderCss = readSourceText('src/css/deck-builder.css');
+    assert.match(builderCss, /\.builder-emblema\.fechado #builderEmblemaCorpo/,
+        'css do collapse do emblema');
+    assert.match(builderCss, /max-width: 1360px/, 'breakpoint que vira a previa em faixa');
+    assert.match(builderCss, /\.builder-deck-topo[\s\S]*?position: sticky/,
+        'o topo do deck gruda durante o scroll');
 });
 test('Bilugação Astral deixa a criatura intransponível por um turno', () => {
     const { state, attacker, target, engine } = createCombatFixture({ targetDefense: 100 });

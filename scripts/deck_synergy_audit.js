@@ -92,7 +92,8 @@ function relatorio() {
 function checar() {
     const problemas = [];
     const usadas = new Set();
-    decksDatabase.decks.forEach(deck => {
+    // Customs (`custom: true`) são livres: a régua trava só os oficiais.
+    decksDatabase.decks.filter(deck => deck.custom !== true).forEach(deck => {
         const i = inventarioDeck(deck);
         deck.cartas.forEach(id => usadas.add(id));
         if (deck.cartas.length !== DeckSystem.DECK_SIZE) {

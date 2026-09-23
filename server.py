@@ -467,6 +467,116 @@ async def persist_room(room):
 
 
 _DECK_PRESETS = None
+_CUSTOM_ID_RE = re.compile(r"^custom-[a-z0-9-]{1,60}$")
+_COPIAS_POR_DECK = {"card_089": 1}
+_TETO_COPIAS = 3
+
+
+def _validar_deck_custom(deck):
+    """Mesma régua do cliente (`validarDeckCustom`): 40 cartas, ids e teto."""
+    erros = []
+    if not isinstance(deck, dict):
+        return ["Deck inválido."]
+    if not str(deck.get("nome") or "").strip():
+        erros.append("Dê um nome ao deck.")
+    if len(str(deck.get("nome") or "")) > 40:
+        erros.append("O nome tem no máximo 40 caracteres.")
+    cartas = deck.get("cartas")
+    if not isinstance(cartas, list) or len(cartas) != DECK_SIZE:
+        erros.append(f"O deck precisa de exatamente {DECK_SIZE} cartas.")
+        return erros
+    por_id = {}
+    for carta_id in cartas:
+        por_id[carta_id] = por_id.get(carta_id, 0) + 1
+    catalogo = cards_by_id()
+    for carta_id, copias in por_id.items():
+        if carta_id not in catalogo:
+            erros.append(f"Carta desconhecida: {carta_id}.")
+        teto = _COPIAS_POR_DECK.get(carta_id, _TETO_COPIAS)
+        if copias > teto:
+            erros.append(f"{carta_id}: no máximo {teto} cópia(s).")
+    return erros
+
+
+def salvar_decks_json(decks):
+    """Escrita atômica (tmp + replace) para o JSON nunca ficar pela metade."""
+    alvo = DECKS_CATALOG
+    temp = alvo.with_name(f"{alvo.name}.tmp")
+    conteudo = {
+        "version": 1,
+        "descricao": (
+            "Decks pré-montados do X Monsters. Cada deck referencia apenas ids de "
+            "data/cards_database.json (o catalogo continua sendo a unica fonte das "
+            "definicoes). O campo cartas[] repete o id uma vez por copia e nunca "
+            "passa de 40 entradas."
+        ),
+        "decks": decks,
+    }
+    temp.write_text(json.dumps(conteudo, ensure_ascii=False, indent=2), encoding="utf-8")
+    temp.replace(alvo)
+
+
+async def criar_deck_custom(deck):
+    """`POST /api/decks`: valida e anexa um `custom-*` ao `data/decks.json`."""
+    global _DECK_PRESETS
+    erros = _validar_deck_custom(deck)
+    if erros:
+        return json_response({"ok": False, "erros": erros}, status=400)
+    deck_id = str(deck.get("id") or "")
+    if not _CUSTOM_ID_RE.match(deck_id):
+        deck_id = f"custom-deck-{secrets.token_hex(2)}"
+    presets = deck_presets()
+    while deck_id in presets:
+        deck_id = f"custom-deck-{secrets.token_hex(2)}"
+    registro = {
+        "id": deck_id,
+        "nome": str(deck.get("nome") or "Deck customizado")[:40],
+        "tema": str(deck.get("tema") or ""),
+        "descricao": str(deck.get("descricao") or ""),
+        "emblema": str(deck.get("emblema") or "🃏"),
+        "traits": [str(t).lower() for t in (deck.get("traits") or []) if str(t).strip()],
+        "cores": deck.get("cores") or {},
+        "cartas": [str(c) for c in deck.get("cartas")],
+        "custom": True,
+        "criadoEm": deck.get("criadoEm") or now_iso(),
+    }
+    try:
+        dados = json.loads(DECKS_CATALOG.read_text(encoding="utf-8"))
+        lista = dados.get("decks") if isinstance(dados, dict) else None
+        if not isinstance(lista, list):
+            lista = []
+        lista.append(registro)
+        await asyncio.to_thread(salvar_decks_json, lista)
+    except OSError as error:
+        return json_response({"ok": False, "erros": [f"Não foi possível salvar: {error}"]}, status=500)
+    _DECK_PRESETS = None
+    log(f"[decks] custom salvo: {deck_id}")
+    return json_response({"ok": True, "onde": "servidor", "deck": registro}, status=201)
+
+
+def excluir_deck_custom(deck_id):
+    """`DELETE /api/decks/<id>`: remove só `custom: true` (oficial é 404)."""
+    global _DECK_PRESETS
+    if not _CUSTOM_ID_RE.match(deck_id or ""):
+        return json_response({"ok": False, "erro": "Só decks customizados podem ser excluídos."}, status=400)
+    try:
+        dados = json.loads(DECKS_CATALOG.read_text(encoding="utf-8"))
+        lista = dados.get("decks") if isinstance(dados, dict) else []
+    except OSError as error:
+        return json_response({"ok": False, "erro": f"Não foi possível ler o catálogo: {error}"}, status=500)
+    alvo = next((d for d in lista if isinstance(d, dict) and d.get("id") == deck_id), None)
+    if alvo is None:
+        return json_response({"ok": False, "erro": "Deck não encontrado."}, status=404)
+    if alvo.get("custom") is not True:
+        return json_response({"ok": False, "erro": "Deck oficial não pode ser excluído."}, status=403)
+    restante = [d for d in lista if not (isinstance(d, dict) and d.get("id") == deck_id)]
+    try:
+        salvar_decks_json(restante)
+    except OSError as error:
+        return json_response({"ok": False, "erro": f"Não foi possível excluir: {error}"}, status=500)
+    _DECK_PRESETS = None
+    log(f"[decks] custom excluído: {deck_id}")
+    return json_response({"ok": True, "onde": "servidor"})
 _CARDS_BY_ID = None
 
 
@@ -764,8 +874,21 @@ def links_for(room, host):
     }
 
 
-async def handle_api(method, path_only, host):
+async def handle_api(method, path_only, host, corpo=None):
     """API HTTP minima do lobby: criar sala e consultar status."""
+    if path_only == "/api/decks":
+        if method == "GET":
+            return json_response({"decks": [deck for deck in deck_presets().values()]})
+        if method == "POST":
+            return await criar_deck_custom(corpo if isinstance(corpo, dict) else {})
+        return http_response(405, "Method Not Allowed", b"Use GET ou POST em /api/decks")
+
+    match_deck = re.match(r"^/api/decks/([A-Za-z0-9_-]{4,64})$", path_only)
+    if match_deck:
+        if method == "DELETE":
+            return excluir_deck_custom(match_deck.group(1))
+        return http_response(405, "Method Not Allowed", b"Use DELETE para excluir o deck")
+
     if path_only == "/api/matches":
         if method != "POST":
             return http_response(405, "Method Not Allowed", b"Use POST para criar uma partida")
@@ -804,10 +927,10 @@ async def handle_api(method, path_only, host):
     return json_response({"erro": "Rota de API desconhecida"}, 404, "Not Found")
 
 
-async def handle_http(method, path_only, host):
+async def handle_http(method, path_only, host, corpo=None):
     """Serve uma requisicao HTTP nao-WebSocket na mesma porta do relay."""
     if path_only.startswith("/api/"):
-        return await handle_api(method, path_only, host)
+        return await handle_api(method, path_only, host, corpo)
     if method != "GET":
         return http_response(405, "Method Not Allowed", b"Metodo nao suportado")
     target = resolve_page(path_only) or resolve_static(path_only)
@@ -827,7 +950,14 @@ async def process_request(connection, request):
     path_only = urlsplit(request.path).path
     if path_only == "/ws":
         return None  # deixa o websockets concluir o handshake
-    return await handle_http(request.method, path_only, request.headers.get("Host"))
+    corpo = None
+    if request.method == "POST" and path_only == "/api/decks":
+        try:
+            bruto = await asyncio.wait_for(connection.recv(), timeout=5)
+            corpo = json.loads(bruto) if isinstance(bruto, str) else {}
+        except Exception:  # noqa: BLE001 - corpo ausente vira {} e a validação acusa
+            corpo = {}
+    return await handle_http(request.method, path_only, request.headers.get("Host"), corpo)
 
 
 async def send_message(connection, payload):

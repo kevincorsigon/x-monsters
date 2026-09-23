@@ -22,6 +22,10 @@ function limiteDeCopias(definitionId) {
 // Catálogo de decks pré-montados (data/decks.json). O arquivo guarda só ids de
 // carta: as definições continuam vindo exclusivamente de cards_database.json.
 const DECKS_PATH = 'data/decks.json';
+// Decks customizados criados no Deck Builder vivem no mesmo `data/decks.json`
+// com `custom: true`. Ids sempre `custom-*`: oficiais nunca tocam nesse prefixo.
+const CUSTOM_DECK_ID_PREFIXO = 'custom-';
+const CUSTOM_DECKS_STORAGE_KEY = 'xmDecksCustom';
 let decksCatalogCache = null;
 let decksCatalogPromessa = null;
 
@@ -218,10 +222,61 @@ function normalizarCatalogoDeDecks(dados) {
         .map(deck => ({
             ...deck,
             traits: Array.isArray(deck.traits) ? deck.traits.map(t => String(t).toLowerCase()) : [],
-            cartas: deck.cartas.map(id => String(id))
+            cartas: deck.cartas.map(id => String(id)),
+            // A flag de deck customizado sobrevive ao normalize: e o que separa
+            // "Meus decks" dos presets oficiais no seletor e no builder.
+            custom: deck.custom === true,
+            criadoEm: typeof deck.criadoEm === 'string' ? deck.criadoEm : null
         }));
     if (decks.length === 0) return null;
     return { version: dados.version || 1, decks };
+}
+
+/** Só os customs (`custom: true`) de um catálogo já normalizado. */
+function listarDecksCustom(catalogo = null) {
+    const fonte = catalogo
+        || (typeof window !== 'undefined' ? window.deckCatalog : null)
+        || decksCatalogCache;
+    if (!fonte || !Array.isArray(fonte.decks)) return [];
+    return fonte.decks.filter(deck => deck.custom === true);
+}
+
+/** Customs guardados no navegador (fallback quando o `server.py` não alcança). */
+function lerCustomsLocais() {
+    try {
+        if (typeof window === 'undefined' || !window.localStorage) return [];
+        const brutos = window.localStorage.getItem(CUSTOM_DECKS_STORAGE_KEY);
+        if (!brutos) return [];
+        const dados = JSON.parse(brutos);
+        const normalizado = normalizarCatalogoDeDecks({ decks: Array.isArray(dados) ? dados : dados.decks });
+        return normalizado ? normalizado.decks.filter(deck => deck.custom === true) : [];
+    } catch (error) {
+        console.warn('DeckBuilder: não foi possível ler os decks customizados locais', error);
+        return [];
+    }
+}
+
+function gravarCustomsLocais(decks) {
+    try {
+        if (typeof window === 'undefined' || !window.localStorage) return false;
+        window.localStorage.setItem(CUSTOM_DECKS_STORAGE_KEY, JSON.stringify(decks));
+        return true;
+    } catch (error) {
+        console.warn('DeckBuilder: não foi possível salvar os decks customizados locais', error);
+        return false;
+    }
+}
+
+/**
+ * Junta customs locais (navegador) aos vindos do `data/decks.json`: o arquivo
+ * manda nos ids repetidos, local entra só com id novo.
+ */
+function mesclarCustomsLocais(catalogo) {
+    const base = catalogo && Array.isArray(catalogo.decks) ? catalogo.decks : [];
+    const ids = new Set(base.map(deck => deck.id));
+    const locais = lerCustomsLocais().filter(deck => !ids.has(deck.id));
+    if (locais.length === 0) return catalogo;
+    return { version: catalogo ? catalogo.version || 1 : 1, decks: [...base, ...locais] };
 }
 
 /**
@@ -241,7 +296,13 @@ async function loadDeckCatalog() {
         try {
             const response = await fetch(DECKS_PATH);
             const dados = await response.json();
-            decksCatalogCache = normalizarCatalogoDeDecks(dados);
+            decksCatalogCache = mesclarCustomsLocais(normalizarCatalogoDeDecks(dados));
+            // Sem arquivo (file:// ou fallback): os customs locais ainda valem —
+            // o builder e o seletor listam "Meus decks" mesmo sem os oficiais.
+            if (!decksCatalogCache) {
+                const locais = lerCustomsLocais();
+                decksCatalogCache = locais.length > 0 ? { version: 1, decks: locais } : null;
+            }
             window.deckCatalog = decksCatalogCache;
             console.log('Catálogo de decks carregado:', decksCatalogCache
                 ? decksCatalogCache.decks.map(d => `${d.nome} (${d.cartas.length})`)
@@ -257,6 +318,108 @@ async function loadDeckCatalog() {
     return decksCatalogPromessa;
 }
 
+/** Força o recarregamento do catálogo (após salvar/excluir um custom). */
+async function recarregarCatalogoDeDecks() {
+    decksCatalogCache = null;
+    decksCatalogPromessa = null;
+    if (typeof window !== 'undefined') window.deckCatalog = null;
+    return loadDeckCatalog();
+}
+
+/** Id de custom novo: `custom-<slug>-<rand4>` (oficiais nunca usam o prefixo). */
+function gerarIdDeckCustom(nome) {
+    const slug = String(nome || 'deck')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 24) || 'deck';
+    const sufixo = Math.floor(Math.random() * 0xffff).toString(16).padStart(4, '0');
+    return `${CUSTOM_DECK_ID_PREFIXO}${slug}-${sufixo}`;
+}
+
+/** Valida um deck customizado: 40 cartas, ids do catálogo, teto de cópias. */
+function validarDeckCustom(deck, catalogoDeCartas = null) {
+    const erros = [];
+    const cartas = catalogoDeCartas
+        || (typeof window !== 'undefined' ? window.cardsDatabase : null);
+    if (!deck || typeof deck !== 'object') return { ok: false, erros: ['Deck inválido.'] };
+    if (!deck.nome || String(deck.nome).trim().length === 0) erros.push('Dê um nome ao deck.');
+    if (String(deck.nome || '').length > 40) erros.push('O nome tem no máximo 40 caracteres.');
+    if (!Array.isArray(deck.cartas) || deck.cartas.length !== DECK_SIZE) {
+        erros.push(`O deck precisa de exatamente ${DECK_SIZE} cartas.`);
+    } else {
+        const porId = {};
+        deck.cartas.forEach(id => { porId[id] = (porId[id] || 0) + 1; });
+        Object.entries(porId).forEach(([id, copias]) => {
+            const existe = cartas && Array.isArray(cartas.cards)
+                ? cartas.cards.some(carta => carta.id === id)
+                : true;
+            if (!existe) erros.push(`Carta desconhecida: ${id}.`);
+            if (copias > limiteDeCopias(id)) erros.push(`${id}: no máximo ${limiteDeCopias(id)} cópia(s).`);
+        });
+    }
+    return { ok: erros.length === 0, erros };
+}
+
+/** Persiste um custom: `POST /api/decks`, com fallback no `localStorage`. */
+async function salvarDeckCustom(deck) {
+    const validacao = validarDeckCustom(deck);
+    if (!validacao.ok) return { ok: false, erros: validacao.erros, onde: null };
+    const registro = {
+        ...deck,
+        id: deck.id && String(deck.id).startsWith(CUSTOM_DECK_ID_PREFIXO) ? deck.id : gerarIdDeckCustom(deck.nome),
+        custom: true,
+        criadoEm: deck.criadoEm || new Date().toISOString()
+    };
+    try {
+        const resposta = await fetch('/api/decks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(registro)
+        });
+        if (resposta.ok) {
+            await recarregarCatalogoDeDecks();
+            return { ok: true, erros: [], onde: 'servidor', deck: registro };
+        }
+    } catch (error) {
+        console.warn('DeckBuilder: servidor indisponível, salvando local:', error);
+    }
+    const atuais = listarDecksCustom().filter(item => item.id !== registro.id);
+    const locais = lerCustomsLocais().filter(item => item.id !== registro.id);
+    const extras = locais.filter(item => !atuais.some(a => a.id === item.id));
+    gravarCustomsLocais([...extras, ...atuais, registro]);
+    decksCatalogCache = mesclarCustomsLocais(decksCatalogCache);
+    if (typeof window !== 'undefined') window.deckCatalog = decksCatalogCache;
+    return { ok: true, erros: [], onde: 'local', deck: registro };
+}
+
+/** Exclui um custom: `DELETE /api/decks/<id>` ou remove do `localStorage`. */
+async function excluirDeckCustom(deckId) {
+    if (!deckId || !String(deckId).startsWith(CUSTOM_DECK_ID_PREFIXO)) {
+        return { ok: false, erro: 'Só decks customizados podem ser excluídos.' };
+    }
+    try {
+        const resposta = await fetch(`/api/decks/${encodeURIComponent(deckId)}`, { method: 'DELETE' });
+        if (resposta.ok) {
+            await recarregarCatalogoDeDecks();
+            return { ok: true, onde: 'servidor' };
+        }
+    } catch (error) {
+        console.warn('DeckBuilder: servidor indisponível, excluindo local:', error);
+    }
+    gravarCustomsLocais(lerCustomsLocais().filter(item => item.id !== deckId));
+    if (decksCatalogCache) {
+        decksCatalogCache = {
+            ...decksCatalogCache,
+            decks: decksCatalogCache.decks.filter(item => item.id !== deckId)
+        };
+        if (typeof window !== 'undefined') window.deckCatalog = decksCatalogCache;
+    }
+    return { ok: true, onde: 'local' };
+}
+
 function encontrarDeckNoCatalogo(deckId, catalogo = null) {
     const fonte = catalogo
         || (typeof window !== 'undefined' ? window.deckCatalog : null)
@@ -266,12 +429,19 @@ function encontrarDeckNoCatalogo(deckId, catalogo = null) {
 }
 
 /** Resumo de um preset (metadados + curva de custo) usado pelo seletor de decks. */
-function resumoDeDeck(deckId, catalogo = null, builder = null) {
-    const deck = encontrarDeckNoCatalogo(deckId, catalogo);
+function resumoDeDeck(deckRef, catalogo = null, builder = null) {
+    // `deckRef` pode ser o id (presets do catálogo) ou o próprio objeto: o
+    // caminho de objeto é o do rascunho do Deck Builder, que ainda não está em
+    // `data/decks.json` — o id simples não existiria no catálogo.
+    const direto = deckRef !== null && typeof deckRef === 'object' ? deckRef : null;
+    const deck = direto || encontrarDeckNoCatalogo(deckRef, catalogo);
     const alvo = builder || (typeof window !== 'undefined' ? window.deckBuilder : null);
-    if (!deck || !alvo) return null;
+    if (!deck || !alvo || !Array.isArray(deck.cartas)) return null;
 
-    const definicoes = alvo.definicoesDeDeck(deck.id, catalogo);
+    const definicoes = direto
+        ? deck.cartas.map(definitionId => alvo.allCards.find(card => card.id === definitionId))
+            .filter(Boolean)
+        : alvo.definicoesDeDeck(deck.id, catalogo);
     const custos = definicoes.map(card => card.cost);
     return {
         ...deck,
@@ -286,17 +456,16 @@ function resumoDeDeck(deckId, catalogo = null, builder = null) {
 }
 if (typeof window !== 'undefined') {
     window.resumoDeDeck = resumoDeDeck;
-    // O seletor de decks (deck-select.js) exibe o tamanho do baralho antes da
-    // partida existir: a constante precisa estar no escopo global.
     window.DECK_SIZE = DECK_SIZE;
-    // Teto de cópias por carta (o Apelino Pão e Vinho é única por deck): a UI e os
-    // testes de browser enxergam a mesma regra que o gerador de baralho.
     window.LIMITES_DE_COPIA = LIMITES_DE_COPIA;
     window.limiteDeCopias = limiteDeCopias;
-    // `pvp-game.js` monta o deck privado e embaralha o deck do servidor pela
-    // classe: sem esta exposição o fallback "cliente gera pela seed" avisava
-    // "sem DeckBuilder" e devolvia null.
     window.DeckBuilder = DeckBuilder;
+    window.listarDecksCustom = listarDecksCustom;
+    window.validarDeckCustom = validarDeckCustom;
+    window.salvarDeckCustom = salvarDeckCustom;
+    window.excluirDeckCustom = excluirDeckCustom;
+    window.recarregarCatalogoDeDecks = recarregarCatalogoDeDecks;
+    window.gerarIdDeckCustom = gerarIdDeckCustom;
 }
 
 /** Id do deck escolhido na partida atual (o Reset reusa; `null` = aleatório). */
@@ -777,11 +946,23 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         DECK_SIZE,
         DECKS_PATH,
+        CUSTOM_DECK_ID_PREFIXO,
+        CUSTOM_DECKS_STORAGE_KEY,
         LIMITES_DE_COPIA,
         limiteDeCopias,
         DeckBuilder,
         loadCardSystem,
         loadDeckCatalog,
+        recarregarCatalogoDeDecks,
+        normalizarCatalogoDeDecks,
+        listarDecksCustom,
+        lerCustomsLocais,
+        gravarCustomsLocais,
+        mesclarCustomsLocais,
+        gerarIdDeckCustom,
+        validarDeckCustom,
+        salvarDeckCustom,
+        excluirDeckCustom,
         encontrarDeckNoCatalogo,
         resumoDeDeck,
         montarDecksDaEscolha,

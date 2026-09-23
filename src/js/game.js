@@ -1678,6 +1678,58 @@
             document.getElementById('gearDropdown').classList.toggle('open');
         }
 
+        // Diálogo padronizado (#gameDialogModal): hoje o markup de game.html e
+        // pvp.html chama `closeGameDialog()`/`confirmGameDialog()` que não
+        // existiam — sem estas funções qualquer confirmação quebrava.
+        let acaoDeDialogoPendente = null;
+
+        function fecharDialogoDoJogo() {
+            const modal = document.getElementById('gameDialogModal');
+            if (modal) modal.classList.remove('visible');
+            const cancelar = document.getElementById('gameDialogCancelBtn');
+            if (cancelar) cancelar.style.display = 'none';
+            acaoDeDialogoPendente = null;
+        }
+
+        function confirmarDialogoDoJogo() {
+            const acao = acaoDeDialogoPendente;
+            fecharDialogoDoJogo();
+            if (typeof acao === 'function') acao();
+            else if (acao && typeof acao.resolver === 'function') acao.resolver(true);
+        }
+
+        function mostrarConfirmacaoDoJogo(titulo, mensagem, rotuloConfirmar = 'OK') {
+            return new Promise(resolve => {
+                const modal = document.getElementById('gameDialogModal');
+                if (!modal) {
+                    resolve(typeof confirm === 'function' ? confirm(`${titulo}\n${mensagem}`) : false);
+                    return;
+                }
+                const icone = document.getElementById('gameDialogIcon');
+                const tituloEl = document.getElementById('gameDialogTitle');
+                const mensagemEl = document.getElementById('gameDialogMessage');
+                const confirmarBtn = document.getElementById('gameDialogConfirmBtn');
+                const cancelarBtn = document.getElementById('gameDialogCancelBtn');
+                if (icone) icone.textContent = '⚠️';
+                if (tituloEl) tituloEl.textContent = titulo;
+                if (mensagemEl) mensagemEl.textContent = mensagem;
+                if (confirmarBtn) confirmarBtn.textContent = rotuloConfirmar;
+                if (cancelarBtn) {
+                    cancelarBtn.style.display = '';
+                    cancelarBtn.onclick = () => {
+                        fecharDialogoDoJogo();
+                        resolve(false);
+                    };
+                }
+                acaoDeDialogoPendente = { resolver: resolve };
+                modal.classList.add('visible');
+            });
+        }
+
+        window.closeGameDialog = fecharDialogoDoJogo;
+        window.confirmGameDialog = confirmarDialogoDoJogo;
+        window.showGameConfirm = mostrarConfirmacaoDoJogo;
+
         function showMessage(text, type = 'info') {
             // Criar elemento de mensagem
             const messageElement = document.createElement('div');

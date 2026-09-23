@@ -1,6 +1,36 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-22 — Deck Builder com decks customizados (spec `deck-builder-custom.md`)
+
+Pedido: tela de deck builder com seleção de cartas, preview do deck, stats em
+tempo real (afinidade/traits/custo), formulário (color picker, tema, descrição,
+emoji), persistência no JSON com flag custom, listagem após oficiais+aleatório
+e exclusão com confirmação.
+
+Implementação (DoD 1–7 verdes: 258/258 unit, `deck_synergy_audit --check`,
+26/26 browser, smoke PvP):
+- `deck-builder.html` + `src/css/deck-builder.css` + `src/js/deck-builder.js`:
+  catálogo com busca/filtro (nome/tipo/custo/trait), draft de 40 com teto de
+  cópias, painel em tempo real (total, tipos, custo médio, curva, traits,
+  3 afinidades) e form com 3 color pickers, checkboxes de traits e grade de
+  emojis; aba "Meus decks" com carregar/excluir.
+- Afinidade = 3 indicadores (dominância da trait principal, % criaturas no
+  tema, sinergia de equipamento via `getEquipmentRule`/`hasTrait` ≥3
+  hospedeiros) — mesma régua do audit.
+- `src/js/deck_system.js`: flag `custom`/`criadoEm` no normalize,
+  `validar/salvar/excluirDeckCustom`, `gerarIdDeckCustom` (`custom-*`),
+  merge JSON + `localStorage xmDecksCustom` (fallback sob http.server).
+- `src/js/deck-select.js`: ordem oficiais→aleatório→customs, separador
+  "Meus decks", badge + lixeira só em custom, `pedirExclusaoDeDeck` com
+  confirmação e `redesenhar()` que preserva a promessa do `abrir()`.
+- `src/js/game.js`: implementa `closeGameDialog`/`confirmGameDialog`/
+  `showGameConfirm` (o markup chamava funções inexistentes).
+- `server.py`: `GET/POST /api/decks` + `DELETE /api/decks/<id>` (validação
+  40 cartas/ids/teto, escrita atômica, oficial nunca excluído — 403).
+- `scripts/deck_synergy_audit.js --check` trava só oficiais.
+- Gear de `game.html` ganha "Deck Builder".
+
 ## 2026-09-22 — Legião Robótica: dois Latex no lugar do Superior
 
 Pedido: "prefiro dois latex que um superior".

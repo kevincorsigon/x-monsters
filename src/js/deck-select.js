@@ -21,6 +21,7 @@
     const RANDOM_ID = 'aleatorio';
     const PREFS_KEY = 'xmDeckPreferido';
     const VERSOS_NA_PILHA = 5;
+    const CUSTOM_SEPARADOR = 'Meus decks';
 
     // Acesso tolerante ao escopo do browser: o módulo também é `require()`-ável
     // pelos testes de unidade (Node), onde `window` não existe.
@@ -100,7 +101,20 @@
     }
 
     function opcoes() {
-        return [...decksDoCatalogo(), deckAleatorio()];
+        // Ordem fixa: oficiais → aleatório → customs ("Meus decks" por último).
+        const oficiais = decksDoCatalogo().filter(deck => deck.custom !== true);
+        const customs = decksDoCatalogo().filter(deck => deck.custom === true);
+        return [...oficiais, deckAleatorio(), ...customs];
+    }
+
+    /** Customs (`custom: true`): sempre após os oficiais e o aleatório. */
+    function decksCustom() {
+        return decksDoCatalogo().filter(deck => deck.custom === true);
+    }
+
+    function ehDeckCustom(deck) {
+        const id = typeof deck === 'string' ? deck : deck?.id;
+        return typeof id === 'string' && id.startsWith('custom-');
     }
 
     function tamanhoDoDeck() {
@@ -131,7 +145,7 @@
         if (deck.id === RANDOM_ID) {
             return `${tamanhoDoDeck()} cartas • balanceado por custo • definido no sorteio`;
         }
-        const resumo = window.resumoDeDeck?.(deck.id, null, window.deckBuilder);
+        const resumo = window.resumoDeDeck?.(deck, null, window.deckBuilder);
         if (!resumo) return `${deck.cartas.length} cartas`;
         const { stats } = resumo;
         return `${stats.total} cartas • ${stats.criaturas} criaturas • ${stats.suportes} suportes` +
@@ -156,15 +170,34 @@
         botao.style.setProperty('--deck-primaria', deck.cores?.primaria || '#d4af37');
         botao.style.setProperty('--deck-secundaria', deck.cores?.secundaria || '#1a1e28');
         botao.style.setProperty('--deck-acento', deck.cores?.acento || '#f8fafc');
+        // Customs ganham badge + lixeira; oficiais/aleatório nunca têm excluir.
+        const selo = deck.custom === true ? '<span class="deck-custom-badge">✨ Meu deck</span>' : '';
+        const lixeira = deck.custom === true
+            ? `<span class="deck-option-excluir" role="button" tabindex="0" title="Excluir deck" data-excluir-deck="${deck.id}">🗑️</span>`
+            : '';
         botao.innerHTML = `
+            ${lixeira}
             <span class="deck-stack" aria-hidden="true">${pilhaDeCartas()}</span>
             <span class="deck-stack-emblema" aria-hidden="true">${deck.emblema || '🎴'}</span>
+            ${selo}
             <span class="deck-option-info">
                 <span class="deck-option-nome">${deck.nome}</span>
                 <span class="deck-option-tema">${deck.tema || ''}</span>
                 <span class="deck-option-stats">${linhaDeStats(deck)}</span>
                 <span class="deck-traits">${chipsDeTraits(deck.traits)}</span>
             </span>`;
+        const alvoLixeira = botao.querySelector('[data-excluir-deck]');
+        if (alvoLixeira) {
+            const pedir = evento => {
+                evento.stopPropagation();
+                evento.preventDefault();
+                pedirExclusaoDeDeck(deck.id, deck.nome);
+            };
+            alvoLixeira.addEventListener('click', pedir);
+            alvoLixeira.addEventListener('keydown', evento => {
+                if (evento.key === 'Enter' || evento.key === ' ') pedir(evento);
+            });
+        }
         return botao;
     }
 
@@ -238,7 +271,7 @@
         if (!deck) return '';
         const resumo = deck.id === RANDOM_ID
             ? null
-            : window.resumoDeDeck?.(deck.id, null, window.deckBuilder);
+            : window.resumoDeDeck?.(deck, null, window.deckBuilder);
 
         const curva = resumo
             ? `<div class="deck-detalhe-curva">
@@ -293,6 +326,39 @@
 
     // ── modo modal (hotseat) ─────────────────────────────────────────────────
 
+    function montarGrade(modal, grade) {
+        grade.innerHTML = '';
+        opcoes().forEach((deck, indice, lista) => {
+            // Separador "Meus decks" antes do primeiro custom (após o aleatório).
+            const anterior = lista[indice - 1];
+            if (deck.custom === true && !(anterior && anterior.custom === true)) {
+                const separador = document.createElement('div');
+                separador.className = 'deck-select-separador';
+                separador.textContent = CUSTOM_SEPARADOR;
+                grade.appendChild(separador);
+            }
+            const botao = criarOpcao(deck);
+            botao.addEventListener('click', () => selecionar(deck.id, modal));
+            botao.addEventListener('dblclick', () => {
+                selecionar(deck.id, modal);
+                confirmar();
+            });
+            grade.appendChild(botao);
+        });
+    }
+
+    /** Re-renderiza a grade sem mexer na promessa pendente (pós-exclusão). */
+    function redesenhar() {
+        const modal = document.getElementById('deckSelectModal');
+        const grade = document.getElementById('deckSelectGrid');
+        if (!modal || !grade || !modal.classList.contains('visible')) return false;
+        montarGrade(modal, grade);
+        // A seleção pode ter sumido (deck excluído): volta ao aleatório.
+        if (!opcoes().some(deck => deck.id === escolhidoId)) selecionar(RANDOM_ID, modal);
+        else selecionar(escolhidoId, modal);
+        return true;
+    }
+
     /** Abre o seletor bloqueante; resolve com o id escolhido (`null` sem catálogo). */
     function abrir() {
         const modal = document.getElementById('deckSelectModal');
@@ -302,16 +368,7 @@
             return Promise.resolve(null);
         }
 
-        grade.innerHTML = '';
-        opcoes().forEach(deck => {
-            const botao = criarOpcao(deck);
-            botao.addEventListener('click', () => selecionar(deck.id, modal));
-            botao.addEventListener('dblclick', () => {
-                selecionar(deck.id, modal);
-                confirmar();
-            });
-            grade.appendChild(botao);
-        });
+        montarGrade(modal, grade);
 
         // Pré-seleção: a preferência salva no navegador (o lobby PvP usa a mesma
         // chave) ou o deck aleatório quando não há histórico.
@@ -350,15 +407,63 @@
         return resolucaoPendente !== null;
     }
 
+    // ── exclusão de custom ───────────────────────────────────────────────────
+
+    /**
+     * Confirmação genérica: usa o `#gameDialogModal` quando existe (game.html,
+     * pvp.html, deck-builder.html) e cai no `confirm()` nativo fora deles.
+     */
+    function pedirConfirmacao({ titulo, mensagem, confirmarRotulo }) {
+        if (typeof document !== 'undefined' && typeof window !== 'undefined'
+            && typeof window.showGameConfirm === 'function'
+            && document.getElementById('gameDialogModal')) {
+            return window.showGameConfirm(titulo, mensagem, confirmarRotulo);
+        }
+        const nativo = typeof confirm === 'function' ? confirm(`${titulo}\n${mensagem}`) : false;
+        return Promise.resolve(nativo);
+    }
+
+    /**
+     * Exclusão de deck custom com confirmação obrigatória. Oficiais e o
+     * aleatório nunca chegam aqui (nem têm botão de lixeira).
+     */
+    async function pedirExclusaoDeDeck(deckId, deckNome) {
+        if (!ehDeckCustom(deckId)) return { ok: false };
+        const nome = deckNome || deckId;
+        const confirmado = await pedirConfirmacao({
+            titulo: 'Excluir deck',
+            mensagem: `Excluir "${nome}"? Esta ação não pode ser desfeita.`,
+            confirmarRotulo: 'Excluir'
+        });
+        if (!confirmado) return { ok: false, cancelado: true };
+        const excluir = (typeof window !== 'undefined' && window.excluirDeckCustom)
+            || (typeof excluirDeckCustom === 'function' ? excluirDeckCustom : null);
+        if (typeof excluir !== 'function') return { ok: false };
+        const resultado = await excluir(deckId);
+        if (resultado && resultado.ok && typeof document !== 'undefined') {
+            // Re-render preservando a promessa do `abrir()` (o boot/hotseat
+            // espera nela): reabrir criaria uma promessa nova e órfã.
+            if (!redesenhar()) window.location?.reload?.();
+        }
+        return resultado;
+    }
+
     const api = {
         RANDOM_ID,
         PREFS_KEY,
         VERSOS_NA_PILHA,
+        CUSTOM_SEPARADOR,
         TRAIT_LABELS,
         rotuloDeTrait,
         traitsDaCarta,
         chipsDeTraits,
         detalheDoDeck,
+        criarOpcao,
+        decksCustom,
+        ehDeckCustom,
+        pedirConfirmacao,
+        pedirExclusaoDeDeck,
+        redesenhar,
         abrir,
         confirmar,
         confirmarAleatorio,
@@ -367,6 +472,7 @@
         lerPreferencia,
         salvarPreferencia,
         deckAleatorio,
+        opcoes,
         atual: () => escolhidoId
     };
 

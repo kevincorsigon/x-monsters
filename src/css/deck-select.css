@@ -71,6 +71,48 @@ body.deck-select-aberto {
     gap: 14px;
 }
 
+/* Separador "Meus decks": linha de seção entre oficiais/aleatório e customs. */
+.deck-select-separador {
+    grid-column: 1 / -1;
+    margin-top: 6px;
+    padding-top: 10px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.2);
+    color: var(--primary-color, #d4af37);
+    font-size: 0.78rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+/* Badge + lixeira: só existem nas opções de deck customizado. */
+.deck-custom-badge {
+    display: inline-block;
+    align-self: flex-start;
+    padding: 2px 10px;
+    border: 1px solid var(--deck-primaria);
+    border-radius: 999px;
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+}
+
+.deck-option-excluir {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    padding: 4px 6px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.55);
+    cursor: pointer;
+    font-size: 0.95rem;
+    line-height: 1;
+}
+
+.deck-option-excluir:hover,
+.deck-option-excluir:focus-visible {
+    background: rgba(220, 38, 38, 0.75);
+    outline: none;
+}
+
 .deck-option {
     --deck-primaria: #d4af37;
     --deck-secundaria: #1a1e28;
