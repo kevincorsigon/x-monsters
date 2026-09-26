@@ -66,11 +66,14 @@
                 <button class="phase-button active" id="energy-phase" onclick="setPhase('energy')">Energia</button>
                 <button class="phase-button" id="invocation-phase" onclick="setPhase('invocation')">Invocação</button>
                 <button class="phase-button" id="combat-phase" onclick="setPhase('combat')">Combate</button>
+                <!-- Ataque Direto flutua abaixo do menu central (abaixo de Invocação) -->
+                <div class="direct-attack-float" id="direct-attack-float">
+                    <button class="action-button direct-attack-btn" id="direct-attack-btn" onclick="directAttack()" style="display: none;">Ataque Direto</button>
+                </div>
             </div>
             
             <div class="control-section">
                 <button class="action-button" onclick="endTurn()">Fim Turno</button>
-                <button class="action-button direct-attack-btn" id="direct-attack-btn" onclick="directAttack()" style="display: none;">Ataque Direto</button>
             </div>
         </div>
         
@@ -181,14 +184,13 @@
         </div>
     </div>
 
-    <!-- Notificação de mudança de turno -->
-    <div class="turn-notification" id="turnNotification">
-        <div id="notificationText"></div>
-    </div>
+    <!-- Toasts de acontecimento: canto direito, empilhados de cima para baixo -->
+    <div class="message-toasts" id="message-toasts" aria-live="polite"></div>
 
     <!-- Elementos de áudio -->
     <audio id="punchSound" preload="auto"><source src="assets/audio/punch.mp3" type="audio/mpeg"></audio>
     <audio id="victorySound" preload="auto"><source src="assets/audio/victory.mp3" type="audio/mpeg"></audio>
+    <audio id="defeatSound" preload="auto"><source src="assets/audio/defeat.wav" type="audio/wav"></audio>
     <audio id="energySound" preload="auto"><source src="assets/audio/energy.mp3" type="audio/mpeg"></audio>
     <audio id="healingSound" preload="auto"><source src="assets/audio/healing.mp3" type="audio/mpeg"></audio>
     <audio id="wasteSound" preload="auto"><source src="assets/audio/waste.mp3" type="audio/mpeg"></audio>

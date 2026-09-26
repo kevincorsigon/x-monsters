@@ -762,6 +762,22 @@
     }
 
     /**
+     * Vinheta do PvP na perspectiva do assento local: quem ganha ouve a vitória
+     * e quem perde, a derrota. O `winner` é o assento publicado pelo servidor
+     * (`GAME_OVER` ou `resultado` do MATCH_START); sem ele (mensagem incompleta)
+     * a vinheta antiga (vitória) segue como fallback.
+     */
+    function tocarVinhetaDoResultado(vencedor) {
+        const assento = seatLocal || document.body?.dataset?.seat || null;
+        const vencedorConhecido = vencedor === 'p1' || vencedor === 'p2';
+        if (!vencedorConhecido || !assento || vencedor === assento) {
+            if (typeof window.playVictorySound === 'function') window.playVictorySound();
+            return;
+        }
+        if (typeof window.playDefeatSound === 'function') window.playDefeatSound();
+    }
+
+    /**
      * Fim de partida decidido pelo servidor: overlay único com o vencedor e o
      * botão de volta ao lobby, onde a próxima sala é criada (spec parte 5,
      * DoD 1 e 3). O visual vem das classes `pvp-overlay*` de `src/css/pvp.css`.
@@ -772,7 +788,7 @@
         window.gameOver = true;
         // Vinheta local também no PvP: o endGame retornou cedo após o
         // sendGameOver, então sem isto não havia música nem overlay próprio.
-        if (typeof window.playVictorySound === 'function') window.playVictorySound();
+        tocarVinhetaDoResultado(mensagem?.winner);
         document.querySelectorAll('button').forEach(botao => { botao.disabled = true; });
 
         if (document.getElementById('pvp-game-over')) return;

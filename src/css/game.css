@@ -352,6 +352,8 @@
             align-items: center;
             justify-content: center;
             flex: 1;
+            /* O Ataque Direto flutua abaixo deste bloco (fora do fluxo) */
+            position: relative;
         }
 
         .control-section {
@@ -802,6 +804,45 @@
         .action-button.direct-attack-btn {
             background-color: var(--pv-zero-color);
             color: #fff;
+        }
+
+        /* Ataque Direto flutuando logo abaixo do menu central (abaixo de
+           Invocação e no centro da tela): fora do fluxo para não espremer os
+           botões de fase e acima do tabuleiro para não sumir entre as cartas. */
+        .direct-attack-float {
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-top: 10px;
+            z-index: 40;
+            /* Só o botão recebe clique; a caixa do float não bloqueia a mesa */
+            pointer-events: none;
+        }
+
+        .direct-attack-float .direct-attack-btn {
+            pointer-events: auto;
+            padding: 10px 22px;
+            font-size: 13px;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+            animation: directAttackFloat 0.35s ease-out;
+        }
+
+        @keyframes directAttackFloat {
+            0% { opacity: 0; transform: translateY(-10px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Campo adversário vazio: o Ataque Direto "respira" (fade in/out suave)
+           para sinalizar que é a única jogada possível — a entrada do float roda
+           uma vez e o pulso entra depois dela, sem salto de opacidade. */
+        .direct-attack-float .direct-attack-btn.direct-attack-pulse {
+            animation: directAttackFloat 0.35s ease-out, directAttackPulse 2.8s ease-in-out 0.35s infinite;
+        }
+
+        @keyframes directAttackPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.55; }
         }
 
         /* Tabuleiro do jogo */
@@ -1570,38 +1611,68 @@
             }
         }
 
-        /* Sistema de notificação para mudanças de turno */
-        .turn-notification {
+        /* Toasts de acontecimento: canto direito, empilhados de cima para baixo.
+           Substituem os popups centralizados, que se atropelavam no meio da tela
+           e sumiam antes de dar tempo de ler o que tinha acontecido. */
+        .message-toasts {
             position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: linear-gradient(135deg, var(--primary-color), var(--energy-color));
-            color: var(--bg-color);
-            padding: 20px 30px;
-            border-radius: 15px;
-            font-size: 18px;
-            font-weight: bold;
-            text-align: center;
-            z-index: 2000;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-            opacity: 0;
-            transform: translate(-50%, -50%) scale(0.8);
-            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-            backdrop-filter: blur(4px);
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            /* Informativa: nunca deve interceptar cliques nos botões de fase */
+            top: clamp(10px, 2vh, 22px);
+            right: clamp(10px, 2vw, 22px);
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+            width: min(340px, 36vw);
+            max-height: calc(100dvh - 40px);
+            overflow: hidden;
+            /* Acima das cartas (1001) e abaixo dos modais (1200) e dos
+               overlays de fim de jogo (2000) */
+            z-index: 1100;
+            /* Informativo: nunca deve interceptar cliques no tabuleiro */
             pointer-events: none;
         }
 
-        .turn-notification.show {
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(1);
+        /* Entrada descendo (fade + slide) e saída só no esmaecimento. */
+        .message-toast {
+            width: fit-content;
+            max-width: 100%;
+            padding: 10px 14px;
+            border-radius: 10px;
+            background-color: #4b586e;
+            border-left: 4px solid rgba(255, 255, 255, 0.35);
+            color: #fff;
+            font-size: 13px;
+            font-weight: bold;
+            line-height: 1.35;
+            text-align: left;
+            /* O info do deck vem com quebras de linha: preserva a leitura */
+            white-space: pre-line;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+            opacity: 0;
+            transform: translateY(-14px);
+            transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.34, 1.2, 0.64, 1);
         }
 
-        .turn-notification.hide {
+        .message-toast.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .message-toast.leaving {
             opacity: 0;
-            transform: translate(-50%, -50%) scale(0.9);
+            transform: translateY(-6px);
+        }
+
+        .message-toast-warning { background-color: #ff6b6b; }
+
+        .message-toast-success { background-color: #5abf7a; }
+
+        /* Acontecimentos do turno e do fim de jogo mantêm o destaque dourado */
+        .message-toast-turn {
+            background: linear-gradient(135deg, var(--primary-color), var(--energy-color));
+            border-left-color: rgba(255, 255, 255, 0.6);
+            color: var(--bg-color);
+            font-size: 14px;
         }
 
         /* Carta de suporte empilhada atrás - efeito mais sutil */

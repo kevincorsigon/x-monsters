@@ -29,6 +29,8 @@ const CONSOLE_SCRIPTS = [
     'tests/browser/test_tlantidu_death.js',
     'tests/browser/test_fantom_return.js',
     'tests/browser/test_pvm_machine.js',
+    'tests/browser/test_defeat_sound.js',
+    'tests/browser/test_toasts_and_direct_attack.js',
 ];
 
 // Scripts de console PVP (precisam de pvp.html carregado)
@@ -43,6 +45,7 @@ const PVP_CONSOLE_SCRIPTS = [
     'tests/browser/test_pvp_dice_state.js',
     'tests/browser/test_pvp_deck_entry.js',
     'tests/browser/test_pvp_reconnect.js',
+    'tests/browser/test_pvp_defeat_sound.js',
 ];
 
 // Scripts de console do lobby (precisam de pvp-lobby.html carregado)

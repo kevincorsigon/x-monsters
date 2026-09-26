@@ -4710,6 +4710,113 @@ test('fluxo de drag-and-drop do suporte usa o motivo exato da recusa', () => {
     assert.equal(GameStateModel.getPlayerStat(uiState, 'energy', 'p1'), energyAfterEquip);
 });
 
+test('avisos do jogo viram toasts empilhados no canto direito', () => {
+    const interfaceSource = readSourceText('src/js/game.js');
+    const criacoes = interfaceSource.match(/function mostrarToast\(/g) || [];
+    assert.equal(criacoes.length, 1, 'um único ponto de criação de toast');
+
+    const containerBody = interfaceSource.slice(
+        interfaceSource.indexOf('function containerDeToasts'),
+        interfaceSource.indexOf('function mostrarToast')
+    );
+    assert.match(containerBody, /document\.getElementById\('message-toasts'\) \|\| document\.body/);
+
+    const toastBody = interfaceSource.slice(
+        interfaceSource.indexOf('function mostrarToast'),
+        interfaceSource.indexOf('function duracaoDoToast')
+    );
+    assert.match(toastBody, /toast\.className = `message-toast message-toast-\$\{type\}`;/);
+    // Entrada descendo em fade e saída esmaecendo (nunca some no meio da leitura)
+    assert.match(toastBody, /toast\.classList\.add\('visible'\)/);
+    assert.match(toastBody, /toast\.classList\.add\('leaving'\)/);
+    assert.match(interfaceSource, /const MESSAGE_TOAST_BASE_MS = 6000;/);
+
+    // Tempo de leitura proporcional ao tamanho da mensagem
+    const duracaoBody = interfaceSource.slice(
+        interfaceSource.indexOf('function duracaoDoToast'),
+        interfaceSource.indexOf('function showMessage')
+    );
+    assert.match(duracaoBody, /MESSAGE_TOAST_BASE_MS \+ \(linhas - 1\) \* MESSAGE_TOAST_PER_LINE_MS/);
+
+    // As notificações de turno entram na mesma pilha, com piso de leitura
+    const turnBody = interfaceSource.slice(
+        interfaceSource.indexOf('function showTurnNotification'),
+        interfaceSource.indexOf('function mostrarInfoDeckProprio')
+    );
+    assert.match(turnBody, /mostrarToast\(message, 'turn', Math\.max\(duration, 3000\), true\);/);
+
+    // Container declarado nas duas telas de partida; o popup central saiu
+    ['game.html', 'pvp.html'].forEach(pagina => {
+        const html = readSourceText(pagina);
+        assert.match(html, /<div class="message-toasts" id="message-toasts" aria-live="polite"><\/div>/);
+        assert.equal(html.includes('id="turnNotification"'), false);
+        assert.equal(html.includes('class="turn-notification"'), false);
+    });
+
+    // CSS: canto direito, coluna empilhada, entrada descendo
+    const css = readSourceText('src/css/game.css');
+    const container = css.slice(css.indexOf('.message-toasts {'), css.indexOf('.message-toast {'));
+    assert.match(container, /position: fixed;/);
+    assert.match(container, /right: clamp\(/);
+    assert.match(container, /flex-direction: column;/);
+    // Acima das cartas (1001) e abaixo dos modais (1200) e overlays (2000)
+    assert.match(container, /z-index: 1100;/);
+    assert.match(container, /pointer-events: none;/);
+
+    const toast = css.slice(css.indexOf('.message-toast {'), css.indexOf('.message-toast.visible'));
+    assert.match(toast, /white-space: pre-line;/);
+    assert.match(toast, /transform: translateY\(-14px\);/);
+    assert.match(css, /\.message-toast\.visible \{\s*opacity: 1;\s*transform: translateY\(0\);/);
+    assert.match(css, /\.message-toast-warning \{ background-color: #ff6b6b; \}/);
+    assert.equal(css.includes('.turn-notification'), false, 'CSS do popup central removido');
+});
+
+test('Ataque Direto flutua abaixo do menu central (abaixo de Invocação)', () => {
+    const css = readSourceText('src/css/game.css');
+    const secao = css.slice(css.indexOf('.phases-section {'), css.indexOf('.phase-button {'));
+    assert.match(secao, /position: relative;/, 'a seção das fases ancora o float');
+
+    const floatCss = css.slice(css.indexOf('.direct-attack-float {'), css.indexOf('@keyframes directAttackFloat'));
+    assert.match(floatCss, /position: absolute;/);
+    assert.match(floatCss, /top: 100%;/, 'logo abaixo do menu central');
+    assert.match(floatCss, /left: 50%;/);
+    assert.match(floatCss, /transform: translateX\(-50%\);/, 'centralizado sob Invocação');
+    assert.match(floatCss, /pointer-events: none;/);
+    assert.match(floatCss, /pointer-events: auto;/, 'só o botão recebe clique');
+
+    ['game.html', 'pvp.html'].forEach(pagina => {
+        const html = readSourceText(pagina);
+        const fases = html.slice(
+            html.indexOf('<div class="phases-section">'),
+            html.indexOf('<div class="control-section">')
+        );
+        assert.match(fases, /<div class="direct-attack-float" id="direct-attack-float">/);
+        assert.match(fases, /id="direct-attack-btn"[^>]*>Ataque Direto<\/button>/);
+
+        const controles = html.slice(
+            html.indexOf('<div class="control-section">'),
+            html.indexOf('<!-- Player 1 Stats')
+        );
+        assert.equal(controles.includes('direct-attack-btn'), false, 'o botão saiu do bloco de controles');
+        assert.match(controles, /<button class="action-button" onclick="endTurn\(\)">Fim Turno<\/button>/);
+    });
+});
+test('o botão de ataque direto pulsa discretamente com o campo adversário vazio', () => {
+    const css = readSourceText('src/css/game.css');
+    assert.match(css, /\.direct-attack-float \.direct-attack-btn\.direct-attack-pulse/,
+        'a classe ativa o pulso discreto no botão');
+    assert.match(css, /@keyframes directAttackPulse/,
+        'a animação directAttackPulse está definida');
+    assert.match(css, /opacity:\s*0\.55/,
+        'fade out sutil de 55% de opacidade (nada gritante)');
+
+    const gameJs = readSourceText('src/js/game.js');
+    assert.match(gameJs, /function campoDoAdversarioVazio\(/,
+        'avalia o campo adversário para saber quando o pulso se aplica');
+    assert.match(gameJs, /botao\.classList\.toggle\('direct-attack-pulse', Boolean\(visivel && campoInimigoVazio\)\);/,
+        'liga a classe somente quando visível e com campo inimigo vazio');
+});
+
 test('game.js mantém uma única definição de highlightEquippableCreatures', () => {
     const interfaceSource = fs.readFileSync(path.join(__dirname, '../../src/js/game.js'), 'utf8');
     const definitions = interfaceSource.match(/function highlightEquippableCreatures\(/g) || [];
@@ -4742,21 +4849,89 @@ test('fim de jogo trava os botões e o reset devolve a interatividade', () => {
     const definitions = interfaceSource.match(/function setMatchButtonsEnabled\(/g) || [];
     assert.equal(definitions.length, 1);
 
-    // O fim de jogo (inclusive o disparado pelo motor) trava tudo e toca a vinheta
+    // O fim de jogo (inclusive o disparado pelo motor) trava tudo e toca a
+    // vinheta do resultado (vitória ou derrota, conforme o assento local)
     const endGameBody = functionBody('endGame', 'changeStat');
     assert.match(endGameBody, /setMatchButtonsEnabled\(false\);/);
-    assert.match(endGameBody, /playVictorySound\(\);/);
+    assert.match(endGameBody, /playFinishSound\(vencedor\);/);
     assert.equal(endGameBody.includes("querySelectorAll('button')"), false);
 
-    // O reset reabre os controles e invalida timers/vinheta da partida anterior
+    // O reset reabre os controles e invalida timers/vinhetas da partida anterior
     const resetBody = functionBody('resetGame', 'createCard');
     assert.match(resetBody, /setMatchButtonsEnabled\(true\);/);
     assert.match(resetBody, /window\.victorySoundPlayed = false;/);
+    assert.match(resetBody, /window\.defeatSoundPlayed = false;/);
     assert.match(resetBody, /window\.matchGeneration \+= 1;/);
 
-    // A vinheta é idempotente por partida
+    // As vinhetas são idempotentes por partida
     const victorySoundBody = functionBody('playVictorySound', 'nextPhase');
     assert.match(victorySoundBody, /if \(window\.victorySoundPlayed\) return;/);
+    const defeatSoundBody = functionBody('playDefeatSound', 'venceuAssentoLocal');
+    assert.match(defeatSoundBody, /if \(window\.defeatSoundPlayed\) return;/);
+});
+
+test('vinheta de derrota existe no runtime, no asset e nos dois tabuleiros', () => {
+    const interfaceSource = readSourceText('src/js/game.js');
+
+    // O assento local decide o resultado: PvM/PvP marcam `data-seat`; no hotseat
+    // sem assento o vencedor anunciado é o outro lado da mesa (vitória).
+    const venceuBody = interfaceSource.slice(
+        interfaceSource.indexOf('function venceuAssentoLocal'),
+        interfaceSource.indexOf('function playFinishSound')
+    );
+    assert.match(venceuBody, /const assento = assentoLocal\(\);/);
+    assert.match(venceuBody, /if \(vencedor === assento\) return true;/);
+    assert.match(venceuBody, /window\.GameStateModel\.getPlayerName\(gameState, assento\)/);
+
+    const finishBody = interfaceSource.slice(
+        interfaceSource.indexOf('function playFinishSound'),
+        interfaceSource.indexOf('window.playFinishSound')
+    );
+    assert.match(finishBody, /if \(venceuAssentoLocal\(vencedor\)\) playVictorySound\(\);/);
+    assert.match(finishBody, /else playDefeatSound\(\);/);
+
+    // Quem zerou o PV do assento local ouve a derrota (game.js -> changeStat)
+    const changeStatBody = interfaceSource.slice(
+        interfaceSource.indexOf('function changeStat'),
+        interfaceSource.indexOf('function editName')
+    );
+    assert.match(changeStatBody, /playFinishSound\(vencedor\);/);
+
+    // Asset real (WAV PCM) e referência nos dois entry points do jogo
+    const audio = fs.readFileSync(path.join(__dirname, '../../assets/audio/defeat.wav'));
+    assert.equal(audio.slice(0, 4).toString('ascii'), 'RIFF');
+    assert.equal(audio.slice(8, 12).toString('ascii'), 'WAVE');
+    assert.equal(audio.readUInt32LE(24), 22050, 'sample rate da vinheta de derrota');
+
+    ['game.html', 'pvp.html'].forEach(pagina => {
+        const html = readSourceText(pagina);
+        assert.match(
+            html,
+            /<audio id="defeatSound" preload="auto"><source src="assets\/audio\/defeat\.wav" type="audio\/wav"><\/audio>/
+        );
+    });
+});
+
+test('PvP: quem perde ouve a derrota e quem ganha, a vitória', () => {
+    const fonte = readSourceText('src/js/pvp-game.js');
+    const corpo = fonte.slice(
+        fonte.indexOf('function tocarVinhetaDoResultado'),
+        fonte.indexOf('function tratarFimDePartida')
+    );
+    assert.notEqual(corpo, '', 'tocarVinhetaDoResultado não encontrada');
+
+    // A decisão vem do assento publicado pelo servidor (`winner` p1/p2)
+    assert.match(corpo, /const assento = seatLocal \|\| document\.body\?\.dataset\?\.seat \|\| null;/);
+    assert.match(corpo, /vencedor === assento\)/);
+    assert.match(corpo, /window\.playVictorySound/);
+    assert.match(corpo, /window\.playDefeatSound/);
+
+    // O overlay usa o mesmo ponto de entrada para o resultado
+    const tratar = fonte.slice(
+        fonte.indexOf('function tratarFimDePartida'),
+        fonte.indexOf('function enviarFimDePartida')
+    );
+    assert.match(tratar, /tocarVinhetaDoResultado\(mensagem\?\.winner\);/);
 });
 
 test('timers de fim de turno, de vitória e do dado respeitam a geração da partida', () => {
@@ -5687,21 +5862,27 @@ test('o Apelino Pao e Vinho e unico por deck (preset e aleatorio)', () => {
         'so uma copia e adicionada quando a lista traz duas');
 });
 
-test('todo deck respeita a curva de custo e a proporcao de criaturas', () => {
-    decksDatabase.decks.forEach(deck => {
-        const cartas = deck.cartas.map(cartaPorId);
-        const custos = cartas.map(carta => carta.cost);
-        const media = custos.reduce((soma, custo) => soma + custo, 0) / custos.length;
-        const criaturas = cartas.filter(carta => carta.type === 'criatura' || carta.type === 'evolução').length;
+test('todo preset oficial respeita a curva de custo e a proporcao de criaturas', () => {
+    // `data/decks.json` também guarda os decks criados no Deck Builder
+    // (`custom-*`, como o "Tsunami" — 21 criaturas e 19 suportes): a composição
+    // desses é escolha do jogador e segue as regras do builder (40 cartas, teto
+    // de cópias), então o piso de criaturas vale para os presets oficiais.
+    decksDatabase.decks
+        .filter(deck => !String(deck.id).startsWith('custom-'))
+        .forEach(deck => {
+            const cartas = deck.cartas.map(cartaPorId);
+            const custos = cartas.map(carta => carta.cost);
+            const media = custos.reduce((soma, custo) => soma + custo, 0) / custos.length;
+            const criaturas = cartas.filter(carta => carta.type === 'criatura' || carta.type === 'evolução').length;
 
-        assert.ok(Math.max(...custos) <= 12, `${deck.nome}: nenhum custo acima de 12`);
-        assert.ok(media >= 3.0 && media <= 4.8, `${deck.nome}: custo medio ${media.toFixed(2)} na faixa 3.0-4.8`);
-        assert.ok(criaturas >= 24, `${deck.nome}: pelo menos 24 criaturas/evolucoes (achei ${criaturas})`);
-        assert.ok(custos.filter(custo => custo <= 3).length >= 10,
-            `${deck.nome}: base de custo baixo para abrir a partida`);
-        assert.ok(custos.filter(custo => custo >= 4 && custo <= 6).length >= 8,
-            `${deck.nome}: meio de curva consistente`);
-    });
+            assert.ok(Math.max(...custos) <= 12, `${deck.nome}: nenhum custo acima de 12`);
+            assert.ok(media >= 3.0 && media <= 4.8, `${deck.nome}: custo medio ${media.toFixed(2)} na faixa 3.0-4.8`);
+            assert.ok(criaturas >= 24, `${deck.nome}: pelo menos 24 criaturas/evolucoes (achei ${criaturas})`);
+            assert.ok(custos.filter(custo => custo <= 3).length >= 10,
+                `${deck.nome}: base de custo baixo para abrir a partida`);
+            assert.ok(custos.filter(custo => custo >= 4 && custo <= 6).length >= 8,
+                `${deck.nome}: meio de curva consistente`);
+        });
 });
 
 test('cada deck e coeso: a maioria das criaturas carrega as traits do tema', () => {

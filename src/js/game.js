@@ -16,6 +16,8 @@
         window.gameOver = false;
         // Garante uma única vinheta de vitória por partida finalizada
         window.victorySoundPlayed = false;
+        // Mesma trava para a vinheta de derrota (o perdedor ouve uma só)
+        window.defeatSoundPlayed = false;
         // Geração da partida: invalida callbacks (setTimeout) da partida anterior
         window.matchGeneration = 0;
 
@@ -103,15 +105,15 @@
             // resultado e esperamos o GAME_OVER oficial (mesmo vencedor nos dois).
             if (typeof window.sendGameOver === 'function') {
                 window.gameOver = true;
-                playVictorySound();
+                playFinishSound(vencedor);
                 window.sendGameOver(vencedor);
                 return;
             }
             // Define que o jogo terminou
             window.gameOver = true;
-            // Vinheta de vitória: cobre o fim disparado pelo motor
-            // (game-engine.js -> window.endGame); idempotente por partida
-            playVictorySound();
+            // Vinheta do fim disparado pelo motor (game-engine.js -> window.endGame):
+            // vitória ou derrota na perspectiva do assento local
+            playFinishSound(vencedor);
             // Desabilita todos os botões para evitar novas interações
             setMatchButtonsEnabled(false);
 
@@ -178,8 +180,9 @@
             // Verificar vitória
             if (stat === 'pv' && newValue <= 0) {
                 element.classList.add('pv-zero');
-                playVictorySound();
                 const vencedor = window.GameStateModel.getPlayerName(gameState, player === 'p1' ? 'p2' : 'p1');
+                // Quem zerou o PV do assento local perdeu: vinheta de derrota
+                playFinishSound(vencedor);
                 showTurnNotification(`🏆 ${vencedor} venceu!`, 2500);
                 const generation = window.matchGeneration;
                 setTimeout(() => {
@@ -189,8 +192,9 @@
                 }, 2500);
             } else if (stat === 'pv') {
                 element.classList.remove('pv-zero');
-                // PV voltou a ser positivo: libera a vinheta para um próximo fim
+                // PV voltou a ser positivo: libera as vinhetas para um próximo fim
                 window.victorySoundPlayed = false;
+                window.defeatSoundPlayed = false;
             }
         }
 
@@ -238,11 +242,13 @@
                 if (stat === 'pv') {
                     if (parsedValue <= 0) {
                         element.classList.add('pv-zero');
-                        playVictorySound();
+                        // Zerar o próprio PV é declarar a derrota do assento local
+                        playFinishSound(player === 'p1' ? 'p2' : 'p1');
                     } else {
                         element.classList.remove('pv-zero');
-                        // PV voltou a ser positivo: libera a vinheta para um próximo fim
+                        // PV voltou a ser positivo: libera as vinhetas para um próximo fim
                         window.victorySoundPlayed = false;
+                        window.defeatSoundPlayed = false;
                     }
                 }
             }
@@ -437,6 +443,38 @@
             playSound('victorySound');
         }
         window.playVictorySound = playVictorySound;
+
+        // Vinheta de derrota: mesma trava de uma por partida (o motor pode
+        // detectar o PV <= 0 mais de uma vez, mas o perdedor ouve só a primeira).
+        function playDefeatSound() {
+            if (window.defeatSoundPlayed) return;
+            window.defeatSoundPlayed = true;
+            playSound('defeatSound');
+        }
+        window.playDefeatSound = playDefeatSound;
+
+        /**
+         * O vencedor anunciado é o assento local? Em PvM/PvP o assento vem do
+         * `data-seat` (o `pvm-game.js` marca `p1`; o `pvp-game.js` marca o seat
+         * da URL). No hotseat sem assento marcado não existe "derrota local": o
+         * vencedor anunciado é sempre o do outro lado da mesa.
+         */
+        function venceuAssentoLocal(vencedor) {
+            const assento = assentoLocal();
+            if (assento !== 'p1' && assento !== 'p2') return true;
+            if (vencedor === assento) return true;
+            return vencedor === window.GameStateModel.getPlayerName(gameState, assento);
+        }
+
+        /**
+         * Vinheta do fim de partida na perspectiva de quem está jogando: o
+         * perdedor ouve `defeatSound` e o vencedor, `victorySound`.
+         */
+        function playFinishSound(vencedor) {
+            if (venceuAssentoLocal(vencedor)) playVictorySound();
+            else playDefeatSound();
+        }
+        window.playFinishSound = playFinishSound;
 
         // Funções do jogo
         function nextPhase() {
@@ -746,15 +784,14 @@
 
             // Mostrar/ocultar informações de combate e botão de ataque direto
             const combatInfo = document.getElementById('combat-info');
-            const directAttackBtn = document.getElementById('direct-attack-btn');
 
             if (gameState.currentPhase === 'combat') {
                 if (combatInfo) combatInfo.style.display = 'block';
-                if (directAttackBtn) directAttackBtn.style.display = 'block';
+                exibirAtaqueDireto(true, campoDoAdversarioVazio(gameState.currentPlayer));
                 updateCombatInstructions();
             } else {
                 if (combatInfo) combatInfo.style.display = 'none';
-                if (directAttackBtn) directAttackBtn.style.display = 'none';
+                exibirAtaqueDireto(false);
             }
 
             // Atualizar instruções baseadas na fase
@@ -931,18 +968,18 @@
             });
 
             // Controlar botão de ataque direto
-            const directAttackBtn = document.getElementById('direct-attack-btn');
             const protectedCards = opponentCards.length - validTargets;
             const canAttackDirectly = window.CardRules.canDirectAttack(gameState, attackerId);
+            const campoInimigoVazio = opponentCards.length === 0;
 
-            if (opponentCards.length === 0) {
-                if (directAttackBtn) directAttackBtn.style.display = 'inline-block';
+            if (campoInimigoVazio) {
+                exibirAtaqueDireto(true, true);
                 updateCombatInfo('Campo inimigo vazio! Use "Ataque Direto"');
             } else if (validTargets === 0 && canAttackDirectly) {
-                if (directAttackBtn) directAttackBtn.style.display = 'inline-block';
+                exibirAtaqueDireto(true);
                 updateCombatInfo(`Todas as cartas inimigas estão protegidas! Use "Ataque Direto"`);
             } else {
-                if (directAttackBtn) directAttackBtn.style.display = canAttackDirectly ? 'inline-block' : 'none';
+                exibirAtaqueDireto(Boolean(canAttackDirectly));
                 let message = `Clique em uma carta inimiga (vermelha) para atacar`;
                 if (protectedCards > 0) {
                     message += ` - ${protectedCards} carta(s) protegida(s) 🛡️`;
@@ -950,6 +987,25 @@
                 if (canAttackDirectly) message += ` ou use "Ataque Direto"`;
                 updateCombatInfo(message);
             }
+        }
+
+        /** O adversário do assento informado está com o campo vazio? */
+        function campoDoAdversarioVazio(assento) {
+            const oponente = assento === 'p1' ? 'p2' : 'p1';
+            const campo = gameState.cards?.[oponente]?.field || gameState.players?.[oponente]?.zones?.field || [];
+            return campo.length === 0;
+        }
+
+        /**
+         * Mostra/oculta o "Ataque Direto" no float do menu central. O pulso
+         * discreto (fade in/out) fica ligado só com o campo adversário vazio —
+         * a situação em que o ataque direto é a única jogada possível.
+         */
+        function exibirAtaqueDireto(visivel, campoInimigoVazio = false) {
+            const botao = document.getElementById('direct-attack-btn');
+            if (!botao) return;
+            botao.style.display = visivel ? 'inline-block' : 'none';
+            botao.classList.toggle('direct-attack-pulse', Boolean(visivel && campoInimigoVazio));
         }
 
         function updateCombatInfo(message) {
@@ -997,11 +1053,8 @@
                 card.classList.remove('attacking', 'can-attack', 'can-be-targeted', 'cannot-be-targeted', 'direct-attack');
             });
             
-            // Ocultar botão de ataque direto
-            const directAttackBtn = document.getElementById('direct-attack-btn');
-            if (directAttackBtn) {
-                directAttackBtn.style.display = 'none';
-            }
+            // Ocultar botão de ataque direto (e desligar o pulso do campo vazio)
+            exibirAtaqueDireto(false);
             
             gameState.attackingCard = null;
             gameState.targetCard = null;
@@ -1372,8 +1425,9 @@
             window.gameOver = false;
             // Nova geração invalida os setTimeout pendentes da partida anterior
             window.matchGeneration += 1;
-            // Libera a vinheta de vitória para a nova partida
+            // Libera as vinhetas de fim (vitória e derrota) para a nova partida
             window.victorySoundPlayed = false;
+            window.defeatSoundPlayed = false;
             // Devolve a interatividade travada pelo fim de jogo (fases, Fim Turno,
             // Espiar Mão, botão de opções etc.) antes de remontar a partida
             setMatchButtonsEnabled(true);
@@ -1730,42 +1784,62 @@
         window.confirmGameDialog = confirmarDialogoDoJogo;
         window.showGameConfirm = mostrarConfirmacaoDoJogo;
 
-        function showMessage(text, type = 'info') {
-            // Criar elemento de mensagem
-            const messageElement = document.createElement('div');
-            messageElement.textContent = text;
-            messageElement.style.position = 'fixed';
-            messageElement.style.top = '50%';
-            messageElement.style.left = '50%';
-            messageElement.style.transform = 'translate(-50%, -50%)';
-            messageElement.style.padding = '15px 25px';
-            messageElement.style.borderRadius = '10px';
-            messageElement.style.color = 'white';
-            messageElement.style.fontWeight = 'bold';
-            messageElement.style.fontSize = '16px';
-            messageElement.style.zIndex = '1000';
-            messageElement.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
-            
-            // Definir cor baseada no tipo
-            if (type === 'warning') {
-                messageElement.style.backgroundColor = '#ff6b6b';
-            } else if (type === 'success') {
-                messageElement.style.backgroundColor = '#5abf7a';
-            } else {
-                messageElement.style.backgroundColor = '#4b586e';
+        // ── Toasts de acontecimento ──────────────────────────────────────────
+        // Canto direito, empilhados de cima para baixo: os avisos do jogo não se
+        // atropelam mais no meio da tela e ficam tempo suficiente para a leitura
+        // (a entrada desce em fade; a saída só esmaece).
+        const MESSAGE_TOAST_BASE_MS = 6000;
+        const MESSAGE_TOAST_PER_LINE_MS = 700;
+        const MESSAGE_TOAST_MAX = 5;
+        const MESSAGE_TOAST_LEAVE_MS = 420;
+
+        function containerDeToasts() {
+            // Container declarado nas telas de partida (game.html/pvp.html). Sem
+            // ele (harness de teste/jsdom) o toast entra no body, como antes.
+            return document.getElementById('message-toasts') || document.body;
+        }
+
+        /**
+         * `conteudoHtml` fica reservado às notificações do próprio jogo (linhas
+         * com `<br/>`); as mensagens de regra entram como texto puro.
+         */
+        function mostrarToast(conteudo, type, duracaoMs, conteudoHtml = false) {
+            const container = containerDeToasts();
+            const toast = document.createElement('div');
+            toast.className = `message-toast message-toast-${type}`;
+            if (conteudoHtml) toast.innerHTML = conteudo;
+            else toast.textContent = conteudo;
+            container.appendChild(toast);
+
+            // Pilha com teto: o mais antigo sai para o novo aparecer
+            const ativos = container.querySelectorAll ? container.querySelectorAll('.message-toast') : null;
+            if (ativos && ativos.length > MESSAGE_TOAST_MAX && container.firstElementChild) {
+                container.firstElementChild.remove();
             }
-            
-            // Adicionar ao body
-            document.body.appendChild(messageElement);
-            
-            // Remover após 2 segundos
+
+            // A transição de entrada só roda depois que o toast nasce no DOM
+            const agendar = typeof requestAnimationFrame === 'function'
+                ? requestAnimationFrame
+                : callback => setTimeout(callback, 0);
+            agendar(() => toast.classList.add('visible'));
+
             setTimeout(() => {
-                // jsdom (used em testes unitários) não implementa Element.contains.
-                // Use parentNode check para garantir compatibilidade.
-                if (messageElement.parentNode) {
-                    messageElement.parentNode.removeChild(messageElement);
-                }
-            }, 2000);
+                toast.classList.add('leaving');
+                setTimeout(() => {
+                    // jsdom (testes unitários) não implementa Element.remove
+                    if (toast.parentElement) toast.parentElement.removeChild(toast);
+                }, MESSAGE_TOAST_LEAVE_MS);
+            }, duracaoMs);
+        }
+
+        /** Tempo de leitura proporcional ao tamanho da mensagem. */
+        function duracaoDoToast(texto) {
+            const linhas = String(texto).split('\n').length;
+            return MESSAGE_TOAST_BASE_MS + (linhas - 1) * MESSAGE_TOAST_PER_LINE_MS;
+        }
+
+        function showMessage(text, type = 'info') {
+            mostrarToast(text, type, duracaoDoToast(text));
         }
 
         function selectCard(cardId) {
@@ -2494,21 +2568,10 @@
             }
         }
 
-        // Sistema de notificação para mudanças de turno
+        // Notificação de turno/fim de jogo: entra na mesma pilha de toasts do
+        // canto direito (destaque dourado) e nunca some antes de dar leitura.
         function showTurnNotification(message, duration = 2000) {
-            const notification = document.getElementById('turnNotification');
-            const text = document.getElementById('notificationText');
-            if (!notification || !text) return;
-            
-            text.innerHTML = message;
-            notification.classList.add('show');
-            
-            setTimeout(() => {
-                notification.classList.add('hide');
-                setTimeout(() => {
-                    notification.classList.remove('show', 'hide');
-                }, 400);
-            }, duration);
+            mostrarToast(message, 'turn', Math.max(duration, 3000), true);
         }
 
         // Gear "Decks" no PvP: estatistica so do proprio deck (spec parte 4, decisao 6).
