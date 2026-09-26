@@ -3,948 +3,189 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>X Monsters - Contador de PV e Energia</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#0f1115">
+    <meta name="description" content="Entre no universo X Monsters: monte seu deck, enfrente a CPU ou desafie alguém online.">
+    <title>X Monsters — Escolha sua batalha</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #1a1e28;
-            --card-bg-color: #2b303d;
-            --text-color: #e2e8f0;
-            --primary-color: #c9a567; /* Dourado mais forte */
-            --secondary-color: #4b586e; /* Cinza metálico */
-            --pv-color: #5abf7a; /* Verde gema */
-            --energy-color: #f5c94a; /* Amarelo gema */
-            --pv-zero-color: #ff6b6b; /* Vermelho para PV 0 */
-            --border-radius: 10px;
-            --spacing: 20px;
+            color-scheme: dark;
+            /* Identidade de cor compartilhada com game.css, pvp-lobby e deck-builder. */
+            --bg-color: #0f1115;
+            --card-bg-color: #1a1e28;
+            --text-color: #f1f5f9;
+            --primary-color: #d4af37;
+            --secondary-color: #334155;
+            --energy-color: #fbbf24;
+            --field-color: #1e293b;
+            --field-border: #475569;
+            --muted-color: #a8b2c4;
+            --border-color: rgba(212, 175, 55, .22);
         }
-
+        * { box-sizing: border-box; }
         body {
-            font-family: 'Cinzel', serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: var(--spacing);
-            display: flex;
-            flex-direction: column;
-            gap: var(--spacing);
-            box-sizing: border-box;
-            align-items: center;
             min-height: 100vh;
-        }
-
-        .player-card {
-            background-color: var(--card-bg-color);
-            padding: var(--spacing);
-            border-radius: var(--border-radius);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
-            text-align: center;
-            border: 2px solid var(--primary-color);
-            position: relative;
-            width: 90%;
-            max-width: 450px;
-            transition: transform 0.3s ease-in-out;
-        }
-        
-        .player-card::before {
-            content: '';
-            position: absolute;
-            top: -5px;
-            left: -5px;
-            right: -5px;
-            bottom: -5px;
-            border: 3px solid var(--secondary-color);
-            border-radius: var(--border-radius);
-            z-index: -1;
-        }
-
-        h2 {
-            margin: 0 0 10px 0;
-            color: var(--primary-color);
-            cursor: pointer;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
-        }
-
-        .stats-container {
-            display: flex;
-            justify-content: space-around;
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .stat-box {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            flex: 1;
-        }
-
-        .stat-label {
-            font-weight: bold;
-            font-size: 1em;
-            margin-bottom: 5px;
-            text-transform: uppercase;
-        }
-
-        .stat-value {
-            font-size: 2.5em;
-            font-weight: bold;
+            margin: 0;
+            overflow-x: hidden;
             color: var(--text-color);
-            cursor: pointer;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            background:
+                radial-gradient(ellipse at 73% 26%, rgba(212, 175, 55, .09), transparent 37rem),
+                radial-gradient(ellipse at 0% 100%, rgba(51, 65, 85, .45), transparent 35rem),
+                var(--bg-color);
+            font-family: Inter, system-ui, sans-serif;
         }
-        
-        #pv-p1, #pv-p2 {
-            color: var(--pv-color);
+        a { color: inherit; text-decoration: none; }
+        .shell { width: min(1160px, calc(100% - 48px)); margin: 0 auto; }
+        .topbar { display: flex; align-items: center; justify-content: space-between; min-height: 84px; border-bottom: 1px solid rgba(212, 175, 55, .18); }
+        .marca { display: inline-flex; align-items: center; gap: 12px; font: 700 1.18rem Cinzel, serif; letter-spacing: .12em; }
+        .marca-x { display: grid; width: 38px; aspect-ratio: 1; place-items: center; border: 1px solid rgba(212, 175, 55, .55); color: var(--primary-color); transform: rotate(45deg); box-shadow: 0 0 24px rgba(212, 175, 55, .2), inset 0 0 16px rgba(251, 191, 36, .16); }
+        .marca-x span { transform: rotate(-45deg); font: 700 1.25rem Cinzel, serif; }
+        .toplink { color: var(--muted-color); font-size: .88rem; transition: color .2s; }
+        .toplink:hover { color: var(--primary-color); }
+        .hero { display: grid; grid-template-columns: 1.08fr .92fr; align-items: center; gap: clamp(32px, 7vw, 96px); min-height: 535px; padding: 42px 0 30px; }
+        .eyebrow { display: inline-flex; align-items: center; gap: 9px; color: var(--primary-color); font-size: .72rem; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; }
+        .eyebrow::before { width: 25px; height: 1px; content: ""; background: var(--primary-color); box-shadow: 0 0 10px var(--energy-color); }
+        h1 { max-width: 660px; margin: 17px 0 16px; font: 700 clamp(2.7rem, 6.5vw, 5.4rem)/.99 Cinzel, Georgia, serif; letter-spacing: -.045em; }
+        h1 em { color: var(--primary-color); font-style: normal; text-shadow: 0 0 28px rgba(212, 175, 55, .38); }
+        .intro { max-width: 510px; margin: 0; color: var(--muted-color); font-size: clamp(1rem, 1.8vw, 1.14rem); line-height: 1.75; }
+        .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+        .button { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; gap: 10px; padding: 0 19px; border: 1px solid var(--border-color); border-radius: 7px; background: rgba(26, 30, 40, .78); font-weight: 700; font-size: .9rem; transition: transform .18s, border-color .18s, background .18s; }
+        .button:hover { transform: translateY(-2px); border-color: var(--primary-color); background: rgba(51, 65, 85, .92); }
+        .button-primary { border-color: #e6cd7c; color: #0f1115; background: linear-gradient(120deg, #f3e0a4, #d4af37); box-shadow: 0 8px 32px rgba(212, 175, 55, .24); }
+        .button-primary:hover { color: #0f1115; background: linear-gradient(120deg, #fdf0c4, #e6c65a); }
+        .button .arrow { font-size: 1.1rem; }
+        .card-stage { position: relative; display: grid; min-height: 430px; place-items: center; isolation: isolate; }
+        .card-stage::before { position: absolute; z-index: -1; width: 78%; aspect-ratio: 1; border-radius: 50%; content: ""; background: var(--primary-color); filter: blur(100px); opacity: .16; }
+        .card-back { position: relative; width: min(280px, 62vw); max-height: 390px; aspect-ratio: 0.72; overflow: hidden; border: 1px solid rgba(212, 175, 55, .6); border-radius: 17px; background: var(--card-bg-color); box-shadow: 0 24px 80px rgba(0, 0, 0, .6), 0 0 55px rgba(212, 175, 55, .2); transform: rotate(5deg); }
+        .card-back img { width: 100%; height: 100%; object-fit: cover; }
+        .card-back::after { position: absolute; inset: 8px; border: 1px solid rgba(212, 175, 55, .35); border-radius: 11px; content: ""; pointer-events: none; }
+        .card-caption { position: absolute; right: 4%; bottom: 10%; padding: 11px 16px; border: 1px solid rgba(212, 175, 55, .3); border-radius: 6px; background: rgba(15, 17, 21, .82); color: var(--text-color); font: 600 .68rem Cinzel, serif; letter-spacing: .2em; backdrop-filter: blur(10px); }
+        .rune { position: absolute; color: rgba(212, 175, 55, .6); font: 1rem Cinzel, serif; text-shadow: 0 0 12px var(--energy-color); }
+        .rune-one { top: 15%; left: 9%; }.rune-two { top: 27%; right: 5%; }.rune-three { bottom: 17%; left: 10%; }
+        .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 3px 0 16px; }
+        .section-heading h2 { margin: 0; font: 600 1.1rem Cinzel, serif; letter-spacing: .06em; }
+        .section-heading p { margin: 0; color: var(--muted-color); font-size: .82rem; }
+        .portals { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; padding-bottom: 38px; }
+        .portal { position: relative; display: flex; min-height: 142px; flex-direction: column; justify-content: space-between; padding: 17px; overflow: hidden; border: 1px solid var(--border-color); border-radius: 9px; background: linear-gradient(145deg, rgba(26, 30, 40, .92), rgba(15, 17, 21, .95)); transition: transform .2s, border-color .2s, box-shadow .2s; }
+        .portal::after { position: absolute; top: -46px; right: -37px; width: 110px; height: 110px; border: 1px solid rgba(212, 175, 55, .14); border-radius: 50%; content: ""; box-shadow: 0 0 0 12px rgba(212, 175, 55, .03), 0 0 0 25px rgba(212, 175, 55, .02); }
+        .portal:hover { transform: translateY(-4px); border-color: rgba(212, 175, 55, .7); box-shadow: 0 15px 35px rgba(0, 0, 0, .45); }
+        .portal-icon { color: var(--primary-color); font-size: 1.3rem; line-height: 1; }
+        .portal:nth-child(3) .portal-icon { color: var(--energy-color); }
+        .portal:nth-child(4) .portal-icon { color: var(--energy-color); }
+        .portal-title { display: block; margin-top: 18px; font: 600 .88rem Cinzel, serif; }
+        .portal-note { display: block; margin-top: 5px; color: var(--muted-color); font-size: .72rem; line-height: 1.45; }
+        .portal-button { width: 100%; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+        .rules-overlay { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(5, 6, 8, .85); opacity: 0; visibility: hidden; transition: opacity .2s, visibility .2s; }
+        .rules-overlay.visible { opacity: 1; visibility: visible; }
+        .rules-dialog { position: relative; width: min(650px, 100%); max-height: min(82vh, 760px); overflow: auto; padding: 28px clamp(20px, 5vw, 38px); border: 1px solid rgba(212, 175, 55, .45); border-radius: 12px; background: linear-gradient(145deg, #1a1e28, #0f1115 68%); box-shadow: 0 20px 70px #000, 0 0 40px rgba(212, 175, 55, .16); }
+        .rules-dialog h2, .rules-dialog h3 { font-family: Cinzel, Georgia, serif; }
+        .rules-dialog h2 { margin: 0 38px 24px 0; color: var(--primary-color); font-size: 1.35rem; }
+        .rules-dialog h3 { margin: 24px 0 9px; padding-bottom: 6px; border-bottom: 1px solid rgba(212, 175, 55, .22); color: var(--energy-color); font-size: .98rem; }
+        .rules-dialog h3:first-of-type { margin-top: 0; }
+        .rules-dialog p, .rules-dialog li { color: #d7dce4; font-size: .9rem; line-height: 1.7; }
+        .rules-dialog p { margin: 0 0 12px; }
+        .rules-dialog ul { padding-left: 22px; }
+        .rules-close { position: absolute; top: 12px; right: 16px; width: 36px; height: 36px; border: 0; background: transparent; color: var(--primary-color); font-size: 1.8rem; cursor: pointer; }
+        .rules-close:hover { color: #fff; }
+        footer { display: flex; justify-content: space-between; gap: 16px; padding: 16px 0 25px; border-top: 1px solid rgba(212, 175, 55, .14); color: #7d8798; font-size: .72rem; }
+        @media (max-width: 900px) { .hero { min-height: 460px; gap: 24px; }.card-back { width: min(240px, 60vw); }.portals { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 650px) {
+            .shell { width: min(100% - 32px, 500px); }.topbar { min-height: 70px; }.toplink { font-size: .76rem; }
+            .hero { grid-template-columns: 1fr; gap: 4px; padding: 44px 0 24px; }.hero-copy { position: relative; z-index: 1; }.card-stage { min-height: 300px; margin-top: -3px; }.card-back { width: 185px; max-height: 260px; }.card-caption { right: 12%; bottom: 8%; }.rune-one { top: 12%; left: 16%; }.rune-two { top: 19%; right: 12%; }.rune-three { bottom: 12%; left: 16%; }
+            h1 { max-width: 500px; font-size: clamp(2.8rem, 12vw, 4.1rem); }.section-heading { display: block; }.section-heading p { margin-top: 5px; }.portals { grid-template-columns: repeat(2, 1fr); gap: 9px; }.portal { min-height: 132px; padding: 14px; }.portal:last-child { grid-column: 1 / -1; min-height: 105px; }
+            footer { flex-direction: column; gap: 6px; }
         }
-        
-        .pv-zero {
-            color: var(--pv-zero-color) !important;
-        }
-
-        #energy-p1, #energy-p2 {
-            color: var(--energy-color);
-        }
-
-        .action-button {
-            background-color: var(--primary-color);
-            color: var(--bg-color);
-            border: none;
-            border-radius: 5px;
-            padding: 12px 20px;
-            font-size: 1em;
-            cursor: pointer;
-            transition: background-color 0.3s ease, transform 0.1s ease;
-            width: 100%;
-            text-transform: uppercase;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            text-decoration: none;
-            text-align: center;
-        }
-        .action-button:hover {
-            background-color: #b07d35;
-            transform: scale(1.02);
-        }
-        .action-button:active {
-            transform: scale(0.98);
-        }
-        
-        .energy-button {
-            background-color: var(--energy-color);
-            color: var(--bg-color);
-        }
-        .energy-button:hover {
-            background-color: #e0b400;
-        }
-
-        .rules-button {
-            background-color: var(--secondary-color);
-            color: var(--text-color);
-        }
-        .rules-button:hover {
-            background-color: #3b4252;
-        }
-
-        .reset-button {
-            background-color: #8c8c8c;
-        }
-        .reset-button:hover {
-            background-color: #7a7a7a;
-        }
-
-        .plus-minus-row {
-            display: flex;
-            justify-content: center;
-            gap: 5px;
-            margin-top: 10px;
-        }
-
-        .plus-minus-button {
-            background-color: var(--secondary-color);
-            color: var(--text-color);
-            border: 2px solid var(--primary-color);
-            width: 45px;
-            height: 45px;
-            font-size: 1.5em;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: background-color 0.2s ease, transform 0.1s ease;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-        }
-        .plus-minus-button:hover {
-            background-color: #5d6d7e;
-            transform: scale(1.05);
-        }
-        .plus-minus-button:active {
-            transform: scale(0.95);
-        }
-
-        .dice-button {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            background-color: var(--primary-color);
-            color: var(--bg-color);
-            border: none;
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 1.2em;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .dice-button:hover {
-            background-color: #b07d35;
-            transform: scale(1.05);
-        }
-        
-        .dice-button:disabled {
-            background-color: #666;
-            cursor: not-allowed;
-            opacity: 0.5;
-            transform: none;
-        }
-        
-        .dice-button:disabled:hover {
-            background-color: #666;
-            transform: none;
-        }
-
-        .dice-animation {
-            animation: diceRoll 0.8s ease-in-out;
-        }
-        
-        @keyframes diceRoll {
-            0% { transform: rotate(0deg) scale(1); }
-            25% { transform: rotate(90deg) scale(1.2); }
-            50% { transform: rotate(180deg) scale(1.1); }
-            75% { transform: rotate(270deg) scale(1.2); }
-            100% { transform: rotate(360deg) scale(1); }
-        }
-
-        .players-container {
-            display: flex;
-            flex-direction: column;
-            gap: var(--spacing);
-            width: 100%;
-            margin: 0 auto;
-        }
-        
-        .main-controls-container {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            width: 100%;
-            max-width: 450px;
-            margin: 0 auto;
-        }
-
-        .secondary-controls {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        
-        /* --- Animações para os cards --- */
-        @keyframes pulse-winner {
-            0% { transform: scale(1); box-shadow: 0 0 10px var(--pv-color); }
-            50% { transform: scale(1.03); box-shadow: 0 0 20px var(--pv-color); }
-            100% { transform: scale(1); box-shadow: 0 0 10px var(--pv-color); }
-        }
-
-        @keyframes pulse-loser {
-            0% { transform: scale(1); box-shadow: 0 0 10px var(--pv-zero-color); }
-            50% { transform: scale(0.97); box-shadow: 0 0 20px var(--pv-zero-color); }
-            100% { transform: scale(1); box-shadow: 0 0 10px var(--pv-zero-color); }
-        }
-        
-        .winner-card {
-            animation: pulse-winner 1s infinite;
-            border-color: var(--pv-color);
-        }
-        
-        .loser-card {
-            animation: pulse-loser 1s infinite;
-            border-color: var(--pv-zero-color);
-        }
-
-        /* --- Pop-up de Regras (Modal) --- */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            visibility: hidden;
-            opacity: 0;
-            transition: visibility 0s, opacity 0.3s ease;
-            z-index: 1000;
-        }
-
-        .modal-overlay.visible {
-            visibility: visible;
-            opacity: 1;
-        }
-
-        .modal-content {
-            background-color: var(--card-bg-color);
-            padding: var(--spacing);
-            border-radius: var(--border-radius);
-            width: 90%;
-            max-width: 600px;
-            max-height: 80vh;
-            overflow-y: auto;
-            position: relative;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.5);
-            border: 2px solid var(--primary-color);
-        }
-
-        .modal-close {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            font-size: 2em;
-            color: var(--primary-color);
-            text-decoration: none;
-            line-height: 1;
-            cursor: pointer;
-        }
-        .modal-close:hover {
-            color: var(--energy-color);
-        }
-
-        .rules-text h3 {
-            color: var(--primary-color);
-            border-bottom: 2px solid var(--secondary-color);
-            padding-bottom: 5px;
-            margin-top: 20px;
-        }
-        .rules-text h3:first-of-type {
-            margin-top: 0;
-        }
-
-        .rules-text p {
-            line-height: 1.6;
-            margin-bottom: 15px;
-            text-align: left;
-        }
-
-        /* Layout para Telas maiores que 550px (sem limite de orientação) */
-        @media (min-width: 550px) {
-            body {
-                height: 100vh;
-                overflow-y: hidden;
-                padding: var(--spacing) 50px;
-            }
-            
-            .players-container {
-                flex-direction: row;
-                justify-content: center;
-                gap: 50px;
-                max-width: 900px;
-                width: 100%;
-            }
-
-            .player-card {
-                flex: 1;
-                max-width: none;
-            }
-            
-            .main-controls-container {
-                max-width: 600px;
-            }
-
-            .secondary-controls {
-                flex-direction: row;
-                justify-content: center;
-                gap: 20px;
-            }
-            
-            .secondary-controls .action-button {
-                flex: 1;
-            }
-        }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
     </style>
 </head>
 <body>
+    <header class="shell topbar">
+        <a class="marca" href="index.html" aria-label="X Monsters, início"><span class="marca-x"><span>X</span></span><span>MONSTERS</span></a>
+        <a class="toplink" href="real-play.html">Contador para cartas físicas <span aria-hidden="true">↗</span></a>
+    </header>
 
-    <div class="players-container">
-        <div class="player-card" id="card-p1">
-            <button class="dice-button" id="dice-p1" onclick="rollDice('p1')" title="Dado da Sorte (2 energia)">🎲</button>
-            <h2 id="name-p1" onclick="editName('p1')">Jogador 1</h2>
-            <div class="stats-container">
-                <div class="stat-box">
-                    <span class="stat-label">PV</span>
-                    <span id="pv-p1" class="stat-value" onclick="editStatValue('pv', 'p1')">300</span>
-                    <div class="plus-minus-row">
-                        <button class="plus-minus-button" 
-                                onclick="handlePvClick('pv', 'p1', -1, event)" 
-                                onmousedown="startAutoDecrement('pv', 'p1', event)" 
-                                onmouseup="stopAutoDecrement()" 
-                                onmouseleave="stopAutoDecrement()"
-                                ontouchstart="startAutoDecrement('pv', 'p1', event)" 
-                                ontouchend="stopAutoDecrement()">-</button>
-                        <button class="plus-minus-button" onclick="changeStat('pv', 'p1', 1)">+</button>
-                    </div>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">Energia</span>
-                    <span id="energy-p1" class="stat-value">6</span>
-                <div class="plus-minus-row">
-                        <button class="plus-minus-button" onclick="changeStat('energy', 'p1', -1)">-</button>
-                        <button class="plus-minus-button" onclick="changeStat('energy', 'p1', 1)">+</button>
-                    </div>                </div>
-            </div>
-        </div>
-
-        <div class="player-card" id="card-p2">
-            <button class="dice-button" id="dice-p2" onclick="rollDice('p2')" title="Dado da Sorte (2 energia)">🎲</button>
-            <h2 id="name-p2" onclick="editName('p2')">Jogador 2</h2>
-            <div class="stats-container">
-                <div class="stat-box">
-                    <span class="stat-label">PV</span>
-                    <span id="pv-p2" class="stat-value" onclick="editStatValue('pv', 'p2')">300</span>
-                    <div class="plus-minus-row">
-                        <button class="plus-minus-button" 
-                                onclick="handlePvClick('pv', 'p2', -1, event)" 
-                                onmousedown="startAutoDecrement('pv', 'p2', event)" 
-                                onmouseup="stopAutoDecrement()" 
-                                onmouseleave="stopAutoDecrement()"
-                                ontouchstart="startAutoDecrement('pv', 'p2', event)" 
-                                ontouchend="stopAutoDecrement()">-</button>
-                        <button class="plus-minus-button" onclick="changeStat('pv', 'p2', 1)">+</button>
-                    </div>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">Energia</span>
-                    <span id="energy-p2" class="stat-value">6</span>
-                   <div class="plus-minus-row">
-                        <button class="plus-minus-button" onclick="changeStat('energy', 'p2', -1)">-</button>
-                        <button class="plus-minus-button" onclick="changeStat('energy', 'p2', 1)">+</button>
-                    </div>
+    <main class="shell">
+        <section class="hero" aria-labelledby="hero-title">
+            <div class="hero-copy">
+                <span class="eyebrow">O campo está aberto</span>
+                <h1 id="hero-title">Escolha sua <em>batalha.</em></h1>
+                <p class="intro">Monte sua estratégia, reúna seus monstros e descubra quem domina o campo. Jogue online, enfrente a CPU ou prepare um deck para sua próxima partida.</p>
+                <div class="hero-actions">
+                    <a class="button button-primary" href="pvp-lobby.html">⚡ Jogar PvP <span class="arrow" aria-hidden="true">→</span></a>
+                    <a class="button" href="game.html">Jogar contra CPU <span class="arrow" aria-hidden="true">→</span></a>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <div class="main-controls-container">
-            <!-- Botão Fase de Energia removido – função reimplementada como Próximo Turno -->
-        <button class="action-button" onclick="nextTurn()">Próximo Turno</button>
-        <div class="secondary-controls">
-              <button class="action-button reset-button" onclick="resetGame()">Reiniciar Jogo</button>
-            <button class="action-button rules-button" onclick="showRulesModal()">Regras do Jogo</button>
-        </div>
-    </div>
-
-    <div id="rules-modal" class="modal-overlay">
-        <div class="modal-content">
-            <span class="modal-close" onclick="closeRulesModal()">&times;</span>
-            <div class="rules-text">
-                <h2>Regras do Jogo X Monsters</h2>
-                
-                <h3>1. Objetivo e Condição de Vitória</h3>
-                <p>O objetivo principal do jogo é ser o único jogador com monstros em campo e/ou reduzir os pontos de vida do seu oponente a zero.</p>
-                <p><strong>Pontos de Vida (PV):</strong> Cada jogador começa com 300 pontos de vida. Se o seu PV chegar a zero ou menos, você perde a partida.</p>
-
-                <h3>2. Sistema de Energia</h3>
-                <p>A energia é o recurso principal do jogo, usado para invocar monstros e equipar cartas de suporte.</p>
-                <p><strong>Energia Inicial:</strong> Cada jogador começa o jogo com 6 pontos de energia.</p>
-                <p><strong>Aumento de Energia:</strong> A cada virada de turno, quando volta para o seu turno na Fase de Energia, você ganha 1 ponto de energia adicional.</p>
-                <p><strong>Mecânica de Gasto:</strong> Dentro do seu turno, você pode gastar toda a sua energia disponível. No turno seguinte, você volta com o total máximo que tinha no turno anterior mais 1 ponto.</p>
-                <p><strong>Progressão:</strong> Por exemplo: turno 1 (6 energia), turno 2 (7 energia), turno 3 (8 energia), e assim por diante até o limite máximo.</p>
-                <p><strong>Limite Máximo:</strong> A energia máxima que você pode acumular é de 20 pontos.</p>
-                <p><strong>Dado da Sorte:</strong> Uma vez por jogo, cada jogador pode gastar 2 pontos de energia para rolar um dado da sorte e ganhar de 1 a 6 pontos de energia adicionais (sem ultrapassar o limite de 20).</p>
-
-                <h3>3. Fases do Turno</h3>
-                <p>Cada turno de um jogador é dividido em três fases obrigatórias, que devem ser seguidas em sequência:</p>
-                <ul>
-                    <li><strong>Fase de Energia:</strong> Sua energia total aumenta em 1 ponto (até o limite de 20). Seu novo máximo de energia será o máximo do turno anterior + 1.</li>
-                    <li><strong>Fase de Invocação:</strong> Nesta fase, você pode gastar sua energia para jogar cartas da sua mão. Você pode invocar qualquer número de monstros e equipar cartas de suporte, desde que tenha energia suficiente para pagar o custo de cada carta.</li>
-                    <li><strong>Fase de Combate:</strong> Você pode declarar ataques com seus monstros contra os monstros do oponente. Cada um dos seus monstros pode atacar uma vez por turno, a menos que sua habilidade especial diga o contrário.</li>
-                </ul>
-
-                <h3>4. Combate e Dano</h3>
-                <p><strong>Ataque:</strong> Para atacar, escolha um de seus monstros e declare-o como atacante, escolhendo um monstro do oponente como alvo.</p>
-                <p><strong>Cálculo de Dano:</strong> O dano de um ataque é calculado subtraindo a Defesa do monstro do oponente do Ataque do seu monstro.</p>
-                <p><strong>Derrota:</strong> Se a Defesa de um monstro chegar a 0 ou menos, ele é considerado derrotado e é removido do campo.</p>
-                <p><strong>Dano aos Pontos de Vida:</strong> Se o Ataque de um monstro for maior que a Defesa do monstro alvo, o dano restante é aplicado diretamente aos pontos de vida do oponente.</p>
-                <p><strong>Ataque direto ao oponente:</strong> algumas criaturas (e alguns suportes, como Atravessava) podem atacar os PV do oponente ignorando os monstros. <strong>Ninguém ataca direto no próprio primeiro turno</strong> — a restrição vale para cada jogador, inclusive para ataque direto concedido por carta.</p>
-
-                <h3>5. Mecânicas Adicionais</h3>
-                <p><strong>Evolução:</strong> Alguns monstros têm uma forma evoluída. O custo para evoluir é a diferença de energia entre a criatura básica e sua versão evoluída. A carta evoluída substitui a criatura básica no campo.</p>
-                <p><strong>Cartas de Suporte:</strong> Essas cartas são itens equipáveis que fornecem bônus de Ataque e Defesa, além de habilidades especiais. Cada carta de suporte tem seu próprio custo de energia para ser equipada em um monstro.</p>
+            <div class="card-stage" aria-label="Verso oficial das cartas X Monsters">
+                <span class="rune rune-one" aria-hidden="true">✦</span><span class="rune rune-two" aria-hidden="true">✧</span><span class="rune rune-three" aria-hidden="true">✦</span>
+                <div class="card-back"><img src="assets/verso.jpeg" alt="Verso azul luminoso das cartas X Monsters"></div>
+                <span class="card-caption">UM JOGO DE CARTAS ORIGINAL</span>
             </div>
-        </div>
+        </section>
+
+        <section aria-labelledby="portals-title">
+            <div class="section-heading"><h2 id="portals-title">Entre no universo X Monsters</h2><p>Escolha por onde começar</p></div>
+            <nav class="portals" aria-label="Modos e ferramentas">
+                <a class="portal" href="pvp-lobby.html"><span class="portal-icon" aria-hidden="true">⌁</span><span><strong class="portal-title">Lobby PvP</strong><span class="portal-note">Crie uma sala e desafie outro jogador.</span></span></a>
+                <a class="portal" href="game.html"><span class="portal-icon" aria-hidden="true">⚔</span><span><strong class="portal-title">Jogar vs CPU</strong><span class="portal-note">Treine sua estratégia contra a máquina.</span></span></a>
+                <a class="portal" href="deck-builder.html"><span class="portal-icon" aria-hidden="true">▧</span><span><strong class="portal-title">Deck Builder</strong><span class="portal-note">Crie e ajuste seu deck de 40 cartas.</span></span></a>
+                <button class="portal portal-button" type="button" id="openRules"><span class="portal-icon" aria-hidden="true">✧</span><span><strong class="portal-title">Regras do jogo</strong><span class="portal-note">Consulte as regras antes de entrar no campo.</span></span></button>
+                <a class="portal" href="real-play.html"><span class="portal-icon" aria-hidden="true">◉</span><span><strong class="portal-title">Contador de pontos</strong><span class="portal-note">Acompanhe PV e energia nas partidas com cartas físicas.</span></span></a>
+            </nav>
+        </section>
+    </main>
+    <div class="rules-overlay" id="rulesModal" aria-hidden="true">
+        <section class="rules-dialog" role="dialog" aria-modal="true" aria-labelledby="rulesTitle" tabindex="-1">
+            <button class="rules-close" type="button" id="closeRules" aria-label="Fechar regras">&times;</button>
+            <h2 id="rulesTitle">Regras do Jogo X Monsters</h2>
+            <h3>1. Objetivo e Condição de Vitória</h3>
+            <p>O objetivo principal do jogo é ser o único jogador com monstros em campo e/ou reduzir os pontos de vida do seu oponente a zero.</p>
+            <p><strong>Pontos de Vida (PV):</strong> Cada jogador começa com 300 pontos de vida. Se o seu PV chegar a zero ou menos, você perde a partida.</p>
+            <h3>2. Sistema de Energia</h3>
+            <p>A energia é o recurso principal do jogo, usado para invocar monstros e equipar cartas de suporte.</p>
+            <p><strong>Energia Inicial:</strong> Cada jogador começa o jogo com 6 pontos de energia.</p>
+            <p><strong>Aumento de Energia:</strong> A cada virada de turno, quando volta para o seu turno na Fase de Energia, você ganha 1 ponto de energia adicional.</p>
+            <p><strong>Mecânica de Gasto:</strong> Dentro do seu turno, você pode gastar toda a sua energia disponível. No turno seguinte, você volta com o total máximo que tinha no turno anterior mais 1 ponto.</p>
+            <p><strong>Progressão:</strong> Por exemplo: turno 1 (6 energia), turno 2 (7 energia), turno 3 (8 energia), e assim por diante até o limite máximo.</p>
+            <p><strong>Limite Máximo:</strong> A energia máxima que você pode acumular é de 20 pontos.</p>
+            <p><strong>Dado da Sorte:</strong> Uma vez por jogo, cada jogador pode gastar 2 pontos de energia para rolar um dado da sorte e ganhar de 1 a 6 pontos de energia adicionais (sem ultrapassar o limite de 20).</p>
+            <h3>3. Fases do Turno</h3>
+            <p>Cada turno de um jogador é dividido em três fases obrigatórias, que devem ser seguidas em sequência:</p>
+            <ul>
+                <li><strong>Fase de Energia:</strong> Sua energia total aumenta em 1 ponto (até o limite de 20). Seu novo máximo de energia será o máximo do turno anterior + 1.</li>
+                <li><strong>Fase de Invocação:</strong> Nesta fase, você pode gastar sua energia para jogar cartas da sua mão. Você pode invocar qualquer número de monstros e equipar cartas de suporte, desde que tenha energia suficiente para pagar o custo de cada carta.</li>
+                <li><strong>Fase de Combate:</strong> Você pode declarar ataques com seus monstros contra os monstros do oponente. Cada um dos seus monstros pode atacar uma vez por turno, a menos que sua habilidade especial diga o contrário.</li>
+            </ul>
+            <h3>4. Combate e Dano</h3>
+            <p><strong>Ataque:</strong> Para atacar, escolha um de seus monstros e declare-o como atacante, escolhendo um monstro do oponente como alvo.</p>
+            <p><strong>Cálculo de Dano:</strong> O dano de um ataque é calculado subtraindo a Defesa do monstro do oponente do Ataque do seu monstro.</p>
+            <p><strong>Derrota:</strong> Se a Defesa de um monstro chegar a 0 ou menos, ele é considerado derrotado e é removido do campo.</p>
+            <p><strong>Dano aos Pontos de Vida:</strong> Se o Ataque de um monstro for maior que a Defesa do monstro alvo, o dano restante é aplicado diretamente aos pontos de vida do oponente.</p>
+            <p><strong>Ataque direto ao oponente:</strong> algumas criaturas (e alguns suportes, como Atravessava) podem atacar os PV do oponente ignorando os monstros. <strong>Ninguém ataca direto no próprio primeiro turno</strong> — a restrição vale para cada jogador, inclusive para ataque direto concedido por carta.</p>
+            <h3>5. Mecânicas Adicionais</h3>
+            <p><strong>Evolução:</strong> Alguns monstros têm uma forma evoluída. O custo para evoluir é a diferença de energia entre a criatura básica e sua versão evoluída. A carta evoluída substitui a criatura básica no campo.</p>
+            <p><strong>Cartas de Suporte:</strong> Essas cartas são itens equipáveis que fornecem bônus de Ataque e Defesa, além de habilidades especiais. Cada carta de suporte tem seu próprio custo de energia para ser equipada em um monstro.</p>
+        </section>
     </div>
-
-    <!-- Elementos de áudio -->
-    <audio id="punchSound" preload="auto">
-        <source src="assets/audio/punch.mp3" type="audio/mpeg">
-    </audio>
-    <audio id="victorySound" preload="auto">
-        <source src="assets/audio/victory.mp3" type="audio/mpeg">
-    </audio>
-    <audio id="energySound" preload="auto">
-        <source src="assets/audio/energy.mp3" type="audio/mpeg">
-    </audio>
-    <audio id="healingSound" preload="auto">
-        <source src="assets/audio/healing.mp3" type="audio/mpeg">
-    </audio>
-    <audio id="wasteSound" preload="auto">
-        <source src="assets/audio/waste.mp3" type="audio/mpeg">
-    </audio>
-
+    <footer class="shell"><span>© 2003–2026 X Monsters</span><span>Estratégia, criaturas e batalhas.</span></footer>
     <script>
-        const INITIAL_PV = 300;
-        const INITIAL_ENERGY = 6;
-        const MAX_ENERGY = 20;
-
-        // Variáveis para controle do auto-decremento
-        let autoDecrementInterval = null;
-        let autoDecrementTimeout = null;
-        let touchHandled = false;
-
-        // Variáveis para controle do dado da sorte
-        let diceUsed = {
-            p1: false,
-            p2: false
-        };
-
-        // Variáveis para acompanhar o máximo de energia atual de cada jogador
-        let maxEnergy = {
-            p1: INITIAL_ENERGY,
-            p2: INITIAL_ENERGY
-        };
-
-        // --- Controle de turno -------------------------------------------
-        let currentPlayer = 'p1';
-        let turnNumber = 1;
-
-        function nextTurn() {
-            // alterna jogador
-            currentPlayer = currentPlayer === 'p1' ? 'p2' : 'p1';
-            turnNumber++;
-
-            // aumenta energia (máximo) do jogador atual
-            if (maxEnergy[currentPlayer] < MAX_ENERGY) {
-                maxEnergy[currentPlayer]++;
-            }
-
-            // atualiza o valor exibido
-            document.getElementById(`energy-${currentPlayer}`).innerText = maxEnergy[currentPlayer];
-
-            // notificação simples – pode ser customizada mais tarde
-            const playerName = currentPlayer === 'p1' ? 'Jogador 1' : 'Jogador 2';
-            showTurnNotification(`⚡ ${playerName}<br/>Energia: ${maxEnergy[currentPlayer]}`, 1000);
+        const regras = document.getElementById('rulesModal');
+        const dialogoRegras = regras.querySelector('[role="dialog"]');
+        function abrirRegras() {
+            regras.classList.add('visible');
+            regras.setAttribute('aria-hidden', 'false');
+            dialogoRegras.focus();
         }
-
-        function startAutoDecrement(stat, player, event) {
-            // Previne comportamento padrão em dispositivos touch para evitar conflitos
-            if (event && event.type === 'touchstart') {
-                event.preventDefault();
-                // Para touch, executa imediatamente um clique e depois inicia o timer
-                changeStat(stat, player, -1);
-                touchHandled = true;
-            }
-            
-            // Limpa qualquer intervalo anterior
-            stopAutoDecrement();
-            
-            // Aguarda 500ms antes de começar o auto-decremento (para não interferir com clique único)
-            autoDecrementTimeout = setTimeout(() => {
-                // Inicia o auto-decremento de 5 pontos por segundo (200ms por ponto)
-                autoDecrementInterval = setInterval(() => {
-                    changeStat(stat, player, -1);
-                }, 200); // 200ms = 5 vezes por segundo
-            }, 500);
+        function fecharRegras() {
+            regras.classList.remove('visible');
+            regras.setAttribute('aria-hidden', 'true');
+            document.getElementById('openRules').focus();
         }
-
-        function stopAutoDecrement() {
-            if (autoDecrementTimeout) {
-                clearTimeout(autoDecrementTimeout);
-                autoDecrementTimeout = null;
-            }
-            if (autoDecrementInterval) {
-                clearInterval(autoDecrementInterval);
-                autoDecrementInterval = null;
-            }
-            // Reset da flag de touch após um pequeno delay
-            setTimeout(() => {
-                touchHandled = false;
-            }, 100);
-        }
-
-        function handlePvClick(stat, player, amount, event) {
-            // Em dispositivos touch, o onclick só deve ser executado se não foi um touch longo
-            if (event && event.type === 'click' && touchHandled) {
-                return; // Não executa o click se foi um touch que já foi tratado
-            }
-            
-            // Se não há auto-decremento ativo, executa o clique único
-            if (!autoDecrementInterval && !autoDecrementTimeout) {
-                changeStat(stat, player, amount);
-            }
-        }
-
-        function changeStat(stat, player, amount) {
-            const element = document.getElementById(`${stat}-${player}`);
-            let currentValue = parseInt(element.innerText);
-            let newValue = currentValue + amount;
-
-            if (newValue < 0) {
-                newValue = 0;
-            }
-
-            if (stat === 'energy') {
-                if (newValue > MAX_ENERGY) {
-                    newValue = MAX_ENERGY;
-                }
-            }
-
-            // Tocar som de soco quando os pontos de vida são diminuídos
-            if (stat === 'pv' && amount < 0) {
-                const punchSound = document.getElementById('punchSound');
-                punchSound.currentTime = 0; // Reinicia o áudio para permitir múltiplos cliques rápidos
-                punchSound.play().catch(error => console.log('Erro ao tocar o som:', error));
-            }
-
-            // Tocar som de cura quando os pontos de vida são aumentados
-            if (stat === 'pv' && amount > 0) {
-                const healingSound = document.getElementById('healingSound');
-                healingSound.currentTime = 0;
-                healingSound.play().catch(error => console.log('Erro ao tocar o som de cura:', error));
-            }
-
-            // Tocar som de energia quando a energia é aumentada
-            if (stat === 'energy' && amount > 0) {
-                const energySound = document.getElementById('energySound');
-                energySound.currentTime = 0;
-                energySound.play().catch(error => console.log('Erro ao tocar o som de energia:', error));
-            }
-
-            // Tocar som de waste quando a energia é diminuída
-            if (stat === 'energy' && amount < 0) {
-                const wasteSound = document.getElementById('wasteSound');
-                wasteSound.currentTime = 0;
-                wasteSound.play().catch(error => console.log('Erro ao tocar o som de waste:', error));
-            }
-
-            element.innerText = newValue;
-            
-            if (stat === 'pv') {
-                const otherPlayer = player === 'p1' ? 'p2' : 'p1';
-                const winnerCard = document.getElementById(`card-${otherPlayer}`);
-                const loserCard = document.getElementById(`card-${player}`);
-                
-                // Limpa as classes de animação de ambos os cards antes de aplicar as novas
-                winnerCard.classList.remove('winner-card', 'loser-card');
-                loserCard.classList.remove('winner-card', 'loser-card');
-
-                if (newValue <= 0) {
-                    element.classList.add('pv-zero');
-                    loserCard.classList.add('loser-card');
-                    winnerCard.classList.add('winner-card');
-                    
-                    // Tocar som de vitória quando um jogador chega a 0 PV
-                    const victorySound = document.getElementById('victorySound');
-                    victorySound.currentTime = 0;
-                    victorySound.play().catch(error => console.log('Erro ao tocar o som de vitória:', error));
-                } else {
-                    element.classList.remove('pv-zero');
-                }
-            }
-        }
-
-        // Função removida – energia agora atualizada automaticamente em nextTurn()
-
-        function rollDice(player) {
-            // Verifica se o jogador já usou o dado
-                if (diceUsed[player]) {
-                    showMessage('Você já usou o dado da sorte nesta partida!');
-                return;
-            }
-
-            // Verifica se o jogador tem energia suficiente (mínimo 2)
-            const energyElement = document.getElementById(`energy-${player}`);
-            const currentEnergy = parseInt(energyElement.innerText);
-            
-            if (currentEnergy < 2) {
-                showMessage('Você precisa de pelo menos 2 pontos de energia para usar o dado da sorte!');
-                return;
-            }
-
-            // Deduz 2 pontos de energia
-            changeStat('energy', player, -2);
-
-            // Adiciona animação ao botão do dado
-            const diceButton = document.getElementById(`dice-${player}`);
-            diceButton.classList.add('dice-animation');
-
-            // Simula o tempo de animação do dado
-            setTimeout(() => {
-                // Gera um número aleatório entre 1 e 6
-                const diceResult = Math.floor(Math.random() * 6) + 1; // 1 a 6
-                
-                // Adiciona a energia ganha, respeitando o limite de 12
-                const newEnergyValue = Math.min(currentEnergy - 2 + diceResult, MAX_ENERGY);
-                const actualGain = newEnergyValue - (currentEnergy - 2);
-                
-                if (actualGain > 0) {
-                    changeStat('energy', player, actualGain);
-                }
-                
-            showMessage(`🎲 Dado da Sorte! Você ganhou ${diceResult} pontos de energia!`);
-
-                // Marca que o jogador já usou o dado e desabilita o botão
-                diceUsed[player] = true;
-                diceButton.disabled = true;
-                diceButton.title = 'Dado da sorte já usado nesta partida';
-                
-                // Remove a animação
-                diceButton.classList.remove('dice-animation');
-            }, 800); // Tempo da animação
-        }
-
-        // Função para criar prompt customizado com teclado numérico para mobile
-        function numericPrompt(message, defaultValue = '') {
-            return new Promise((resolve) => {
-                // Criar overlay
-                const overlay = document.createElement('div');
-                overlay.style.cssText = `
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    background: rgba(0, 0, 0, 0.8);
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    z-index: 10000;
-                `;
-
-                // Criar modal
-                const modal = document.createElement('div');
-                modal.style.cssText = `
-                    background: var(--card-bg-color);
-                    padding: 20px;
-                    border-radius: 10px;
-                    border: 2px solid var(--primary-color);
-                    max-width: 90%;
-                    width: 300px;
-                `;
-
-                // Criar elementos do modal
-                modal.innerHTML = `
-                    <div style="color: var(--text-color); margin-bottom: 15px; font-size: 14px; line-height: 1.4;">
-                        ${message.replace(/\n/g, '<br>')}
-                    </div>
-                    <input type="text" inputmode="numeric" pattern="[0-9+\\-]*" 
-                           style="width: 90%; padding: 10px; margin-bottom: 15px; 
-                                  border: 1px solid var(--secondary-color); 
-                                  border-radius: 5px; font-size: 16px; 
-                                  background: var(--bg-color); 
-                                  color: var(--text-color);"
-                           value="${defaultValue}" 
-                           placeholder="Digite o valor...">
-                    <div style="display: flex; gap: 10px;">
-                        <button style="flex: 1; padding: 10px; background: var(--secondary-color); 
-                                       color: var(--text-color); border: none; 
-                                       border-radius: 5px; cursor: pointer;">Cancelar</button>
-                        <button style="flex: 1; padding: 10px; background: var(--primary-color); 
-                                       color: var(--bg-color); border: none; 
-                                       border-radius: 5px; cursor: pointer;">OK</button>
-                    </div>
-                `;
-
-                const input = modal.querySelector('input');
-                const cancelBtn = modal.querySelectorAll('button')[0];
-                const okBtn = modal.querySelectorAll('button')[1];
-
-                // Eventos
-                cancelBtn.onclick = () => {
-                    document.body.removeChild(overlay);
-                    resolve(null);
-                };
-
-                okBtn.onclick = () => {
-                    const value = input.value.trim();
-                    document.body.removeChild(overlay);
-                    resolve(value || null);
-                };
-
-                input.onkeydown = (e) => {
-                    if (e.key === 'Enter') {
-                        okBtn.click();
-                    } else if (e.key === 'Escape') {
-                        cancelBtn.click();
-                    }
-                };
-
-                overlay.appendChild(modal);
-                document.body.appendChild(overlay);
-                
-                // Focar no input após um pequeno delay
-                setTimeout(() => input.focus(), 100);
-            });
-        }
-
-        function editName(player) {
-            const nameElement = document.getElementById(`name-${player}`);
-            const newName = prompt('Digite o novo nome do jogador:', nameElement.innerText);
-            if (newName !== null && newName.trim() !== '') {
-                nameElement.innerText = newName;
-            }
-        }
-
-        async function editStatValue(stat, player) {
-            const element = document.getElementById(`${stat}-${player}`);
-            const currentValue = parseInt(element.innerText);
-            const input = await numericPrompt(`Digite o novo valor para ${stat.toUpperCase()} (atual: ${currentValue}):\nUse +10 para somar, -20 para subtrair, ou 150 para definir valor absoluto:`);
-            
-            if (input !== null && input.trim() !== '') {
-                let finalValue;
-                const trimmedInput = input.trim();
-                
-                // Verifica se começa com + ou -
-                if (trimmedInput.startsWith('+')) {
-                    // Somar ao valor atual
-                    const addValue = parseInt(trimmedInput.substring(1));
-                    if (!isNaN(addValue)) {
-                        finalValue = currentValue + addValue;
-                    }
-                } else if (trimmedInput.startsWith('-')) {
-                    // Subtrair do valor atual
-                    const subtractValue = parseInt(trimmedInput.substring(1));
-                    if (!isNaN(subtractValue)) {
-                        finalValue = currentValue - subtractValue;
-                    }
-                } else {
-                    // Definir valor absoluto
-                    const absoluteValue = parseInt(trimmedInput);
-                    if (!isNaN(absoluteValue)) {
-                        finalValue = absoluteValue;
-                    }
-                }
-                
-                // Aplicar o valor final se foi calculado com sucesso
-                if (finalValue !== undefined) {
-                    if (finalValue < 0) {
-                        finalValue = 0;
-                    }
-                    
-                    // Determinar tipo de alteração para som apropriado
-                    const isIncrease = finalValue > currentValue;
-                    const isDecrease = finalValue < currentValue;
-                    
-                    element.innerText = finalValue;
-                    
-                    // Tocar sons baseados no tipo de stat e operação
-                    if (stat === 'pv') {
-                        if (isDecrease) {
-                            // Som de soco quando PV diminui
-                            const punchSound = document.getElementById('punchSound');
-                            punchSound.currentTime = 0;
-                            punchSound.play().catch(error => console.log('Erro ao tocar o som:', error));
-                        } else if (isIncrease) {
-                            // Som de cura quando PV aumenta
-                            const healingSound = document.getElementById('healingSound');
-                            healingSound.currentTime = 0;
-                            healingSound.play().catch(error => console.log('Erro ao tocar o som de cura:', error));
-                        }
-                    } else if (stat === 'energy') {
-                        if (isIncrease) {
-                            // Som de energia quando energia aumenta
-                            const energySound = document.getElementById('energySound');
-                            energySound.currentTime = 0;
-                            energySound.play().catch(error => console.log('Erro ao tocar o som de energia:', error));
-                        } else if (isDecrease) {
-                            // Som de waste quando energia diminui
-                            const wasteSound = document.getElementById('wasteSound');
-                            wasteSound.currentTime = 0;
-                            wasteSound.play().catch(error => console.log('Erro ao tocar o som de waste:', error));
-                        }
-                    }
-                    
-                    if (stat === 'pv') {
-                        const otherPlayer = player === 'p1' ? 'p2' : 'p1';
-                        const winnerCard = document.getElementById(`card-${otherPlayer}`);
-                        const loserCard = document.getElementById(`card-${player}`);
-                        
-                        // Limpa as classes de animação de ambos os cards
-                        winnerCard.classList.remove('winner-card', 'loser-card');
-                        loserCard.classList.remove('winner-card', 'loser-card');
-                        
-                        if (finalValue <= 0) {
-                            element.classList.add('pv-zero');
-                            loserCard.classList.add('loser-card');
-                            winnerCard.classList.add('winner-card');
-                            
-                            // Tocar som de vitória quando PV é editado para 0
-                            const victorySound = document.getElementById('victorySound');
-                            victorySound.currentTime = 0;
-                            victorySound.play().catch(error => console.log('Erro ao tocar o som de vitória:', error));
-                        } else {
-                            element.classList.remove('pv-zero');
-                        }
-                    }
-                }
-            }
-        }
-
-        function resetGame() {
-            const pv1 = document.getElementById('pv-p1');
-            const energy1 = document.getElementById('energy-p1');
-            const pv2 = document.getElementById('pv-p2');
-            const energy2 = document.getElementById('energy-p2');
-            const card1 = document.getElementById('card-p1');
-            const card2 = document.getElementById('card-p2');
-            const dice1 = document.getElementById('dice-p1');
-            const dice2 = document.getElementById('dice-p2');
-
-            document.getElementById('name-p1').innerText = "Jogador 1";
-            pv1.innerText = INITIAL_PV;
-            pv1.classList.remove('pv-zero');
-            energy1.innerText = INITIAL_ENERGY;
-            card1.classList.remove('winner-card', 'loser-card');
-            
-            document.getElementById('name-p2').innerText = "Jogador 2";
-            pv2.innerText = INITIAL_PV;
-            pv2.classList.remove('pv-zero');
-            energy2.innerText = INITIAL_ENERGY;
-            card2.classList.remove('winner-card', 'loser-card');
-
-            // Reset dos dados da sorte
-            diceUsed.p1 = false;
-            diceUsed.p2 = false;
-            dice1.disabled = false;
-            dice2.disabled = false;
-            dice1.title = 'Dado da Sorte (2 energia)';
-            dice2.title = 'Dado da Sorte (2 energia)';
-            
-            // Reset dos máximos de energia
-            maxEnergy.p1 = INITIAL_ENERGY;
-            maxEnergy.p2 = INITIAL_ENERGY;
-        }
-
-        function showRulesModal() {
-            const modal = document.getElementById('rules-modal');
-            modal.classList.add('visible');
-        }
-
-        function closeRulesModal() {
-            const modal = document.getElementById('rules-modal');
-            modal.classList.remove('visible');
-        }
+        document.getElementById('openRules').addEventListener('click', abrirRegras);
+        document.getElementById('closeRules').addEventListener('click', fecharRegras);
+        regras.addEventListener('click', evento => { if (evento.target === regras) fecharRegras(); });
+        document.addEventListener('keydown', evento => { if (evento.key === 'Escape' && regras.classList.contains('visible')) fecharRegras(); });
     </script>
 </body>
 </html>

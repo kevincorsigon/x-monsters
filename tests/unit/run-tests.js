@@ -2237,9 +2237,9 @@ test('Tlantidu traz a aquática do deck e o aviso aparece na UI de combate', () 
     assert.match(ataque, /sincronizarMaosDoCombate\(maosAntes\);\s*anunciarBuscaDoTlantidu\(result\.defeated, maosAntes\);/);
 });
 
-test('o lobby PvP tem o modal de regras do jogo (o mesmo do index.html)', () => {
+test('o lobby PvP tem o modal de regras do jogo (o mesmo do real-play.html)', () => {
     const lobby = fs.readFileSync(path.join(__dirname, '../../pvp-lobby.html'), 'utf8');
-    const index = fs.readFileSync(path.join(__dirname, '../../index.html'), 'utf8');
+    const index = fs.readFileSync(path.join(__dirname, '../../real-play.html'), 'utf8');
 
     // Botão, modal e os dois caminhos de abrir/fechar declarados no lobby.
     assert.match(lobby, /<button id="rules-button" class="secondary" onclick="showRulesModal\(\)">Regras do Jogo<\/button>/);
@@ -2251,11 +2251,11 @@ test('o lobby PvP tem o modal de regras do jogo (o mesmo do index.html)', () => 
     assert.match(lobby, /if \(evento\.target === modalDeRegras\) closeRulesModal\(\);/);
     assert.match(lobby, /if \(evento\.key === 'Escape'\) closeRulesModal\(\);/);
 
-    // Conteúdo idêntico ao do index.html: um teste de consistência das regras.
+    // Conteúdo idêntico ao do real-play.html: um teste de consistência das regras.
     const titulos = html => [...html.matchAll(/<h3>(.*?)<\/h3>/g)].map(m => m[1]);
     const paragrafos = html => [...html.matchAll(/<p>(.*?)<\/p>/g)].map(m => m[1]);
-    assert.deepEqual(titulos(lobby), titulos(index), 'seções das regras divergem do index.html');
-    assert.deepEqual(paragrafos(lobby), paragrafos(index), 'parágrafos das regras divergem do index.html');
+    assert.deepEqual(titulos(lobby), titulos(index), 'seções das regras divergem do real-play.html');
+    assert.deepEqual(paragrafos(lobby), paragrafos(index), 'parágrafos das regras divergem do real-play.html');
     assert.ok(titulos(lobby).length === 5, 'o lobby deve trazer as 5 seções de regras');
 
     // CSS do modal no lobby: mesma linguagem (overlay fixo, conteúdo rolável).
@@ -4492,6 +4492,27 @@ test('Roller retorna à mão ao morrer e acumula penalidade de custo', () => {
     assert.equal(fixture.engine.getEffectiveStat(fixture.target.instanceId, 'cost'), 3);
 });
 
+test('Roller volta à mão sem dano e é reinvocado com Defesa cheia', () => {
+    const fixture = createCombatFixture({ attackerAttack: 40, targetDefense: 35, targetAttack: 0 });
+    fixture.target.definitionId = 'card_069';
+    CardRules.install(fixture.engine);
+
+    const result = fixture.engine.resolveCombat({
+        attackerId: fixture.attacker.instanceId,
+        targetId: fixture.target.instanceId
+    });
+
+    assert.equal(result.status, 'resolved');
+    assert.equal(fixture.target.zone, 'hand');
+    // O dano que o matou não viaja para a mão.
+    assert.equal(fixture.engine.getRemainingDefense(fixture.target.instanceId), 35);
+
+    // Reinvocação: custo acumula +1, Defesa volta ao valor base.
+    GameStateModel.moveCard(fixture.state, fixture.target.instanceId, 'field', 'p2');
+    assert.equal(fixture.engine.getEffectiveStat(fixture.target.instanceId, 'cost'), 3);
+    assert.equal(fixture.engine.getRemainingDefense(fixture.target.instanceId), 35);
+});
+
 test('Gulosinho ganha +5/+5 permanentes ao abdicar de atacar no turno', () => {
     const state = GameStateModel.createInitialGameState();
     const engine = GameEngine.createEngine(state);
@@ -6455,10 +6476,10 @@ test('a vida inicial (300) esta sincronizada entre telas, cliente e servidor', (
     assert.match(readSourceText('server.py'),
         /DEFAULT_CONFIG = \{"initialPv": 300, "initialEnergy": 6, "turnSeconds": TURN_SECONDS\}/,
         'o servidor cria a sala com 300');
-    assert.match(readSourceText('index.html'), /const INITIAL_PV = 300;/, 'o contador standalone tambem');
+    assert.match(readSourceText('real-play.html'), /const INITIAL_PV = 300;/, 'o contador standalone tambem');
 
-    // As regras (index.html e lobby PvP, textos idênticos) anunciam o novo valor.
-    ['index.html', 'pvp-lobby.html'].forEach(arquivo => {
+    // As regras (real-play.html e lobby PvP, textos idênticos) anunciam o novo valor.
+    ['real-play.html', 'pvp-lobby.html'].forEach(arquivo => {
         assert.match(readSourceText(arquivo), /Cada jogador começa com 300 pontos de vida/,
             `${arquivo} explica a vida inicial`);
         assert.match(readSourceText(arquivo), /Ninguém ataca direto no próprio primeiro turno/,
@@ -6466,7 +6487,7 @@ test('a vida inicial (300) esta sincronizada entre telas, cliente e servidor', (
     });
 
     // O número pintado no tabuleiro antes do primeiro render também é 300.
-    ['game.html', 'pvp.html', 'index.html'].forEach(arquivo => {
+    ['game.html', 'pvp.html', 'real-play.html'].forEach(arquivo => {
         const mostrados = [...readSourceText(arquivo).matchAll(/id="pv-p[12]"[^>]*>\s*(\d+)/g)]
             .map(resultado => resultado[1]);
         assert.deepEqual(mostrados, ['300', '300'], `${arquivo} mostra 300 nos dois PV`);
@@ -6657,6 +6678,58 @@ test('game.html liga o modo PvM (pvm-ai + pvm-game) depois da UI', () => {
     assert.match(driver, /window\.summonCard\?\./, 'a máquina invoca pela função extraída');
     assert.match(driver, /window\.applyMigratedAbilityLocally\?\./, 'a máquina ativa habilidade pela ponte existente');
     assert.match(driver, /window\.equipSupportCard\?\./, 'a máquina equipa suporte pelo handler existente');
+});
+
+test('a landing page e index.html e o contador de partida real fica em real-play.html', () => {
+    const home = readSourceText('index.html');
+    const contador = readSourceText('real-play.html');
+
+    // A home e a raiz: a marca volta para ela mesma e os dois acessos ao
+    // contador apontam para o novo nome.
+    assert.match(home, /<a class="marca" href="index\.html"/, 'a marca aponta para a propria home');
+    assert.equal((home.match(/href="real-play\.html"/g) || []).length, 2,
+        'toplink e portal de pontos abrem o contador');
+
+    // O contador ganhou caminho de volta para a home.
+    assert.match(contador, /<a href="index\.html">← Voltar à home<\/a>/,
+        'o contador volta para a home');
+
+    // Nenhuma pagina continua apontando para o nome antigo home.html.
+    ['game.html', 'pvp.html', 'pvp-lobby.html', 'deck-builder.html', 'real-play.html']
+        .forEach(arquivo => {
+            const pagina = readSourceText(arquivo);
+            assert.match(pagina, /index\.html/, `${arquivo} aponta para a home`);
+            assert.ok(!pagina.includes('home.html'), `${arquivo} nao guarda o nome antigo home.html`);
+        });
+});
+
+test('o servidor estatico cacheia por classe, revalida com ETag (304) e faz gzip negociado', () => {
+    const servidor = readSourceText('server.py');
+
+    // Cache-Control por classe: HTML revalida sempre, texto de runtime e curto
+    // e a midia (as 110 cartas) fica um dia no cache.
+    assert.match(servidor, /CACHE_HTML = "no-cache"/, 'HTML revalida em toda visita');
+    assert.match(servidor, /CACHE_TEXT = "public, max-age=300"/, 'js/css/json valem 5 min');
+    assert.match(servidor, /CACHE_MEDIA = "public, max-age=86400"/, 'imagens/audio valem 1 dia');
+    assert.match(servidor, /"\.png",\s*"\.jpg",/, 'PNG entra na classe de midia');
+
+    // Revalidacao: ETag/Last-Modified + If-None-Match/If-Modified-Since -> 304.
+    assert.match(servidor, /"If-None-Match"/, 'o browser devolve o ETag');
+    assert.match(servidor, /"If-Modified-Since"/, 'e tambem a data da ultima modificacao');
+    assert.match(servidor, /304,\s*"Not Modified"/, 'resposta 304 sem corpo');
+    assert.match(servidor, /"ETag", etag/, 'o ETag viaja na resposta');
+    assert.match(servidor, /"Last-Modified", formatdate\(/, 'e o Last-Modified junto');
+
+    // Gzip so nos tipos que comprimem de verdade (PNG/MP3 ja nasceram gzipados).
+    assert.match(servidor,
+        /GZIP_SUFFIXES = \{"\.html", "\.htm", "\.js", "\.mjs", "\.css", "\.json", "\.svg", "\.txt"\}/,
+        'a lista de compressiveis e explicita');
+    assert.match(servidor, /"Content-Encoding", encoding/, 'a resposta declara o encoding');
+    assert.match(servidor, /"Vary", "Accept-Encoding"/, 'Vary separa as copias por encoding');
+    assert.match(servidor, /Accept-Encoding/, 'a escolha vem do Accept-Encoding do cliente');
+
+    // A API de lobby continua sem cache (a pagina de sala muda a cada partida).
+    assert.match(servidor, /cache_control="no-store"/, 'a API continua no-store');
 });
 
 let failures = 0;

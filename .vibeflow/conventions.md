@@ -6,7 +6,7 @@
   ability text are in **Portuguese (pt-br)**. Match this for any new
   user-facing string or comment. (via AGENTS.md / project locale)
 - `<html lang="pt-br">` in every page (`game.html`, `index.html`,
-  `pvp.html`, `pvp-lobby.html`).
+  `real-play.html`, `pvp.html`, `pvp-lobby.html`).
 
 ## No build system
 - No `package.json`, no bundler, no transpiler, no TypeScript. Plain ES6
@@ -22,7 +22,10 @@
 - Run the web app through `py -3 -m http.server 8000`; direct `file://`
   loading cannot fetch the authoritative card database. For PvP online the
   same port is served by `py -3 server.py` (statics + `/api` + `/ws`) or by
-  `docker compose up -d`.
+  `docker compose up -d`. Prefer `server.py` for day-to-day work: it is the
+  only server that sends `Cache-Control`/`ETag` (304) and gzip
+  (`.vibeflow/conventions.md` §Python server); `http.server` ships everything
+  with no cache headers.
 - Tests: `node tests/unit/run-tests.js` (no extra packages) and
   `py -3 tests/pvp/smoke_match.py` for the network layer (o smoke roda com
   `XM_TURN_SECONDS=0`); o relógio de turno tem teste próprio
@@ -83,11 +86,11 @@
   same `DeckBuilder`) and the `pvp-game.js#gerarDeckLocal` fallback; the presets
   in `data/decks.json` are locked by a unit test.
 - Table rules that live in more than one place are locked by test: `INITIAL_PV =
-  300` (`src/js/game.js`, `server.py DEFAULT_CONFIG`, `index.html`, the painted
+  300` (`src/js/game.js`, `server.py DEFAULT_CONFIG`, `real-play.html`, the painted
   `#pv-p1/#pv-p2` spans of `game.html`/`pvp.html`) and the opening restriction
   "nobody direct-attacks on their own first turn"
   (`CardRules.ehPrimeiroTurnoDoJogador` + `state.startingPlayer`, announced in the
-  rules text of `index.html`/`pvp-lobby.html`). Changing any of those without the
+  rules text of `real-play.html`/`pvp-lobby.html`). Changing any of those without the
   others fails the suite on purpose. `GameStateModel`'s own default (200) is a
   fixture fallback — the match always passes a config.
 - The 45s turn clock is **server-authoritative in PvP**: `server.py` `expirar_turno`
@@ -168,6 +171,13 @@
 - Rooms live in memory (`Room` dataclass, TTL sweep); `matches/<roomId>.json`
   is an atomic audit mirror, gitignored and never a source of truth.
 - Static resolution must stay inside `ROOT` and never serve `matches/`.
+- Static responses go through `static_response`: `Cache-Control` by class
+  (`CACHE_HTML = no-cache`, `CACHE_TEXT = public, max-age=300`,
+  `CACHE_MEDIA = public, max-age=86400` for `assets/`), `ETag` + `Last-Modified`
+  answering `304` with no body, and gzip on the fly for `GZIP_SUFFIXES` only
+  (PNG/MP3 are already compressed — never gzip them) with
+  `Vary: Accept-Encoding` and an encoding-suffixed `ETag`. `/api/*` stays
+  `no-store`.
 - Logs and error reasons in pt-BR with `[{time}]` prefix (`log()`), timestamps
   from `now_iso()`, blocking file work via `asyncio.to_thread`.
 - Only external dependency: `websockets` (`py -3 -m pip install websockets`,

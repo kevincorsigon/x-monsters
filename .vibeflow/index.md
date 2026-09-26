@@ -5,7 +5,8 @@
 > Suggested budget: ≤ 4 files per task
 
 ## Structure
-The root holds the HTML entry points (`game.html`, `index.html`, `pvp.html`,
+The root holds the HTML entry points (`index.html` = home/landing, `game.html`,
+`real-play.html` = PV/energy counter, `pvp.html`,
 `pvp-lobby.html`), the PvP server (`server.py`), Docker files, README,
 requirements, and repository configuration. Runtime JavaScript lives in
 `src/js/`, CSS in `src/css/`, card and audio assets in `assets/`, data in
@@ -46,7 +47,7 @@ and `pvp-lobby.html` (`/pvp`) creates rooms via `POST /api/matches`.
 - **`src/js/pvp-game.js`** — PvP bootstrap: socket + seat, `MATCH_START`,
   command appliers, control blocking, end-of-match overlay.
 - **`pvp.html` / `pvp-lobby.html`** — online board and lobby (o lobby traz o
-  botão + modal "Regras do Jogo", conteúdo igual ao do `index.html`);
+  botão + modal "Regras do Jogo", conteúdo igual ao do `real-play.html`);
   **`src/css/pvp.css`** — PvP-only styles (`body[data-seat]`).
 - **`server.py`** — statics + lobby API + WebSocket relay, per-room ledger,
   server-side RNG, `matches/<roomId>.json` mirror; resolve o preset de deck
@@ -58,7 +59,10 @@ and `pvp-lobby.html` (`/pvp`) creates rooms via `POST /api/matches`.
 - **`src/js/deck-select.js`** (+ **`src/css/deck-select.css`**) — seletor de
   decks: modal bloqueante do hotseat, picker embutido no lobby, rótulos pt-BR
   das traits e resumo/curva do deck.
-- **`index.html`** — standalone PV/Energy counter (no engine).
+- **`index.html`** — landing page (portais para home, deck builder, contador e
+  regras num modal local).
+- **`real-play.html`** — standalone PV/Energy counter for physical-card games
+  (no engine).
 - **`tests/unit/run-tests.js`** — Node regression suite (engine, rules, PvP
   protocol/session, PvP draw bridge).
 - **`tests/pvp/smoke_match.py`** — network smoke test (server + 2 WS clients).
@@ -177,7 +181,7 @@ patterns:
   "já usado" é `diceUsed` (repaint do bloqueio por turno não reabilita, clique
   inerte, replay idempotente, remount limpando o dado antes do ledger).
 - `tests/browser/test_pvp_lobby_rules.js` — botão "Regras do Jogo" no lobby abre
-  o modal (mesmas 5 seções do `index.html`), fecha no ×/fundo/Esc e o conteúdo
+  o modal (mesmas 5 seções do `real-play.html`), fecha no ×/fundo/Esc e o conteúdo
   cabe na viewport com rolagem interna (`LOBBY_CONSOLE_SCRIPTS` no runner). O
   lobby não escolhe deck: isso é da entrada da partida.
 - `tests/browser/test_deck_select.js` — seletor de decks do hotseat: modal no
@@ -219,7 +223,7 @@ patterns:
   #13 ("intransponível") in the ability-engine spec.
 - `CardRules.isMigrated()` undercounts handler-only cards; coverage is the
   text scan in `scripts/check_cards.py`.
-- `index.html` still uses DOM-as-truth for PV/energy; it does not share
+- `real-play.html` still uses DOM-as-truth for PV/energy; it does not share
   `GameStateModel`.
 - `showAbilityFeedback` and `manual_abilities.js` still build UI with
   `style.cssText` instead of CSS classes.

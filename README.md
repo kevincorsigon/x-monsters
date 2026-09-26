@@ -9,14 +9,24 @@ ferramentas Python para manutenção das cartas.
 Na raiz do projeto, inicie um servidor HTTP local:
 
 ```powershell
+py -3 server.py              # recomendado: estáticos com cache (ETag/304) + gzip
+# ou, só para abrir as páginas:
 py -3 -m http.server 8080
 ```
 
 Acesse:
 
+- Home: http://localhost:8080/
 - Jogo completo: http://localhost:8080/game.html
-- Contador simplificado: http://localhost:8080/index.html
+- Contador para cartas físicas: http://localhost:8080/real-play.html
 - Testes manuais: http://localhost:8080/tests/browser/test_abilities.html
+
+O `server.py` serve os estáticos com `ETag`/`Last-Modified` (revalidação por
+`304` sem corpo) e `Cache-Control` por classe: HTML revalida sempre, JS/CSS/JSON
+valem 5 min e `assets/` (as 110 cartas, ~151 MB) vale 1 dia — o baralho é
+baixado uma vez. Ele também comprime com gzip o que realmente ganha coisa
+(HTML/JS/CSS/JSON/SVG); PNG/MP3 já nascem comprimidos, então o ganho de imagem é
+o cache. O `python -m http.server` entrega tudo sem `Cache-Control`.
 
 O servidor é necessário para que `game.html` carregue as 110 cartas de
 `data/cards_database.json`. Abrir o arquivo diretamente por `file://` ativa
@@ -145,7 +155,7 @@ docker run --rm -p 8000:8000 -v ${PWD}/matches:/app/matches x-monsters
 
 - **Vida inicial: 300 PV** para cada jogador (era 200). O valor aparece em
   `src/js/game.js` (`INITIAL_PV`), `server.py` (`DEFAULT_CONFIG`), no contador
-  `index.html` e nos spans de `game.html`/`pvp.html`, além das duas telas de
+  `real-play.html` e nos spans de `game.html`/`pvp.html`, além das duas telas de
   regras. O ajuste veio da análise dos decks: ATK médio 27,1 / DEF média 24,2 /
   top‑3 de ATK 47,7 — com campo aberto, 3 atacantes passam de 100 PV por turno,
   então 300 dá 2–3 turnos de cerco depois do atrito em vez de decidir a partida
@@ -223,7 +233,8 @@ x-monsters/
 ├── tests/pvp/          # Testes do servidor PvP (smoke)
 ├── matches/            # Espelho de partidas (gitignore, runtime apenas)
 ├── game.html           # Jogo completo
-├── index.html          # Contador simplificado
+├── index.html          # Home (landing page)
+├── real-play.html      # Contador simplificado (cartas físicas)
 ├── pvp-lobby.html      # Lobby PvP online
 ├── pvp.html            # Tabuleiro PvP (fork de game.html)
 ├── server.py           # Servidor HTTP + WebSocket (PvP)

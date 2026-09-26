@@ -576,6 +576,19 @@
                             restoredZone.splice(previous.index, 0, restoredCard);
                         }
                     });
+                    // Carta na mão volta sem dano marcado: sem isto o Roller (069),
+                    // que retorna à mão ao morrer, era reinvocado com `card.damage`
+                    // acumulado e aparecia com Defesa 0 (getRemainingDefense).
+                    if (effect.destinationZone === 'hand') {
+                        const movingCard = getCard(effect.instanceId);
+                        const carriedDamage = movingCard?.damage || 0;
+                        if (movingCard && carriedDamage > 0) {
+                            movingCard.damage = 0;
+                            transaction.record(() => {
+                                movingCard.damage = carriedDamage;
+                            });
+                        }
+                    }
                     if (
                         ['field', 'equipment'].includes(source[0].zone) &&
                         effect.destinationZone !== source[0].zone

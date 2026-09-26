@@ -1,5 +1,5 @@
 // Regras do jogo no lobby PvP: o botão abre o modal (mesmo conteúdo do
-// index.html), que fecha no ×, no fundo escuro e no Esc. Roda em pvp-lobby.html.
+// real-play.html), que fecha no ×, no fundo escuro e no Esc. Roda em pvp-lobby.html.
 (function runLobbyRulesTests() {
     let passed = 0;
     let failed = 0;
@@ -49,11 +49,11 @@
         && caixaConteudo.bottom <= raiz.clientHeight + 0.5
         && caixaConteudo.height <= raiz.clientHeight);
 
-    // 3. Conteúdo das regras: as cinco seções do index.html.
+    // 3. Conteúdo das regras: as cinco seções do real-play.html.
     const secoes = [...conteudo.querySelectorAll('.rules-text h3')].map(h => h.textContent.trim());
     assert('traz o título das regras', conteudo.querySelector('.rules-text h2')?.textContent.includes('Regras do Jogo X Monsters'));
     assert('traz as cinco seções de regras', secoes.length === 5);
-    assert('as seções são as do index.html',
+    assert('as seções são as do real-play.html',
         secoes[0].startsWith('1. Objetivo') && secoes[1].startsWith('2. Sistema de Energia')
         && secoes[2].startsWith('3. Fases do Turno') && secoes[3].startsWith('4. Combate e Dano')
         && secoes[4].startsWith('5. Mecânicas Adicionais'));
@@ -78,5 +78,5 @@
     assert('o botão volta a abrir depois de fechado', (botao.click(), visivel()));
 
     console.log(`\n🧪 Resultado regras no lobby: ${passed}/${passed + failed} checks`);
-    console.log(failed === 0 ? '✅ o lobby tem o modal de regras como o index.html' : `❌ ${failed} falhas\n`);
+    console.log(failed === 0 ? '✅ o lobby tem o modal de regras como o real-play.html' : `❌ ${failed} falhas\n`);
 })();

@@ -653,7 +653,7 @@
                 gameState.maxEnergy[gameState.currentPlayer]++;
             }
 
-            // Restaurar energia para o novo máximo (igual ao index.html)
+            // Restaurar energia para o novo máximo (igual ao real-play.html)
             const newEnergy = gameState.maxEnergy[gameState.currentPlayer];
             window.GameStateModel.setPlayerStat(
                 gameState,
@@ -735,6 +735,7 @@
                 showMessage(result.reason, 'warning');
                 return;
             }
+            limparSelecaoDeToque();
             updateUI();
             
             // Tocar som de confirmação
@@ -1859,10 +1860,17 @@
                 return;
             }
 
-            // Remove seleção anterior
-            document.querySelectorAll('.card.selected').forEach(card => {
-                card.classList.remove('selected');
-            });
+            // Toque/celular: carta em campo é alvo de suporte selecionado.
+            if (gameState.currentPhase === 'invocation' && gameState.selectedCard && gameState.selectedCard !== cardId) {
+                const selecionada = findCardData(gameState.selectedCard);
+                const emCampo = isCardInField(cardId);
+                if (selecionada?.data?.type === 'suporte' && emCampo) {
+                    const alvo = document.getElementById(cardId);
+                    if (alvo && equiparPorToque(alvo)) return;
+                }
+            }
+
+            limparSelecaoDeToque();
 
             // Seleciona nova carta
             const cardElement = document.getElementById(cardId);
@@ -1870,6 +1878,116 @@
                 cardElement.classList.add('selected');
                 gameState.selectedCard = cardId;
             }
+
+            destacarAlvoDeToque(cardData);
+        }
+
+        // Destaca destino válido para toque (campo/criatura). Só adianta highlight.
+        function destacarAlvoDeToque(cardData) {
+            if (!cardData || gameState.currentPhase !== 'invocation') return;
+            if (cardData.player !== gameState.currentPlayer) return;
+            const idDaCarta = cardData.id || cardData.instanceId;
+            const emMao = gameState.cards?.[cardData.player]?.hand
+                ?.some(carta => (carta.id || carta.instanceId) === idDaCarta);
+            if (!emMao) return;
+            const custo = getEffectiveCardCost(idDaCarta, cardData.data);
+            const energia = window.GameStateModel.getPlayerStat(gameState, 'energy', gameState.currentPlayer);
+            const temEnergia = energia >= custo;
+            if (cardData.data.type === 'suporte') {
+                highlightEquippableCreatures(cardData, temEnergia);
+                updateInvocationInfo(temEnergia
+                    ? `Toque em uma criatura para equipar (Custo: ${custo})`
+                    : `Energia insuficiente para equipar! Precisa de ${custo}, você tem ${energia}`);
+                return;
+            }
+            if (['criatura', 'evolução'].includes(cardData.data.type)) {
+                const campo = document.getElementById(`field-${gameState.currentPlayer}`);
+                if (campo) campo.classList.add(temEnergia ? 'field-drop-zone' : 'field-invalid-drop');
+                updateInvocationInfo(temEnergia
+                    ? `Toque no seu campo para invocar (Custo: ${custo})`
+                    : `Energia insuficiente! Precisa de ${custo}, você tem ${energia}`);
+            }
+        }
+
+        function limparSelecaoDeToque() {
+            gameState.selectedCard = null;
+            document.querySelectorAll('.card.selected').forEach(card => {
+                card.classList.remove('selected');
+            });
+            document.querySelectorAll('.field-drop-zone, .field-invalid-drop').forEach(field => {
+                field.classList.remove('field-drop-zone', 'field-invalid-drop');
+            });
+            clearEquipmentHighlights();
+            updatePhaseInstructions();
+        }
+
+        // Toque no campo: mesmo caminho do drop, sem drag-and-drop.
+        function invocarPorToque(campoElement) {
+            const cartaSelecionada = gameState.selectedCard;
+            if (!cartaSelecionada || gameState.currentPhase !== 'invocation') return false;
+            const cardData = findCardData(cartaSelecionada);
+            if (!cardData) return false;
+            const donoDaMao = cardData.player || cardData.ownerId;
+            const jogadorAlvo = campoElement?.dataset?.player;
+            if (!jogadorAlvo || donoDaMao !== jogadorAlvo) return false;
+            if (donoDaMao !== gameState.currentPlayer) return false;
+            const aindaNaMao = gameState.cards?.[donoDaMao]?.hand
+                ?.some(carta => (carta.id || carta.instanceId) === cartaSelecionada);
+            if (!aindaNaMao) {
+                limparSelecaoDeToque();
+                return false;
+            }
+            if (!['criatura', 'evolução'].includes(cardData.data.type)) return false;
+            const invocou = invocarComGuardPvP(cartaSelecionada, jogadorAlvo);
+            if (invocou) limparSelecaoDeToque();
+            return invocou;
+        }
+
+        function invocarComGuardPvP(cardId, jogadorAlvo) {
+            if (jogadorAlvo === assentoLocal() &&
+                pvpGuard({
+                    cmd: 'SUMMON',
+                    args: { handSlot: getHandSlot(cardId, jogadorAlvo) },
+                    reveals: pvpReveal(cardId, 'hand')
+                })) {
+                limparSelecaoDeToque();
+                return true;
+            }
+            return summonCard(cardId, jogadorAlvo);
+        }
+
+        // Toque numa criatura com suporte selecionado: mesmo `equipSupportCard`.
+        function equiparPorToque(criaturaElement) {
+            const cartaSelecionada = gameState.selectedCard;
+            if (!cartaSelecionada || gameState.currentPhase !== 'invocation') return false;
+            const supportData = findCardData(cartaSelecionada);
+            const criaturaData = findCardData(criaturaElement?.id);
+            if (!supportData || !criaturaData) return false;
+            if (supportData.data.type !== 'suporte') return false;
+            if (criaturaData.data.type !== 'criatura') return false;
+            const aindaNaMao = gameState.cards?.[supportData.player]?.hand
+                ?.some(carta => (carta.id || carta.instanceId) === cartaSelecionada);
+            if (!aindaNaMao) {
+                limparSelecaoDeToque();
+                return false;
+            }
+            const alvoValido = window.CardRules?.validateEquipmentTarget
+                ? window.CardRules.validateEquipmentTarget(supportData, criaturaData)
+                : { valid: true };
+            if (!alvoValido.valid) {
+                showMessage(alvoValido.reason, 'warning');
+                return false;
+            }
+            const rejeicao = getSupportEquipRejection(supportData);
+            if (rejeicao) {
+                showMessage(rejeicao, 'warning');
+                return false;
+            }
+            equipSupportCard(cartaSelecionada, criaturaElement.id);
+            const saiuDaMao = !gameState.cards?.[supportData.player]?.hand
+                ?.some(carta => (carta.id || carta.instanceId) === cartaSelecionada);
+            if (saiuDaMao) limparSelecaoDeToque();
+            return saiuDaMao;
         }
 
         function handleCombatCardClick(cardId, cardData) {
@@ -2948,8 +3066,22 @@ Cartas restantes:
             creatureElement.appendChild(equipmentCard);
         }
 
+        // Liga o toque nos campos sem mexer no drag-and-drop do HTML.
+        function instalarToqueNosCampos() {
+            ['p1', 'p2'].forEach(player => {
+                const campo = document.getElementById(`field-${player}`);
+                if (!campo || campo.dataset.toqueInstalado) return;
+                campo.dataset.toqueInstalado = '1';
+                campo.addEventListener('click', event => {
+                    if (event.target?.closest?.('.card')) return;
+                    invocarPorToque(campo);
+                });
+            });
+        }
+
         // Inicialização
         document.addEventListener('DOMContentLoaded', async function() {
+            instalarToqueNosCampos();
             updateUI();
             
             let cardsLoaded = false;

@@ -20,6 +20,7 @@ Uso:
 import argparse
 import asyncio
 import base64
+import gzip
 import json
 import mimetypes
 import os
@@ -30,6 +31,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
+from email.utils import formatdate, parsedate_to_datetime
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -119,13 +121,23 @@ def _connection_alive(connection):
     return getattr(state, "name", str(state)) == "OPEN"
 
 
-def http_response(status, reason, body=b"", content_type="text/plain; charset=utf-8"):
-    """Resposta HTTP para rotas nao-WebSocket, servidas na mesma porta."""
+def http_response(
+    status,
+    reason,
+    body=b"",
+    content_type="text/plain; charset=utf-8",
+    cache_control="no-store",
+):
+    """Resposta HTTP para rotas nao-WebSocket, servidas na mesma porta.
+
+    `cache_control` vale para a resposta inteira: API continua `no-store` e os
+    arquivos estaticos usam a politica de `static_response`.
+    """
     headers = Headers(
         [
             ("Content-Type", content_type),
             ("Content-Length", str(len(body))),
-            ("Cache-Control", "no-store"),
+            ("Cache-Control", cache_control),
             ("Connection", "close"),
         ]
     )
@@ -864,6 +876,133 @@ def content_type_for(path):
     return guessed
 
 
+# --- Estaticos: cache do browser e compressao -------------------------------
+# Sem build step nao ha hash no nome do arquivo, entao a validade e curta e a
+# eficiencia vem da revalidacao por ETag (304 sem corpo). O HTML revalida
+# sempre, o texto de runtime vale 5 min e a midia (as 110 cartas, ~151 MB)
+# vale um dia: o baralho inteiro e baixado uma vez e fica no cache.
+CACHE_HTML = "no-cache"
+CACHE_TEXT = "public, max-age=300"
+CACHE_MEDIA = "public, max-age=86400"
+
+# Gzip so onde ele ganha algo de verdade: PNG/JPEG/MP3 ja nasceram comprimidos
+# (deflate) e recomprimir so queima CPU no servidor - o ganho de imagem esta no
+# cache de cima. Abaixo do limiar o header custa mais que o corpo economizado.
+GZIP_MIN_BYTES = 1024
+GZIP_SUFFIXES = {".html", ".htm", ".js", ".mjs", ".css", ".json", ".svg", ".txt"}
+MEDIA_SUFFIXES = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".avif",
+    ".ico",
+    ".mp3",
+    ".wav",
+    ".woff",
+    ".woff2",
+}
+
+
+def _request_header(request_headers, name, default=""):
+    """Le um header da requisicao (`Headers` do websockets ou dict em teste)."""
+    if not request_headers:
+        return default
+    try:
+        return request_headers.get(name, default) or default
+    except AttributeError:
+        return default
+
+
+def cache_control_for(target):
+    """Politica de cache por classe de arquivo."""
+    suffix = target.suffix.lower()
+    if suffix in (".html", ".htm"):
+        return CACHE_HTML
+    if suffix in MEDIA_SUFFIXES:
+        return CACHE_MEDIA
+    return CACHE_TEXT
+
+
+def etag_for(info, encoding=None):
+    """ETag fraco de identidade: tamanho + mtime (+ encoding quando houver)."""
+    identity = f"{info.st_size:x}-{int(info.st_mtime):x}"
+    if encoding:
+        identity = f"{identity}-{encoding}"
+    return f'W/"{identity}"'
+
+
+def is_not_modified(request_headers, etag, mtime):
+    """True quando o browser ja guarda exatamente essa representacao."""
+    if_none_match = _request_header(request_headers, "If-None-Match")
+    if if_none_match:
+        tags = [tag.strip() for tag in if_none_match.split(",")]
+        return etag in tags or "*" in tags
+    if_modified_since = _request_header(request_headers, "If-Modified-Since")
+    if not if_modified_since:
+        return False
+    try:
+        since = parsedate_to_datetime(if_modified_since)
+    except (TypeError, ValueError):
+        return False
+    return int(mtime) <= since.timestamp()
+
+
+def static_headers(target, info, etag, cache_control, encoding=None):
+    """Headers comuns de estatico (ETag/Last-Modified sempre vao junto)."""
+    headers = [
+        ("ETag", etag),
+        ("Last-Modified", formatdate(info.st_mtime, usegmt=True)),
+        ("Cache-Control", cache_control),
+        ("Connection", "close"),
+    ]
+    if target.suffix.lower() in GZIP_SUFFIXES:
+        # A resposta muda com o Accept-Encoding: o browser deve guardar uma
+        # copia por encoding.
+        headers.append(("Vary", "Accept-Encoding"))
+    if encoding:
+        headers.append(("Content-Encoding", encoding))
+    return headers
+
+
+async def static_response(target, request_headers):
+    """Resposta de arquivo estatico com cache (304) e gzip negociados.
+
+    `handle_http` ja sabe que o arquivo existe; aqui lemos estatistica e corpo
+    fora da thread do event loop (regra do projeto: trabalho de arquivo bloqueia
+    via `asyncio.to_thread`).
+    """
+    info = await asyncio.to_thread(target.stat)
+    suffix = target.suffix.lower()
+    aceita_gzip = "gzip" in _request_header(request_headers, "Accept-Encoding").lower()
+    comprimir = (
+        suffix in GZIP_SUFFIXES and info.st_size >= GZIP_MIN_BYTES and aceita_gzip
+    )
+    encoding = "gzip" if comprimir else None
+    etag = etag_for(info, encoding)
+    cache_control = cache_control_for(target)
+
+    if is_not_modified(request_headers, etag, info.st_mtime):
+        return Response(
+            304,
+            "Not Modified",
+            Headers(static_headers(target, info, etag, cache_control, encoding)),
+            b"",
+        )
+
+    body = await asyncio.to_thread(target.read_bytes)
+    if comprimir:
+        # mtime=0 mantem o corpo estavel entre duas requisicoes iguais.
+        body = gzip.compress(body, 6, mtime=0)
+
+    headers = Headers(
+        [("Content-Type", content_type_for(target)), ("Content-Length", str(len(body)))]
+        + static_headers(target, info, etag, cache_control, encoding)
+    )
+    return Response(200, "OK", headers, body)
+
+
 def resolve_static(path_only):
     """Resolve um caminho estatico dentro da raiz do projeto.
 
@@ -989,8 +1128,12 @@ async def handle_api(method, path_only, host, corpo=None):
     return json_response({"erro": "Rota de API desconhecida"}, 404, "Not Found")
 
 
-async def handle_http(method, path_only, host, corpo=None):
-    """Serve uma requisicao HTTP nao-WebSocket na mesma porta do relay."""
+async def handle_http(method, path_only, host, corpo=None, request_headers=None):
+    """Serve uma requisicao HTTP nao-WebSocket na mesma porta do relay.
+
+    `request_headers` entra para a negociacao de cache/gzip dos estaticos
+    (If-None-Match, If-Modified-Since e Accept-Encoding).
+    """
     if path_only.startswith("/api/"):
         return await handle_api(method, path_only, host, corpo)
     if method != "GET":
@@ -999,12 +1142,11 @@ async def handle_http(method, path_only, host, corpo=None):
     if target is None or not target.is_file():
         return http_response(404, "Not Found", b"Arquivo nao encontrado")
     try:
-        body = await asyncio.to_thread(target.read_bytes)
+        return await static_response(target, request_headers)
     except OSError as error:
         return http_response(
             500, "Internal Server Error", f"Falha ao ler o arquivo: {error}".encode("utf-8")
         )
-    return http_response(200, "OK", body, content_type_for(target))
 
 
 async def process_request(connection, request):
@@ -1022,7 +1164,13 @@ async def process_request(connection, request):
         if request.method == "POST" and path_only == "/api/decks"
         else None
     )
-    return await handle_http(request.method, path_only, request.headers.get("Host"), corpo)
+    return await handle_http(
+        request.method,
+        path_only,
+        request.headers.get("Host"),
+        corpo,
+        request.headers,
+    )
 
 
 async def send_message(connection, payload):

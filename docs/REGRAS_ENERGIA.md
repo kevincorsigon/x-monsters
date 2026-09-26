@@ -20,8 +20,8 @@ novaEnergia = maxEnergy
 
 **Dado da Sorte:** uma vez por jogo, cada jogador pode gastar 2 pontos de energia para rolar um dado da sorte e ganhar de 1 a 6 pontos de energia adicionais (sem ultrapassar o limite de 20).
 
-**Botões manuais:** os botões de `+`/`-` de energia existem apenas em `index.html` (modo livre/contador). Em `game.html` a energia é 100% automática — sem controle manual, sem duplicação via botões de fase.
+**Botões manuais:** os botões de `+`/`-` de energia existem apenas em `real-play.html` (modo livre/contador). Em `game.html` a energia é 100% automática — sem controle manual, sem duplicação via botões de fase.
 
-## `index.html` vs `game.html`
+## `real-play.html` vs `game.html`
 
-Ambos seguem a mesma regra de energia (reset total ao `maxEnergy` por turno). A única diferença é que `index.html` expõe botões manuais de `+`/`-` de energia (modo contador livre), enquanto `game.html` calcula tudo automaticamente, sem controle manual.
+Ambos seguem a mesma regra de energia (reset total ao `maxEnergy` por turno). A única diferença é que `real-play.html` expõe botões manuais de `+`/`-` de energia (modo contador livre), enquanto `game.html` calcula tudo automaticamente, sem controle manual.

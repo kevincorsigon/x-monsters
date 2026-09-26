@@ -71,7 +71,8 @@ Um jogo de cartas multiplayer completo para 2 jogadores com sistema de deck bala
 ```
 x-monsters/
 ├── game.html              # Jogo principal completo
-├── index.html              # Contador simples (legacy)
+├── index.html              # Home (landing page)
+├── real-play.html          # Contador simples (legacy)
 ├── data/cards_database.json # Base de dados das cartas
 ├── src/js/deck_system.js   # Sistema de deck e balanceamento
 ├── scripts/                # Ferramentas Python
