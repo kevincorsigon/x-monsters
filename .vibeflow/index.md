@@ -1,7 +1,7 @@
 # Project: X Monsters
-> Analyzed: 2026-09-20
+> Analyzed: 2026-09-29
 > Stack: Vanilla HTML5/CSS3/JavaScript (ES6, no build step, no framework) game client (hotseat + online PvP); `server.py` (Python 3 + `websockets`, rest stdlib) as hybrid static server + lobby API + WebSocket relay; Node `node:assert` unit tests; Node CLI for deterministic decks; standalone Python (OpenCV + pytesseract) scripts for offline card-asset/data tooling; Docker/Docker Compose packaging for the PvP server. Data: static JSON (`data/cards_database.json`) + local card image assets.
-> Type: Browser game (hotseat, client-only) + PvP online mode with a thin Python relay (no card rules on the server) + auxiliary offline scripts
+> Type: Browser game (hotseat, client-only) + PvM (jogador vs máquina) mode sharing the hotseat shell + PvP online mode with a thin Python relay (no card rules on the server) + auxiliary offline scripts
 > Suggested budget: ≤ 4 files per task
 
 ## Structure
@@ -14,7 +14,8 @@ requirements, and repository configuration. Runtime JavaScript lives in
 diagnostics in `tests/browser/`, the Node suite in `tests/unit/`, the PvP
 smoke suite in `tests/pvp/`, and secondary guides in `docs/`. `game.html`
 is now a shell (markup + scripts): the inline UI was extracted to
-`src/js/game.js`. `pvp.html` (`/pvp/<roomId>/<seat>`) is the online board
+`src/js/game.js`. `game.html` hosts BOTH hotseat and PvM (bot) mode; `pvp.html`
+(`/pvp/<roomId>/<seat>`) is the online board
 and `pvp-lobby.html` (`/pvp`) creates rooms via `POST /api/matches`.
 `matches/` is runtime-only (gitignored mirror of the rooms).
 
@@ -46,6 +47,10 @@ and `pvp-lobby.html` (`/pvp`) creates rooms via `POST /api/matches`.
   `publicarContagemDeMao`).
 - **`src/js/pvp-game.js`** — PvP bootstrap: socket + seat, `MATCH_START`,
   command appliers, control blocking, end-of-match overlay.
+- **`src/js/pvm-game.js`** (+ **`src/js/pvm-ai.js`**) — modo PvM (jogador vs
+  máquina) que roda no mesmo shell do `game.html`: reutiliza a UI do game.js com
+  um oponente bot cuja mão é sempre N versos (`window.__pvm`) — sem espiar mão,
+  sem dado da máquina. Driver headless paralelo ao `pvp-game.js`.
 - **`pvp.html` / `pvp-lobby.html`** — online board and lobby (o lobby traz o
   botão + modal "Regras do Jogo", conteúdo igual ao do `real-play.html`);
   **`src/css/pvp.css`** — PvP-only styles (`body[data-seat]`).
@@ -87,7 +92,7 @@ patterns:
     modules: [src/js/card-abilities.js]
   - file: patterns/card-dom-rendering.md
     tags: [dom-rendering, drag-and-drop, css-theming, ui-state]
-    modules: [src/js/game.js, src/css/]
+    modules: [src/js/game.js, src/js/pvp-game.js, src/css/game.css, src/css/pvp.css]
   - file: patterns/card-rules-registry.md
     tags: [abilities, card-rules, registry, events, traits]
     modules: [src/js/card-rules.js]

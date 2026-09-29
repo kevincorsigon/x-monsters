@@ -17,7 +17,10 @@ PV/energy live on `state.players[id]`, not in the DOM.
 `src/js/game-state.js` (factory, zones, instance ids, player stats).
 `src/js/game.js` holds the live `gameState` reference, calls
 `gameEngine.resolveAction` for turn/phase, and mirrors stats to the DOM
-through `changeStat` / `renderPlayerStat`. Re/mounting a match goes through
+through `changeStat` / `renderPlayerStat`. The HUD (turn/phase/timer), PV/
+Energy and gear now render inside the central `.controls` bar between the two
+fields (`#abilities-slot` hosts the manual-abilities panel); stat chips are
+children of that bar, not floating chrome. Re/mounting a match goes through
 `resetMatchState`, which is how PvP installs opaque ids and hidden zones.
 
 ## The Pattern

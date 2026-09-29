@@ -1,6 +1,6 @@
 ---
 tags: [dom-rendering, drag-and-drop, css-theming, ui-state]
-modules: [src/js/game.js, src/css/]
+modules: [src/js/game.js, src/js/pvp-game.js, src/css/game.css, src/css/pvp.css]
 applies_to: [components]
 confidence: inferred
 ---
@@ -13,6 +13,18 @@ state (selectable, targetable, equipped, destroyed, dragging) is expressed as
 CSS classes toggled from JS, never inline styles for state. Theme values
 (colors, radii, spacing) come from `:root` CSS custom properties.
 
+Two layout conventions that every hand/board render must follow:
+
+- **Hand = a strip, not an arc.** The opponent's hand is a compact straight
+  row (`flex-direction: row`, no `:nth-child` fan/rotation), fixed width via the
+  `--opp-hand-w` token and centered in its column. No visual "arc" — it says
+  nothing about unreadable cards and used to push cards out of their lane.
+- **Selectors go by HAND CLASS, never by zone.** The opponent hand is addressed
+  through `.player2-hand` / `.player1-hand` (per seat), never `.zone-opponent`,
+  because in PvP the `p2` seat swaps the grid areas and `.zone-opponent` can be
+  the area carrying the LOCAL player's own hand. Styling by zone would give the
+  local hand `pointer-events: none` and tiny cards.
+
 ## Where
 `src/js/game.js`: `createCard`, `updateCardDisplay`, `destroyCard`,
 `dragStart`/`dragOver`/`dropCard`/`allowDrop`, `renderHandsFromState`,
@@ -20,6 +32,15 @@ CSS classes toggled from JS, never inline styles for state. Theme values
 is now a shell that only loads the scripts). Theme tokens (`:root`) and the
 `.card.*` state classes live in `src/css/game.css`; `src/css/pvp.css` adds
 the `body[data-seat]` perspective overrides.
+
+The opponent hand strip (fixed width, centered via an equal-side grid,
+`flex-direction: row`, no fan) lives in `src/css/game.css` under the per-seat
+`.player2-hand` / `.player1-hand` selectors — never `.zone-opponent`. The board
+columns are centered on screen with `minmax(min-content, 1fr) auto minmax(
+min-content, 1fr)` so the middle lane coincides with the screen center. HUD,
+turn/phase/timer and the gear menu now live in a single central `.controls` bar
+between the two fields (not `position: fixed`), and the manual-abilities panel
+anchors to that bar's `#abilities-slot`; feedback chrome is scoped there too.
 
 ## The Pattern
 ```javascript
@@ -83,6 +104,24 @@ function dropCard(e) {
 - The opponent hand renders through `createCardBack` (`.card.card-back`)
   and the board mirrors by `body[data-seat="p2"]` in `src/css/pvp.css`
   (pattern: `.vibeflow/patterns/pvp-hidden-state.md`).
+- Selectors for a hand go by its CLASS per seat (`.player2-hand`,
+  `.player1-hand`), NEVER by `.zone-opponent`: in PvP the `p2` seat swaps the
+  grid areas, so `.zone-opponent` can be the area holding the LOCAL player's own
+  hand. Styling/selecting by zone would give the local hand `pointer-events: none`
+  and tiny cards. Map it: opponent hand is `.player2-hand` in PvM and hotseat p1,
+  `.player1-hand` in hotseat p2; with no seat set, markup default (top strip).
+- The opponent hand is a compact STRIP, not an arc/fan: `flex-direction: row`,
+  fixed width via the `--opp-hand-w` token (`max-width: 100%`), centered in its
+  column with `justify-self: center`. No `:nth-child` rotation — the arc said
+  nothing about unreadable cards and pushed them out of their lane.
+- The strip's columns are centered on screen, not on the (unequal) stat piles:
+  `grid-template-columns: minmax(min-content, 1fr) auto minmax(min-content, 1fr)`
+  so the middle lane coincides with the screen center; `min-content` is the
+  floor that stops the stat block from overlapping in narrow windows.
+- HUD (turn/phase/timer), PV/Energy and the gear menu live in ONE central
+  `.controls` bar between the two fields, not `position: fixed`. The manual-
+  abilities panel anchors to that bar's `#abilities-slot`; floating feedback is
+  scoped there so it never resizes the layout.
 - Re-render from state (`renderHandsFromState` / `renderFieldsFromState`),
   never from the DOM: card identity is the engine `instanceId`.
 - A visual state class must never change the card's **size**: selection,
@@ -147,6 +186,19 @@ File: [src/js/game.js](../../src/js/game.js#L1184)
 File: [src/css/game.css](../../src/css/game.css)
 `:root` tokens and `.card.can-attack`, `.card.can-be-targeted`,
 `.card.already-attacked` rules.
+
+File: [src/css/game.css](../../src/css/game.css#L105-L162)
+Opponent hand as a straight strip, not an arc: the equal-side grid that
+centers the middle lane on screen (`minmax(min-content, 1fr) auto minmax(
+min-content, 1fr)`), and the per-seat `.player2-hand`/`.player1-hand` selectors
+(`width: var(--opp-hand-w); justify-self: center; flex-direction: row`) —
+addressed by hand class, never `.zone-opponent`, because in PvP p2 swaps the
+grid areas.
+
+File: [src/css/pvp.css](../../src/css/pvp.css)
+`body[data-seat="p2"] .zone-opponent { grid-area: player; }` /
+`.zone-player { grid-area: opponent; }` — the seat swap that is WHY selectors
+must follow the hand class, not the zone.
 <!-- vibeflow:auto:end -->
 
 ## Anti-patterns
