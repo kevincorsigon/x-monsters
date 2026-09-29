@@ -201,13 +201,56 @@
                 bTitulo.top < bCartaOpo.bottom && bCartaOpo.top < bTitulo.bottom;
             assert(`O título da mão alheia não fica sobre as cartas (título ${Math.round(bTitulo.width)}x${Math.round(bTitulo.height)})`,
                 !sobrepoe);
-            assert('O título da mão alheia usa pílula sólida (legível sobre a faixa)',
-                getComputedStyle(tituloOpo).backgroundColor === 'rgba(15, 17, 21, 0.92)');
-            assert('O contador "N cartas" fica opaco', getComputedStyle(tituloOpo, '::after').opacity === '1');
+
+            // O MESMO efeito da mão própria: a faixa dourada em degradê sob o nome
+            // (a pílula sólida saiu) e o chip de contagem no canto direito da
+            // CAIXA — para isso o título é `static` e o badge é `absolute`.
+            const estTitulo = getComputedStyle(tituloOpo);
+            const estBadge = getComputedStyle(tituloOpo, '::after');
+            assert('O título da mão alheia usa a faixa dourada em degradê (como a mão própria)',
+                estTitulo.backgroundImage.includes('linear-gradient') &&
+                estTitulo.backgroundColor === 'rgba(0, 0, 0, 0)');
+            assert('O título é `static`: o badge ancora na caixa, não no nome',
+                estTitulo.position === 'static');
+            assert('O contador "N cartas" fica opaco', estBadge.opacity === '1');
+            assert(`O contador "N cartas" mora no canto direito da caixa (${estBadge.position}, right ${estBadge.right})`,
+                estBadge.position === 'absolute' && estBadge.right === '10px');
+            assert(`O contador traz a quantidade de cartas (${estBadge.content})`,
+                (estBadge.content || '').includes('cartas'));
+
+            // Canto reservado: nenhum verso invade a área do badge.
+            const reserva = parseFloat(estMao.paddingRight) || 0;
+            const ultimaCarta = maoAlheia.querySelector('.card:last-child');
+            if (ultimaCarta) {
+                const bUltima = ultimaCarta.getBoundingClientRect();
+                const limite = bMao.right - (parseFloat(estMao.borderRightWidth) || 0) - reserva;
+                assert(`O canto direito fica livre para a contagem (verso termina em ${Math.round(bUltima.right)}px, reserva em ${Math.round(limite)}px)`,
+                    bUltima.right <= limite + 1);
+            }
+
             assert('Os versos do oponente ficam em fila reta (sem rotação)',
                 getComputedStyle(cartaOpo).transform === 'none');
             assert(`Os versos do oponente ficam dentro da faixa de cima (topo ${Math.round(bCartaOpo.top - bFaixaOpo.top)}px, base ${Math.round(bCartaOpo.bottom - bFaixaOpo.bottom)}px)`,
                 bCartaOpo.top >= bFaixaOpo.top - 2 && bCartaOpo.bottom <= bFaixaOpo.bottom + 2);
+        }
+
+        // Largura FIXA: encher a mão alheia até o limite (7) não pode alargar a
+        // caixa. O estado é devolvido depois do teste — o bloco 10 conta o saque
+        // do fim de turno e uma mão cheia bloquearia a compra.
+        const maoP2 = window.gameState?.players?.p2?.zones?.hand;
+        if (Array.isArray(maoP2)) {
+            const antes = maoP2.length;
+            const larguraAntes = bMao.width;
+            while (maoP2.length < 7) {
+                maoP2.push({ instanceId: `teste_largura_${maoP2.length}`, definitionId: null, ownerId: 'p2' });
+            }
+            window.renderHandsFromState();
+            const larguraDepois = document.querySelector('.zone-opponent .player2-hand')
+                .getBoundingClientRect().width;
+            assert(`A largura da mão do oponente é fixa (${antes} cartas: ${Math.round(larguraAntes)}px, 7 cartas: ${Math.round(larguraDepois)}px)`,
+                Math.abs(larguraDepois - larguraAntes) <= 1);
+            while (maoP2.length > antes) maoP2.pop();
+            window.renderHandsFromState();
         }
     }
 

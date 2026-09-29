@@ -32,6 +32,13 @@
             --hand-card-h: calc(var(--hand-card-w) * 1.42);
             /* Quanto a carta cresce/levanta no hover do leque */
             --fan-lift: clamp(18px, 3.4vh, 40px);
+            /* Largura da tira da mão alheia: FIXA. A caixa não acompanha o
+               número de versos (quem cede são os versos, que encolhem na fila) —
+               só segue a janela, para a faixa nunca estourar em tela estreita. */
+            --opp-hand-w: clamp(280px, 40vw, 640px);
+            /* Canto direito da tira, reservado ao badge "N cartas": os versos
+               param antes dele e nunca passam por baixo da contagem. */
+            --opp-hand-badge: 74px;
         }
 
         * {
@@ -143,33 +150,49 @@
         body[data-seat="p1"] .player2-hand,
         body:not([data-seat]) .player2-hand,
         body[data-seat="p2"] .player1-hand {
-            width: fit-content;
+            /* LARGURA FIXA (token): sacar carta não alarga mais a área — a caixa
+               é sempre a mesma e a fila de versos é que encolhe dentro dela.
+               O degradê, a borda dourada, o raio e a sombra vêm da regra comum
+               `.player2-hand, .player1-hand`: é o mesmo painel da mão própria. */
+            width: var(--opp-hand-w);
             max-width: 100%;
             justify-self: center;
             flex-direction: row;
             align-items: center;
             justify-content: flex-start;
             gap: 10px;
-            padding: 4px 10px;
+            /* O canto direito pertence ao badge "N cartas" (absoluto na caixa). */
+            padding: 4px var(--opp-hand-badge) 4px 10px;
             /* O recorte é a garantia dura: nada da mão alheia sai da faixa. */
             overflow: hidden;
             z-index: 0;
             pointer-events: none;
         }
 
-        /* A tira de versos não encolhe nem centraliza: ela é o conteúdo da caixa
-           (o `1fr` do meio da faixa não tem mais mão para esticar). */
+        /* A fila de versos ocupa o meio da tira e é quem CEDE quando a mão enche:
+           `flex: 1 1 auto` + `min-width: 0` deixam os versos encolherem na mesma
+           proporção, então a largura da caixa nunca depende da contagem. */
         body[data-seat="p1"] .player2-hand #hand-p2,
         body:not([data-seat]) .player2-hand #hand-p2,
         body[data-seat="p2"] .player1-hand #hand-p1 {
-            flex: 0 0 auto;
-            justify-content: flex-start;
+            flex: 1 1 auto;
+            min-width: 0;
+            justify-content: center;
         }
 
         /* Faixa do jogador: pilhas · mão · stats (a mão grande fica no meio) */
         .zone-player {
             grid-area: player;
             grid-template-columns: auto minmax(0, 1fr) auto;
+        }
+
+        /* Assento p2 (PvP): a faixa de BAIXO é `.zone-opponent`, que usa
+           `justify-items: start` para as pilhas encostarem na borda. A mão local
+           não pode herdar esse `start`: encolhida ao conteúdo ela cresceria a
+           cada carta sacada. Estica na coluna do meio, como no assento p1 —
+           a largura da mão do jogador é a mesma nos dois assentos. */
+        body[data-seat="p2"] .zone-opponent > .player2-hand {
+            justify-self: stretch;
         }
 
         /* Faixa de cima: a mão do oponente é ilustrativa — o que interessa é a
@@ -187,6 +210,10 @@
             --hand-card-h: calc(var(--hand-card-w) * 1.42);
             transform: none;
             margin: 0 -3px;
+            /* A caixa é fixa: quando a mão enche, o verso encolhe (proporcional)
+               em vez de empurrar a largura da área. */
+            flex: 0 1 auto;
+            min-width: 0;
             z-index: 1;
         }
 
@@ -199,36 +226,44 @@
             min-height: 0;
         }
 
-        /* Título do oponente: uma pílula SÓLIDA (fundo escuro + borda dourada,
-           sem gradiente transparente e sem text-shadow) para o nome caber
-           legível ao lado dos versos, e o badge de contagem no fluxo, na mesma
-           linha — o `nowrap` impede que qualquer um dos dois quebre ou cubra o
-           outro. As três partes do seletor são as mesmas da tira acima. */
+        /* Título do oponente: o MESMO efeito da mão própria — a faixa dourada em
+           degradê atrás do nome e o brilho no texto (agora o título não sobrepõe
+           os versos, então o degradê voltou a ser legível). Ele deixa de ser
+           flex e vira `position: static` porque o badge de contagem saiu do
+           fluxo: quem ancora o "N cartas" é a CAIXA, no canto direito.
+           As três partes do seletor são as mesmas da tira acima. */
         body[data-seat="p1"] .player2-hand .hand-title,
         body:not([data-seat]) .player2-hand .hand-title,
         body[data-seat="p2"] .player1-hand .hand-title {
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            gap: 6px;
-            flex: 0 0 auto;
+            display: block;
+            position: static;
+            /* O nome cede antes dos versos (reticências) em janela estreita. */
+            flex: 0 1 auto;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
             margin-bottom: 0;
             font-size: 0.78em;
             padding: 3px 10px;
             white-space: nowrap;
             color: var(--primary-color);
-            background: rgba(15, 17, 21, 0.92);
-            border: 1px solid rgba(212, 175, 55, 0.45);
+            background: linear-gradient(90deg, transparent 0%, rgba(201, 165, 103, 0.3) 50%, transparent 100%);
             border-radius: 999px;
-            text-shadow: none;
+            text-shadow: 0 0 10px rgba(201, 165, 103, 0.5);
         }
 
+        /* Quantidade de cartas no CANTO DIREITO da tira — o mesmo chip dourado da
+           mão própria (`attr(data-count)` + "cartas"), ancorado na caixa porque o
+           título é `position: static`. O `content` explícito blinda a tira contra
+           o "🔒 Turno do oponente" do hotseat, que não caberia no canto. */
         body[data-seat="p1"] .player2-hand .hand-title::after,
         body:not([data-seat]) .player2-hand .hand-title::after,
         body[data-seat="p2"] .player1-hand .hand-title::after {
-            position: static;
-            transform: none;
-            flex: 0 0 auto;
+            content: attr(data-count) " cartas";
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
             white-space: nowrap;
             font-size: 0.75em;
             padding: 1px 6px;

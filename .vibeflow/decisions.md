@@ -1,6 +1,51 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-29 — Palco: mão do oponente com o painel da mão própria e largura FIXA
+
+Pedido: "na mão do jogador adversário precisamos do mesmo efeito no espaço de mão
+(com degradê e quantidade de cartas no canto direito)" e "o tamanho da área em
+largura da mão do jogador deve ser fixo e não ficar aumentando com a quantidade
+de cartas" (referência: o painel da mão própria, com a faixa dourada em degradê e
+o chip "N cartas" no canto direito).
+
+Decisão (só apresentação — nenhuma regra, dado, API ou CSS de PvP mudou):
+- `src/css/game.css`: tokens novos no `:root` — `--opp-hand-w: clamp(280px, 40vw,
+  640px)` (largura da tira) e `--opp-hand-badge: 74px` (reserva do canto direito).
+  O `width: fit-content` saiu: a caixa era 400px com 3 versos e 552px com 7, ou
+  seja, crescia a cada carta sacada.
+- O painel (degradê `135deg` + borda dourada + raio + sombra) já vinha da regra
+  comum `.player2-hand, .player1-hand`; o que faltava era o título: a pílula
+  sólida (`rgba(15,17,21,.92)`) virou a MESMA faixa dourada em degradê da mão
+  própria (`linear-gradient(90deg, transparent → rgba(201,165,103,.3) → transparent)`
+  + `text-shadow`), agora que o nome não é lido sobre a arte dos versos.
+- Quantidade de cartas no canto direito: o título da tira é `position: static`,
+  então o `::after` (o mesmo chip `attr(data-count) " cartas"`) ancora na CAIXA
+  (`position: absolute; right: 10px; top: 50%`), e o `padding-right` da caixa
+  reserva o lugar dele — os versos param antes (`--opp-hand-badge`). O `content`
+  ficou explícito para o `"🔒 Turno do oponente"` do hotseat não entrar no canto.
+- Quem CEDE é a fila, nunca a caixa: `#hand-p2`/`#hand-p1` da tira viram
+  `flex: 1 1 auto` + `min-width: 0` + `justify-content: center` e o `.card` ganha
+  `flex: 0 1 auto; min-width: 0` — com a mão cheia os versos encolhem na mesma
+  proporção (44px → 20px em 758×482) em vez de empurrar a largura.
+- Assento p2 do PvP (achado de medição, não do pedido): a faixa de BAIXO é
+  `.zone-opponent`, que tem `justify-items: start` para as pilhas encostarem na
+  borda — a mão LOCAL herdava esse `start` e encolhia ao leque (167px em
+  1800×850 e crescendo com as cartas). Nova regra
+  `body[data-seat="p2"] .zone-opponent > .player2-hand { justify-self: stretch }`
+  devolve a largura da coluna do meio (1274px em 1800×850), igual à do assento
+  p1. É a ÚNICA regra que liga a faixa a uma mão — e ela toca a mão do PRÓPRIO
+  jogador, não a alheia (a armadilha dos seletores por faixa continua valendo).
+- Validação: **272/272** unit e **29/29** browser (o teste da tira cobra o token
+  de largura, a reserva do canto, o `flex` da fila e do verso, o degradê do
+  título, o chip `absolute` no canto e a única regra por faixa; o bloco 9b do
+  `test_ui_state.js` mede o degradê, o `static` do título, o chip no canto, o
+  canto livre de versos e enche a mão de 5 → 7 cartas sem a largura mudar).
+- Checagem CDP (PvM e PvP p1/p2) em 1800×850, 1280×720, 1024×768, 820×768 e
+  758×482: caixa SEMPRE 640/512/410/328/303px com 3 ou 7 versos, chip sempre a
+  10px da borda direita, último verso sempre antes da reserva, versos em fila
+  reta dentro da faixa e zero rolagem de página.
+
 ## 2026-09-29 — Palco: mão do oponente centrada no meio da tela
 
 Pedido: "pode centralizar a área da mão do oponente no meio da tela".

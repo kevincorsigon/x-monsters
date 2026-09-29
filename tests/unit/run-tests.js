@@ -4974,18 +4974,30 @@ test('o botão de habilidades manuais fica no HUD, ao lado do timer', () => {
     assert.equal(js.includes('abilities-float'), false, 'o JS não cria mais o container flutuante');
 });
 
-test('a mão do oponente vira uma tira reta, compacta e legível ao lado dos versos', () => {
+test('a mão do oponente é um painel de largura fixa, com o degradê e a contagem no canto', () => {
     const css = readSourceText('src/css/game.css');
-    assert.equal(css.includes('--opp-hand-w'), false,
-        'a largura fixa saiu do CSS: a caixa acompanha o conteúdo');
+
+    // Largura FIXA: o token vive no `:root` e a caixa não acompanha o número de
+    // versos (o `fit-content` antigo crescia a cada carta sacada).
+    assert.match(css, /--opp-hand-w: clamp\(/,
+        'a tira da mão alheia tem largura própria, fora do tamanho do conteúdo');
+    assert.match(css, /--opp-hand-badge: \d+px;/,
+        'e o canto direito tem uma reserva declarada para o badge de contagem');
 
     // A mão alheia é escolhida pela CLASSE, nunca por `.zone-opponent`: o assento
-    // p2 do PvP troca as ÁREAS do grid, então a faixa de cima é `.player1-hand` e
-    // `.zone-opponent` pode estar embaixo carregando a mão do próprio jogador —
-    // estilizar por faixa entregaria `pointer-events: none` para a mão local.
-    assert.equal(css.includes('.zone-opponent .player2-hand'), false,
-        'nenhuma regra da mão alheia entra pela faixa (só pela classe do assento)');
-    assert.equal(css.includes('.zone-opponent .player1-hand'), false);
+    // p2 do PvP troca as ÁREAS do grid, então `.zone-opponent` pode estar embaixo
+    // carregando a mão do PRÓPRIO jogador — estilizar a mão alheia por faixa
+    // entregaria `pointer-events: none` para a mão local. A ÚNICA regra que liga a
+    // faixa a uma mão é a que devolve a largura da coluna do meio à mão local do
+    // assento p2 (`justify-self: stretch`), e ela é qualificada por assento e
+    // aponta para `.player2-hand` — que NAQUELE assento é o jogador, não o
+    // adversário.
+    const usosDaFaixa = (css.match(/^.*\.zone-opponent.*\bplayer[12]-hand.*$/gm) || [])
+        .map(linha => linha.trim());
+    assert.equal(usosDaFaixa.length, 1,
+        `só uma regra liga a faixa a uma mão: ${usosDaFaixa.join(' | ')}`);
+    assert.equal(usosDaFaixa[0], 'body[data-seat="p2"] .zone-opponent > .player2-hand {',
+        'e é a largura da mão LOCAL no assento p2 — a mão alheia nunca entra pela faixa');
     assert.equal(css.includes('.zone-opponent .hand-title'), false,
         'o título do oponente também vai por classe (`.player*-hand .hand-title`)');
 
@@ -5010,18 +5022,33 @@ test('a mão do oponente vira uma tira reta, compacta e legível ao lado dos ver
     assert.match(faixaDaMao, /justify-self: end;/,
         'o bloco da ponta (stats ou pilhas) ancora na borda de fora da faixa');
 
-    const caixa = css.slice(css.indexOf('body[data-seat="p1"] .player2-hand,'),
-        css.indexOf('body[data-seat="p1"] .player2-hand .card,'));
+    const inicioCaixa = css.indexOf('body[data-seat="p1"] .player2-hand,');
+    const caixa = css.slice(inicioCaixa,
+        css.indexOf('body[data-seat="p1"] .player2-hand #hand-p2,', inicioCaixa));
     assert.match(caixa, /body\[data-seat="p2"\] \.player1-hand \{/,
         'o assento p2 cobre a mão alheia dele (`.player1-hand`)');
-    assert.match(caixa, /width: fit-content;/, 'a caixa ocupa só o que o conteúdo pede');
+    assert.match(caixa, /width: var\(--opp-hand-w\);/,
+        'a largura vem do token: fixa, independente das cartas na mão');
+    assert.equal(caixa.includes('width: fit-content;'), false,
+        'o `fit-content` saiu: era ele que alargava a caixa a cada carta sacada');
     assert.match(caixa, /justify-self: center;/,
         'a tira é centrada na coluna do meio — e o meio da faixa é o meio da tela');
     assert.match(caixa, /flex-direction: row;/, 'título e versos na mesma linha, lado a lado');
+    assert.match(caixa, /padding: 4px var\(--opp-hand-badge\) 4px 10px;/,
+        'o canto direito fica reservado ao badge: os versos param antes dele');
     assert.match(caixa, /overflow: hidden;/, 'o recorte continua sendo a garantia dura da faixa');
     assert.match(caixa, /pointer-events: none;/, 'versos não são jogáveis nem espiáveis');
     assert.equal(/[^-]width: 100%;/.test(caixa), false, 'a caixa não estica mais a faixa inteira');
     assert.equal(caixa.includes('justify-self: stretch;'), false);
+
+    // Quem cede quando a mão enche é a FILA de versos, nunca a caixa: ela ocupa a
+    // sobra (`flex: 1 1 auto`) e os versos podem encolher (`min-width: 0`).
+    const inicioFila = css.indexOf('body[data-seat="p1"] .player2-hand #hand-p2,');
+    const fila = css.slice(inicioFila, css.indexOf('.zone-player {', inicioFila));
+    assert.match(fila, /flex: 1 1 auto;/,
+        'a fila absorve o meio da tira (a caixa não cresce por causa dela)');
+    assert.match(fila, /min-width: 0;/, 'a fila pode encolher até caber na caixa fixa');
+    assert.match(fila, /justify-content: center;/, 'os versos ficam centrados no meio da tira');
 
     // Fila reta: sem rotação do leque e com sobreposição mínima. O `--hand-card-h`
     // precisa ser recalculado aqui — o valor do `:root` chega JÁ resolvido com o
@@ -5031,23 +5058,36 @@ test('a mão do oponente vira uma tira reta, compacta e legível ao lado dos ver
     assert.match(carta, /transform: none;/, 'sem arco: os versos ficam em fila reta');
     assert.match(carta, /--hand-card-h: calc\(var\(--hand-card-w\) \* 1\.42\);/,
         'a altura da carta segue o token pequeno da faixa (não o da mão grande)');
+    assert.match(carta, /flex: 0 1 auto;/,
+        'o verso encolhe dentro da caixa fixa em vez de empurrar a largura da área');
+    assert.match(carta, /min-width: 0;/, 'e pode encolher até caber (sem mínimo herdado)');
     assert.match(carta, /\.card-back[\s\S]*min-height: 0;/,
         'os mínimos de 70×100 do verso não vencem o token na tira');
 
+    // Título e badge: o MESMO efeito da mão própria (a faixa dourada em degradê
+    // sob o nome + o chip de contagem), só que aqui o badge sai do fluxo e
+    // ancora na CAIXA — ele é o "canto direito" da área da mão alheia.
     const titulo = css.slice(css.indexOf('body[data-seat="p1"] .player2-hand .hand-title,'),
         css.indexOf('.board {'));
-    assert.match(titulo, /display: flex;/,
+    assert.match(titulo, /display: block;/,
         'o título fica visível mesmo em tela estreita (vence o `none` do @media)');
-    assert.match(titulo, /background: rgba\(15, 17, 21, 0\.92\);/,
-        'pílula sólida: o nome não é lido sobre a arte dos versos');
-    assert.match(titulo, /text-shadow: none;/, 'sem glow: era o que borrava o texto');
+    assert.match(titulo, /position: static;/,
+        'sem `position`: quem ancora o badge passa a ser a caixa da mão');
+    assert.match(titulo, /background: linear-gradient\(90deg, transparent 0%, rgba\(201, 165, 103, 0\.3\) 50%, transparent 100%\);/,
+        'a faixa dourada em degradê é a mesma do título da mão própria');
+    assert.match(titulo, /text-shadow: 0 0 10px rgba\(201, 165, 103, 0\.5\);/,
+        'com o mesmo brilho do nome da mão própria');
+    assert.match(titulo, /text-overflow: ellipsis;/,
+        'o nome cede antes dos versos quando a janela aperta');
     assert.match(titulo, /border-radius: 999px;/, 'formato de pílula, colado ao lado dos versos');
     assert.match(titulo, /margin-bottom: 0;/, 'sem respiro de coluna: a caixa agora é linha');
-    assert.match(titulo, /white-space: nowrap;/, 'o título não quebra: nome e badge na mesma linha');
-    assert.match(titulo, /body\[data-seat="p2"\] \.player1-hand \.hand-title::after \{[\s\S]*position: static;/,
-        'o badge "N cartas" entra no fluxo, ao lado do nome');
-    assert.match(titulo, /hand-title::after \{[\s\S]*flex: 0 0 auto;/,
-        'o badge mantém a largura natural (não encolhe até quebrar)');
+    assert.match(titulo, /white-space: nowrap;/, 'o título não quebra em duas linhas');
+    assert.match(titulo, /content: attr\(data-count\) " cartas";/,
+        'o chip de contagem é o da mão própria (e blinda a tira do "🔒" do hotseat)');
+    assert.match(titulo, /hand-title::after \{[\s\S]*position: absolute;/,
+        'o badge sai do fluxo e vai para o canto direito da caixa');
+    assert.match(titulo, /hand-title::after \{[\s\S]*right: 10px;/);
+    assert.match(titulo, /hand-title::after \{[\s\S]*top: 50%;/);
     assert.match(titulo, /hand-title::after \{[\s\S]*opacity: 1;/,
         'o badge perdeu o `opacity: .8` que o deixava apagado');
 
