@@ -801,9 +801,20 @@
             transform: translateY(-1px);
         }
 
+        /* Ação mais agressiva do jogo: gradiente carmesim (mesma família do
+           `.card.direct-attack`) com borda clara, para o botão não se confundir
+           com os vizinhos dourados do menu central. */
         .action-button.direct-attack-btn {
-            background-color: var(--pv-zero-color);
+            background: linear-gradient(180deg, #ff7a7a 0%, var(--pv-zero-color) 55%, #c81e23 100%);
             color: #fff;
+            border: 1px solid rgba(255, 216, 216, 0.8);
+            letter-spacing: 0.5px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+        }
+
+        .action-button.direct-attack-btn:hover {
+            background: linear-gradient(180deg, #ff9a9a 0%, #f75c5c 55%, #d81f24 100%);
+            box-shadow: 0 0 14px rgba(220, 20, 60, 0.75);
         }
 
         /* Ataque Direto flutuando logo abaixo do menu central (abaixo de
@@ -821,6 +832,8 @@
         }
 
         .direct-attack-float .direct-attack-btn {
+            position: relative;
+            overflow: hidden;
             pointer-events: auto;
             padding: 10px 22px;
             font-size: 13px;
@@ -828,21 +841,53 @@
             animation: directAttackFloat 0.35s ease-out;
         }
 
+        /* Faixa de luz diagonal parada fora do botão até o pulso ligar; o
+           `overflow: hidden` da regra acima recorta a varredura nas bordas. */
+        .direct-attack-float .direct-attack-btn::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.55) 50%, transparent 68%);
+            transform: translateX(-160%);
+        }
+
         @keyframes directAttackFloat {
             0% { opacity: 0; transform: translateY(-10px); }
             100% { opacity: 1; transform: translateY(0); }
         }
 
-        /* Campo adversário vazio: o Ataque Direto "respira" (fade in/out suave)
-           para sinalizar que é a única jogada possível — a entrada do float roda
-           uma vez e o pulso entra depois dela, sem salto de opacidade. */
+        /* Campo adversário vazio: o Ataque Direto "chama" com brilho carmesim
+           (mesma família do `.card.direct-attack`) pulsando para fora, respiração
+           de escala e a faixa de luz varrendo o botão a cada ciclo. Nada de
+           opacidade: o fade deixava o botão translúcido — mais apagado
+           justamente quando ele é a única jogada possível. */
         .direct-attack-float .direct-attack-btn.direct-attack-pulse {
-            animation: directAttackFloat 0.35s ease-out, directAttackPulse 2.8s ease-in-out 0.35s infinite;
+            animation: directAttackFloat 0.35s ease-out, directAttackPulse 1.6s ease-in-out 0.35s infinite;
+        }
+
+        .direct-attack-float .direct-attack-btn.direct-attack-pulse::after {
+            animation: directAttackSheen 1.6s ease-in-out 0.35s infinite;
         }
 
         @keyframes directAttackPulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.55; }
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5), 0 0 0 0 rgba(220, 20, 60, 0), 0 0 0 rgba(220, 20, 60, 0);
+                filter: brightness(1) saturate(1);
+            }
+            50% {
+                opacity: 1;
+                transform: scale(1.08);
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55), 0 0 0 7px rgba(220, 20, 60, 0.22), 0 0 26px rgba(220, 20, 60, 0.95);
+                filter: brightness(1.35) saturate(1.15);
+            }
+        }
+
+        @keyframes directAttackSheen {
+            0% { transform: translateX(-160%); }
+            55%, 100% { transform: translateX(160%); }
         }
 
         /* Tabuleiro do jogo */

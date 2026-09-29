@@ -4822,14 +4822,36 @@ test('Ataque Direto flutua abaixo do menu central (abaixo de Invocação)', () =
         assert.match(controles, /<button class="action-button" onclick="endTurn\(\)">Fim Turno<\/button>/);
     });
 });
-test('o botão de ataque direto pulsa discretamente com o campo adversário vazio', () => {
+test('o botão de ataque direto chama atenção sem ficar translúcido', () => {
     const css = readSourceText('src/css/game.css');
     assert.match(css, /\.direct-attack-float \.direct-attack-btn\.direct-attack-pulse/,
-        'a classe ativa o pulso discreto no botão');
+        'a classe ativa o destaque no botão');
     assert.match(css, /@keyframes directAttackPulse/,
         'a animação directAttackPulse está definida');
-    assert.match(css, /opacity:\s*0\.55/,
-        'fade out sutil de 55% de opacidade (nada gritante)');
+
+    const pulso = css.slice(css.indexOf('@keyframes directAttackPulse'),
+        css.indexOf('@keyframes directAttackSheen'));
+    assert.ok(css.indexOf('@keyframes directAttackSheen') > css.indexOf('@keyframes directAttackPulse'),
+        'a animação da faixa de luz vem declarada depois do pulso');
+    assert.equal(/opacity:\s*0\./.test(pulso), false,
+        'o pulso não tem fade: o botão nunca fica translúcido');
+    assert.equal((pulso.match(/opacity:\s*1;/g) || []).length, 2,
+        'o botão permanece opaco nos dois extremos do ciclo');
+    assert.match(pulso, /transform: scale\(1\.0[5-9]\);/,
+        'a respiração de escala dá o destaque principal');
+    assert.match(pulso, /0 0 26px rgba\(220, 20, 60, 0\.95\)/,
+        'o brilho carmesim pulsando para fora é o ponto de atenção');
+    assert.match(pulso, /filter: brightness\(1\.35\)/,
+        'o pico do ciclo clareia o botão (brilho, não transparência)');
+
+    assert.match(css, /@keyframes directAttackSheen/,
+        'a faixa de luz que varre o botão está definida');
+    assert.match(css, /\.direct-attack-float \.direct-attack-btn\.direct-attack-pulse::after\s*\{\s*animation: directAttackSheen/,
+        'a varredura só roda junto do pulso');
+    const floatBtn = css.slice(css.indexOf('.direct-attack-float .direct-attack-btn {'),
+        css.indexOf('@keyframes directAttackFloat'));
+    assert.match(floatBtn, /overflow: hidden;/,
+        'o recorte do botão contém a faixa de luz');
 
     const gameJs = readSourceText('src/js/game.js');
     assert.match(gameJs, /function campoDoAdversarioVazio\(/,

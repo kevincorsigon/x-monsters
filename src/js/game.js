@@ -998,9 +998,10 @@
         }
 
         /**
-         * Mostra/oculta o "Ataque Direto" no float do menu central. O pulso
-         * discreto (fade in/out) fica ligado só com o campo adversário vazio —
-         * a situação em que o ataque direto é a única jogada possível.
+         * Mostra/oculta o "Ataque Direto" no float do menu central. O destaque
+         * (brilho carmesim pulsando + respiração de escala, sem fade) fica
+         * ligado só com o campo adversário vazio — a situação em que o ataque
+         * direto é a única jogada possível.
          */
         function exibirAtaqueDireto(visivel, campoInimigoVazio = false) {
             const botao = document.getElementById('direct-attack-btn');
