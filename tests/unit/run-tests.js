@@ -9,6 +9,7 @@ const PvpProtocol = require('../../src/js/pvp-protocol.js');
 const PvmAi = require('../../src/js/pvm-ai.js');
 const { DeckBuilder, mulberry32 } = require('../../scripts/deck_factory.js');
 const cardsDatabase = require('../../data/cards_database.json');
+const CardGallery = require('../../src/js/card-gallery.js');
 
 // O repositório guarda os arquivos com LF, mas um checkout Windows com
 // `core.autocrlf=true` entrega CRLF. Testes que ancoram em início de linha
@@ -7127,6 +7128,49 @@ test('a landing page e index.html e o contador de partida real fica em real-play
         });
 });
 
+test('a home tem um CTA por destino: jogar no hero, ferramentas nos portais', () => {
+    const home = readSourceText('index.html');
+
+    // Nivel 1 (hero): os dois jeitos de jogar, com um unico botao primario. A
+    // galeria nao entra aqui — ela nao compete com "jogar".
+    assert.match(home, /<a class="button button-primary" href="pvp-lobby\.html">⚡ Jogar PvP/,
+        'o hero guarda um unico CTA primario (PvP)');
+    assert.match(home, /<a class="button" href="game\.html">Jogar contra CPU/,
+        'e o modo CPU como secundario');
+    assert.equal((home.match(/button-primary/g) || []).length, 3,
+        'primario so existe no CSS (regra + hover) e no botao do hero');
+
+    // Nivel 2 (portais): quatro destinos, cada um com um CTA. Os modos de jogar
+    // sairam daqui porque ja sao os botoes do hero (CTA repetido confundia a
+    // escolha), e a galeria entrou como primeiro portal com selo de novidade.
+    const inicio = home.indexOf('<nav class="portals"');
+    const portais = home.slice(inicio, home.indexOf('</nav>', inicio));
+    assert.equal((portais.match(/class="portal[ "]/g) || []).length, 4,
+        'quatro portais: cartas, deck builder, regras e contador');
+    assert.match(portais, /<a class="portal" href="cartas\.html">/, 'a galeria e o primeiro portal');
+    assert.match(portais, /Galeria de cartas<span class="portal-tag">Novo<\/span>/,
+        'com selo de novo para chamar o olho');
+    assert.match(portais, /pegue a carta na mao|pegue a carta na mão/,
+        'o texto do portal vende o gesto novo da galeria');
+    assert.equal(portais.includes('href="pvp-lobby.html"'), false,
+        'o lobby nao repete o botao do hero');
+    assert.equal(portais.includes('href="game.html"'), false,
+        'o modo CPU nao repete o botao do hero');
+
+    // Quatro cartaos pedem quatro colunas (2x2 nos breakpoints), sem orfao.
+    assert.match(home, /\.portals \{ display: grid; grid-template-columns: repeat\(4, 1fr\);/,
+        'a grade dos portais tem 4 colunas');
+    assert.equal(home.includes('grid-template-columns: repeat(5, 1fr)'), false,
+        'a grade antiga de 5 colunas saiu');
+    assert.equal(home.includes('.portal:last-child'), false,
+        'o hack do ultimo cartao (fileira impar) saiu junto');
+    assert.match(home, /\.portal-tag \{/, 'o selo "Novo" tem estilo proprio');
+
+    // O caminho de volta continua existindo nos dois sentidos.
+    assert.match(readSourceText('cartas.html'), /href="index\.html"/,
+        'a galeria volta para a home');
+});
+
 test('o servidor estatico cacheia por classe, revalida com ETag (304) e faz gzip negociado', () => {
     const servidor = readSourceText('server.py');
 
@@ -7155,6 +7199,171 @@ test('o servidor estatico cacheia por classe, revalida com ETag (304) e faz gzip
     // A API de lobby continua sem cache (a pagina de sala muda a cada partida).
     assert.match(servidor, /cache_control="no-store"/, 'a API continua no-store');
 });
+
+test('a galeria de cartas esparrama o catalogo inteiro num carrossel horizontal', () => {
+    const html = readSourceText('cartas.html');
+    const css = readSourceText('src/css/card-gallery.css');
+    const js = readSourceText('src/js/card-gallery.js');
+
+    // Piloto: a pagina reusa a carta canonica (game.css), os chips de traits
+    // (deck-select.css) e o motor de regras — e ainda nao ganha link na home.
+    ['src/css/game.css', 'src/css/deck-select.css', 'src/css/card-gallery.css'].forEach(arquivo => {
+        assert.match(html, new RegExp(`<link rel="stylesheet" href="${arquivo.replace(/\//g, '\\/')}">`),
+            `${arquivo} entra em cartas.html`);
+    });
+    // A galeria graduou: a home agora abre cartas.html (o desenho do CTA e os
+    // portais sem repeticao estao travados no teste seguinte).
+    assert.match(readSourceText('index.html'), /<a class="portal" href="cartas\.html">/,
+        'a home entra em cartas.html');
+
+    // A ordem dos scripts importa: card-rules precisa do GameEngine e a galeria
+    // le o catalogo que o deck_system carrega.
+    ['src/js/game-engine.js', 'src/js/card-rules.js', 'src/js/deck_system.js',
+        'src/js/deck-select.js', 'src/js/card-gallery.js'].reduce((anterior, arquivo) => {
+        const atual = html.indexOf(`src="${arquivo}"`);
+        assert.ok(atual > anterior, `${arquivo} vem depois do anterior em cartas.html`);
+        return atual;
+    }, -1);
+
+    // Catalogo pelo caminho canonico: nada de re-fetch do JSON na galeria.
+    assert.match(js, /loadCardSystem\(\)/, 'a galeria espera o deck_system carregar');
+    assert.match(js, /cardsDatabase\?\.cards/, 'e le window.cardsDatabase.cards');
+    assert.equal(js.includes('cards_database.json'), false, 'a galeria nao busca o JSON direto');
+
+    // O leque e calculado em CSS (--i do renderer vs --galeria-ativo da esteira),
+    // nunca enumerado por posicao — vale para qualquer quantidade de cartas.
+    assert.match(css, /--galeria-dist: calc\(var\(--i, 0\) - var\(--galeria-ativo, 0\)\);/,
+        'a distancia ate a carta ativa e uma variavel calculada');
+    assert.match(css, /scroll-snap-align: center;/, 'cada carta ancora no centro');
+    assert.equal(/galeria-carta:nth-child/.test(css), false, 'nenhuma posicao e enumerada no CSS');
+
+    // O arco e limitado nas duas pontas: sem teto, a carta 110 giraria 65 graus
+    // e cairia 16 mil pixels abaixo da mesa.
+    const leque = css.slice(css.indexOf('.galeria-carta {'), css.indexOf('.galeria-carta:hover {'));
+    assert.match(leque, /rotate\(max\(min\(calc\(var\(--galeria-dist\) \* 0\.6deg\), 6deg\), -6deg\)\)/,
+        'o giro do leque e limitado a +-6 graus');
+    assert.match(leque, /translateY\(min\(calc\(var\(--galeria-dist\) \* var\(--galeria-dist\) \* 1\.4px\), 14px\)\)/,
+        'a queda do arco tambem e limitada');
+    assert.match(js, /setProperty\('--i'/, 'o renderer escreve --i');
+    assert.match(js, /setProperty\('--galeria-ativo'/, 'e o indice ativo vira --galeria-ativo');
+    assert.match(js, /tabIndex = ehAtiva \? 0 : -1;/,
+        'roving tabindex: so a carta ativa e parada de Tab');
+
+    // Controles do piloto: pontas do baralho, passo a passo e salto por posicao.
+    ['galeriaPrimeira', 'galeriaUltima', 'galeriaAnterior', 'galeriaProxima',
+        'galeriaIrPara', 'galeriaIr', 'galeriaContador', 'galeriaEsteira', 'galeriaDetalhe']
+        .forEach(id => {
+            assert.ok(html.includes(`id="${id}"`), `${id} existe em cartas.html`);
+            assert.ok(js.includes(`'${id}'`), `card-gallery.js liga ${id}`);
+        });
+
+    // Teclado: setas + Home/End, e o zoom fecha no Escape.
+    ['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Escape'].forEach(tecla => {
+        assert.ok(js.includes(`'${tecla}'`), `card-gallery.js trata ${tecla}`);
+    });
+
+    // O zoom reusa o modal canonico, sem CSS inline.
+    assert.match(html, /<div class="card-modal" id="cardModal"/, 'o zoom e o modal de game.css');
+    assert.match(js, /\$\('cardModal'\)/, 'card-gallery.js abre o modal canonico');
+    assert.equal(js.includes('style="'), false, 'a galeria nao escreve CSS inline');
+
+    // No carrossel e na mao a carta e so a arte: nome e ataque/defesa ja estao no
+    // painel de detalhe (chips) e no zoom. A regra e escopada, e o aria-label/aria-live
+    // seguem carregando os numeros para o leitor de tela.
+    assert.match(css, /\.galeria-carta \.card \.card-cost,\s*\.galeria-carta \.card \.card-name,\s*\.galeria-carta \.card \.card-stats,\s*\.galeria-mao-frente \.card-cost,\s*\.galeria-mao-frente \.card-name,\s*\.galeria-mao-frente \.card-stats \{\s*display: none;/,
+        'carrossel e carta na mao escondem o rotulo (custo, nome e ataque/defesa)');
+    assert.equal(/^\s*\.card-(cost|name|stats)\s*[,{]/m.test(css), false,
+        'o rotulo some so na galeria, nao na pagina inteira');
+    assert.match(js, /frente\.innerHTML = frenteDaCarta\(carta\);/,
+        'a face da mao reusa o mesmo markup da carta do jogo');
+    assert.match(js, /class="card-name"/, 'o markup da carta segue o mesmo do resto do jogo');
+    assert.match(js, /botao\.setAttribute\('aria-label'/, 'o botao do carrossel ganha aria-label');
+    assert.match(js, /custo \$\{carta\.cost \?\? 0\}, ataque \$\{carta\.attack \?\? 0\}, defesa \$\{carta\.defense \?\? 0\}/,
+        'nome, custo, ataque e defesa continuam acessiveis ao leitor de tela');
+    assert.match(js, /galeria-atk">⚔ \$\{carta\.attack \?\? 0\}/, 'e o painel de detalhe segue mostrando os numeros');
+});
+
+test('a carta na mao gira em 3D com limites, mostra o verso e nao usa lib de tilt', () => {
+    const html = readSourceText('cartas.html');
+    const css = readSourceText('src/css/card-gallery.css');
+    const js = readSourceText('src/js/card-gallery.js');
+
+    // Efeito caseiro de proposito: tilt.js/vanilla-tilt e hover-only (max 15 graus,
+    // reset no mouseleave), nao tem hold, nao cruza 90 graus e nao tem verso.
+    [html, css, js].forEach(arquivo => {
+        assert.equal(/vanilla-tilt|VanillaTilt|tilt\.js/i.test(arquivo), false,
+            'nenhuma dependencia de tilt entra na galeria');
+    });
+    assert.equal(/<script[^>]+src="https?:/.test(html), false, 'nenhum script vem de CDN');
+
+    // Overlay com duas faces de verdade, e o verso e o .card-back canonico do jogo.
+    ['galeriaMao', 'galeriaMaoCarta', 'galeriaMaoFrente', 'galeriaMaoVirar',
+        'galeriaMaoDevolver', 'galeriaMaoEstado'].forEach(id => {
+        assert.ok(html.includes(`id="${id}"`), `${id} existe em cartas.html`);
+        assert.ok(js.includes(`'${id}'`), `card-gallery.js liga ${id}`);
+    });
+    assert.match(html, /id="galeriaMao"[^>]*hidden/, 'o overlay comeca fechado');
+    assert.match(html, /<div class="card card-back galeria-mao-verso">/,
+        'o verso reusa o .card-back de game.css');
+    assert.match(readSourceText('src/css/game.css'), /\.card-back \{[^}]*verso\.jpeg/,
+        'que e a face que aponta para assets/verso.jpeg');
+
+    // A pose vem do CSS; o JS so escreve as variaveis (mesmo contrato do leque).
+    assert.match(css, /perspective: 1200px;/, 'o overlay cria a perspectiva');
+    assert.match(css, /transform-style: preserve-3d;/, 'as duas faces vivem no mesmo espaco 3D');
+    assert.match(css,
+        /transform: rotateX\(var\(--mao-x, 0deg\)\) rotateY\(var\(--mao-y, 0deg\)\) scale\(var\(--mao-escala, 1\)\);/,
+        'a pose e lida de --mao-x/--mao-y');
+    assert.match(css, /backface-visibility: hidden;/, 'a face que fica de costas some');
+    assert.match(css, /\.galeria-mao-verso \{\s*transform: rotateY\(180deg\);/, 'o verso entra ja girado');
+    assert.match(js, /setProperty\('--mao-x'/, 'a inclinacao vai para --mao-x');
+    assert.match(js, /setProperty\('--mao-y'/, 'o giro vai para --mao-y');
+    assert.equal(/style\.transform\s*=/.test(js), false, 'nada de transform inline');
+
+    // Hold: o mesmo gesto decide entre rolar a esteira e pegar a carta, e soltar devolve.
+    assert.match(js, /dy < -LIMIAR_PEGAR_PX && Math\.abs\(dy\) > Math\.abs\(dx\)/,
+        'arrastar para cima pega a carta');
+    assert.match(js, /LIMIAR_PEGAR_MS/, 'segurar parado tambem pega');
+    assert.match(js, /if \(maoAberta\(\)\) \{ devolverMao\(\); return; \}/, 'soltar devolve a carta');
+    assert.match(js, /classList\.add\('galeria-segurada'\)/,
+        'o no continua na esteira: offsetLeft/snap nao mudam no meio do gesto');
+    assert.match(css, /\.galeria-carta\.galeria-segurada \.card \{/, 'o lugar dela fica vazio');
+    assert.match(js, /class="galeria-btn galeria-pegar"/, 'o painel oferece pegar a carta (caminho do touch)');
+
+    // Dois cliques na carta do carrossel fazem o mesmo que o botao ✋ do painel.
+    const inicioDuplo = js.indexOf("botao.addEventListener('dblclick'");
+    assert.ok(inicioDuplo > 0, 'a carta do carrossel escuta dblclick');
+    const duploClique = js.slice(inicioDuplo, js.indexOf('});', inicioDuplo) + 3);
+    assert.match(duploClique, /evento\.preventDefault\(\);/, 'o duplo clique nao seleciona texto');
+    assert.match(duploClique, /fecharZoom\(\);\s*pegarNaMao\(indice\);/,
+        'fecha o zoom que o 2o clique abriu e pega aquela carta na mao');
+    assert.match(js, /if \(indice === ativo\) abrirZoom\(\);\s*else irPara\(indice\);/,
+        'um clique continua selecionando/abrindo o zoom');
+    assert.match(html, /dois cliques/, 'a dica avisa que dois cliques pegam a carta');
+    assert.match(css, /\.galeria-carta \{[^}]*touch-action: manipulation;/,
+        'no touch o double-tap vira dblclick, nao zoom da pagina');
+
+    // Limites do gesto: cruza 90 graus (verso a vista) mas assenta em 0/180.
+    assert.match(js, /const LIMITE_GIRO_Y = 180;/, 'o giro vai ate 180 graus');
+    assert.match(js, /const LIMITE_GIRO_X = 90;/, 'a inclinacao vai ate 90 graus');
+    assert.equal(CardGallery.poseDeRepouso(10), 0, 'giro pequeno assenta na frente');
+    assert.equal(CardGallery.poseDeRepouso(170), 180, 'giro grande assenta no verso');
+    assert.equal(CardGallery.poseDeRepouso(-100), -180, 'e o mesmo vale para o outro lado');
+    assert.equal(CardGallery.grausDeArrasto(5000, 0.5, 180), 180, 'um salto enorme nao passa do limite');
+    assert.equal(CardGallery.grausDeArrasto(-5000, 0.35, 90), -90, 'idem na inclinacao');
+
+    // Sem ponteiro tambem da para girar, virar e devolver.
+    assert.match(js, /case 'f': case 'F': evento\.preventDefault\(\); virarMao\(\); break;/, 'F vira a carta');
+    assert.match(js, /case 'r': case 'R': evento\.preventDefault\(\); devolverMao\(true\); break;/, 'R devolve');
+    assert.match(js, /case 'h': case 'H': evento\.preventDefault\(\); pegarNaMao\(ativo\); break;/,
+        'H pega a carta ativa');
+    assert.match(js, /girarPorTecla\(-PASSO_TECLADO, 0\)/, 'as setas giram em passos fixos');
+    assert.match(html, /id="galeriaMaoEstado" aria-live="polite"/, 'o lado a vista e anunciado');
+    const reduzido = css.slice(css.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
+    assert.match(reduzido, /\.galeria-mao-carta \{/, 'movimento reduzido desliga a transicao do giro');
+});
+
+
 
 let failures = 0;
 

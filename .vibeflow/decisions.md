@@ -1,6 +1,67 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-29 — Galeria: a carta na mão também é só a arte
+
+Pedido: "do modo de carta na mão temos que tirar o badge de custo e rótulo tbm,
+deixar só a carta".
+
+Causa: a regra que escondia custo/nome/ataque-defesa era escopada só ao
+carrossel (`.galeria-carta .card .card-*`), e o comentário dizia de propósito que
+"a carta na mão e o modal continuam com a face completa". A mão monta a face com
+`frente.innerHTML = frenteDaCarta(carta)` num `.card.galeria-mao-frente` — mesmo
+markup do jogo, então o badge e o rótulo apareciam por cima da arte.
+
+Decisão: estender o seletor para `.galeria-mao-frente .card-cost/.card-name/
+.card-stats` (CSS puro, sem tocar no markup nem no `frenteDaCarta`, que continua
+sendo o render canônico compartilhado com o zoom). A mão fica com a arte cheia;
+os números seguem no painel de detalhe, no zoom e no `aria-live`
+`#galeriaMaoEstado` (nome + lado à vista), então nada é perdido para leitor de
+tela. O `.card` de jogo (`game.css`) e o modal do zoom ficam intactos.
+
+Na sequência ("galeria-badge pode remover"): o selo `Piloto` da topbar saiu —
+`<span class="galeria-badge">` em `cartas.html` e o bloco `.galeria-badge` em
+`card-gallery.css`. A galeria já não é piloto: entrou na home como portal. Nenhum
+teste cobria o selo, e `.galeria-topnav { margin-left: auto }` mantém os atalhos à
+direita sem ele.
+
+## 2026-09-29 — Home: galeria de cartas vira portal e os CTAs param de se repetir
+
+Pedido: "agora crie um link da home para essa pagina, repense a melhor forma de
+call to actions ali na home".
+
+Causa: a galeria (`cartas.html`) só era alcançável digitando a URL — havia teste
+travando de propósito que `index.html` não citava `cartas.html` ("link só quando
+a galeria graduar"). E a home repetia CTA: "Lobby PvP" e "Jogar vs CPU"
+existiam como botões do hero **e** como portais 1 e 2, então 2 dos 5 portais não
+acrescentavam destino nenhum.
+
+Decisão: hierarquia de **um CTA por destino**, em dois níveis.
+- **Nível 1 (hero)** — só os dois jeitos de jogar, com um único primário
+  (`⚡ Jogar PvP` sólido + `Jogar contra CPU` fantasma). A galeria não entra aí:
+  ela não compete com "jogar".
+- **Nível 2 (portais)** — só ferramentas/referências, quatro cartões:
+  **Galeria de cartas** (novo, primeiro da fila, com selo `Novo` e texto vendendo
+  o gesto "pegue a carta na mão"), Deck Builder, Regras do jogo e Contador de
+  pontos. Os portais de Lobby PvP e vs CPU saíram (duplicavam o hero).
+- **`index.html` (CSS)**: `.portals` foi de `repeat(5, 1fr)` para
+  `repeat(4, 1fr)` (≤900px: 3 → 2 colunas; ≤650px segue 2), o hack
+  `.portal:last-child { grid-column: 1 / -1 }` saiu (4 cartões = 2×2, sem órfão)
+  e `.portal-tag` nasceu para o selo "Novo".
+- **`index.html` (markup)**: título da seção "Entre no universo X Monsters" →
+  "Explore o universo X Monsters" / "Cartas, deck, regras e placar"; `aria-label`
+  do nav "Modos e ferramentas" → "Cartas, ferramentas e regras"; ícone do portal
+  novo é `❖` (losango da marca). Topbar e hero intocados — o contador físico
+  continua com 2 acessos (toplink + portal), como o teste já exigia.
+
+Evidências: **276/276** em `node tests/unit/run-tests.js`. O teste antigo ("o
+piloto ainda não tem entrada na home") virou `assert.match` do portal, e o teste
+novo trava: primário único no hero (`button-primary` aparece 3× — regra, hover e
+botão), 4 portais, galeria como primeiro portal com selo, nenhum
+`href="pvp-lobby.html"`/`href="game.html"` dentro do nav, grade de 4 colunas sem
+o hack do órfão e o caminho de volta `cartas.html` → `index.html`. `README.md`
+ganhou `cartas.html` (e `deck-builder.html`, que faltava) na árvore da raiz.
+
 ## 2026-09-29 — Palco: os CAMPOS também espelham no assento p2 do PvP
 
 Pedido: "no pvp, a área de campo do player 2 está do outro lado da tela, onde

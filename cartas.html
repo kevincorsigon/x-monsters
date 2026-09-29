@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0f1115">
+    <meta name="description" content="Conheça as cartas de X Monsters: navegue pelo baralho inteiro esparramado na mesa, em carrossel.">
+    <title>X Monsters — Conheça as cartas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- game.css traz a carta canônica (.card/.card-cost/.card-image-real/.card-name/.card-stats)
+         e o modal; deck-select.css traz os chips de traits; card-gallery.css destrava o
+         scroll (game.css trava html/body) e desenha a mesa + o carrossel. -->
+    <link rel="stylesheet" href="src/css/game.css">
+    <link rel="stylesheet" href="src/css/deck-select.css">
+    <link rel="stylesheet" href="src/css/card-gallery.css">
+</head>
+<body>
+    <div class="galeria-page">
+        <header class="galeria-topbar">
+            <span class="galeria-marca"><span class="marca-x"><span>X</span></span> X Monsters</span>
+            <nav class="galeria-topnav" aria-label="Atalhos">
+                <a class="galeria-toplink" href="index.html">⌂ Home</a>
+                <a class="galeria-toplink" href="deck-builder.html">Deck Builder</a>
+                <a class="galeria-toplink" href="game.html">Jogar</a>
+            </nav>
+        </header>
+
+        <main class="galeria-corpo">
+            <div class="galeria-titulo">
+                <h1>Conheça as <em>cartas</em></h1>
+                <p>O baralho inteiro esparramado na mesa. Navegue pelas laterais, arraste a esteira,
+                   use as setas do teclado ou digite a posição da carta.</p>
+            </div>
+
+            <div class="galeria-toolbar" role="toolbar" aria-label="Navegação das cartas">
+                <button type="button" class="galeria-btn" id="galeriaPrimeira" title="Ir para a primeira carta">⏮ Primeira</button>
+                <button type="button" class="galeria-btn galeria-seta" id="galeriaAnterior" aria-label="Carta anterior">‹</button>
+                <span class="galeria-salto">
+                    <label for="galeriaIrPara">Ir para</label>
+                    <input id="galeriaIrPara" type="number" min="1" max="1" step="1" inputmode="numeric"
+                           placeholder="37" aria-describedby="galeriaContador">
+                    <button type="button" class="galeria-btn" id="galeriaIr">Ir</button>
+                </span>
+                <button type="button" class="galeria-btn galeria-seta" id="galeriaProxima" aria-label="Próxima carta">›</button>
+                <button type="button" class="galeria-btn" id="galeriaUltima" title="Ir para a última carta">Última ⏭</button>
+                <span class="galeria-contador" id="galeriaContador" role="status" aria-live="polite">— / —</span>
+            </div>
+            <p class="galeria-aviso" id="galeriaAviso" role="status" hidden></p>
+
+            <section class="galeria-palco" aria-label="Baralho esparramado">
+                <div class="galeria-esteira" id="galeriaEsteira" tabindex="0"
+                     aria-label="Cartas do catálogo, role com as setas ou arraste"></div>
+                <p class="galeria-vazio" id="galeriaVazio" hidden>Nenhuma carta no catálogo.</p>
+            </section>
+
+            <aside class="galeria-detalhe" id="galeriaDetalhe" aria-live="polite"></aside>
+
+            <p class="galeria-dica">
+                <kbd>←</kbd> <kbd>→</kbd> carta a carta · <kbd>Home</kbd>/<kbd>End</kbd> pontas do baralho ·
+                arraste a esteira ou use a roda do mouse · clique na carta centralizada para vê-la inteira ·
+                segure e arraste para cima — ou dê dois cliques — para pegar a carta na mão, girar e ver o verso.
+            </p>
+        </main>
+
+        <footer class="galeria-rodape">
+            <span>© 2003–2026 X Monsters</span>
+            <span>Piloto da galeria de cartas</span>
+        </footer>
+    </div>
+
+    <!-- Carta na mão: overlay 3D para segurar, girar e ver o verso. O JS só escreve as
+         variáveis de rotação (--mao-x/--mao-y); a pose vem do CSS (perspective + preserve-3d). -->
+    <div class="galeria-mao" id="galeriaMao" role="group" aria-label="Carta na mão" aria-hidden="true" hidden>
+        <div class="galeria-mao-carta" id="galeriaMaoCarta">
+            <div class="card galeria-mao-frente" id="galeriaMaoFrente"></div>
+            <div class="card card-back galeria-mao-verso"></div>
+        </div>
+        <div class="galeria-mao-controles">
+            <button type="button" class="galeria-btn" id="galeriaMaoVirar">🔄 Virar</button>
+            <button type="button" class="galeria-btn" id="galeriaMaoDevolver">↩ Devolver</button>
+        </div>
+        <p class="galeria-mao-dica">
+            arraste para girar · <kbd>←</kbd><kbd>→</kbd> giram · <kbd>↑</kbd><kbd>↓</kbd> inclinam ·
+            <kbd>F</kbd> vira · <kbd>Esc</kbd>/<kbd>R</kbd> devolve
+        </p>
+        <p class="galeria-mao-estado" id="galeriaMaoEstado" aria-live="polite"></p>
+    </div>
+
+    <!-- Modal de zoom: mesmo markup de game.html/deck-builder.html -->
+    <div class="card-modal" id="cardModal" role="dialog" aria-modal="true" aria-label="Carta ampliada">
+        <div class="modal-card">
+            <button class="modal-close" type="button" aria-label="Fechar">&times;</button>
+            <div id="modalCardContent"></div>
+        </div>
+    </div>
+
+    <script src="src/js/game-state.js"></script>
+    <script src="src/js/game-engine.js"></script>
+    <script src="src/js/card-rules.js"></script>
+    <script src="src/js/deck_system.js"></script>
+    <script src="src/js/deck-select.js"></script>
+    <script src="src/js/card-gallery.js"></script>
+</body>
+</html>

@@ -234,6 +234,8 @@ x-monsters/
 ├── matches/            # Espelho de partidas (gitignore, runtime apenas)
 ├── game.html           # Jogo completo
 ├── index.html          # Home (landing page)
+├── cartas.html         # Galeria de cartas (carrossel + carta na mão em 3D)
+├── deck-builder.html   # Montagem de deck
 ├── real-play.html      # Contador simplificado (cartas físicas)
 ├── pvp-lobby.html      # Lobby PvP online
 ├── pvp.html            # Tabuleiro PvP (fork de game.html)

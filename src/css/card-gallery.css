@@ -1,0 +1,738 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   card-gallery.css - Piloto da galeria de cartas (`cartas.html`).
+
+   `game.css` entra aqui só pela carta canônica (`.card` e filhos) e pelo modal
+   de zoom, então o scroll de página é destravado neste arquivo (o `body` do
+   jogo é `100vh` + `overflow: hidden`).
+
+   O leque é calculado em CSS, não enumerado: o renderer escreve `--i` em cada
+   carta e o índice ativo vira `--galeria-ativo` na esteira — mesma técnica do
+   leque da mão (`--i`/`--n` em `game.css`). JS nunca escreve posição.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── destravar a página (o `body` do jogo não rola) ───────────────────────── */
+html,
+body {
+    height: auto !important;
+    min-height: 100vh !important;
+    width: auto !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    background: #05070c !important;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: var(--text-color, #f1f5f9);
+}
+
+/* ── casca da página ──────────────────────────────────────────────────────── */
+.galeria-page {
+    --galeria-ouro: var(--primary-color, #d4af37);
+    --galeria-energia: var(--energy-color, #fbbf24);
+    --galeria-carta-w: clamp(132px, min(13vw, 29vh), 208px);
+    --galeria-carta-h: calc(var(--galeria-carta-w) * 1.42);
+    --galeria-gap: clamp(4px, 0.7vw, 14px);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(12px, 2vh, 26px);
+    padding: clamp(12px, 2vw, 28px);
+    background:
+        radial-gradient(120% 90% at 50% 0%, rgba(212, 175, 55, 0.14), transparent 60%),
+        linear-gradient(160deg, #0b0e14 0%, #10131c 55%, #05070c 100%);
+}
+
+.galeria-corpo {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(12px, 2vh, 22px);
+    flex: 1;
+    min-width: 0;
+}
+
+/* ── topo ─────────────────────────────────────────────────────────────────── */
+.galeria-topbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    border: 1px solid rgba(212, 175, 55, 0.22);
+    border-radius: 14px;
+    background: rgba(10, 13, 19, 0.72);
+    backdrop-filter: blur(6px);
+}
+
+.galeria-marca {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font: 700 1.05rem 'Cinzel', serif;
+    letter-spacing: 0.06em;
+    color: var(--galeria-ouro);
+}
+
+/* Losango da marca: mesmo desenho de `index.html`. */
+.marca-x {
+    display: grid;
+    width: 30px;
+    aspect-ratio: 1;
+    place-items: center;
+    border: 1px solid rgba(212, 175, 55, 0.55);
+    color: var(--galeria-ouro);
+    transform: rotate(45deg);
+    box-shadow: 0 0 18px rgba(212, 175, 55, 0.25);
+}
+
+.marca-x span {
+    transform: rotate(-45deg);
+    font: 700 1rem 'Cinzel', serif;
+}
+
+.galeria-topnav {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.galeria-toplink {
+    padding: 5px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    color: #cbd5e1;
+    font-size: 0.85rem;
+    text-decoration: none;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.galeria-toplink:hover {
+    background: var(--galeria-ouro);
+    border-color: var(--galeria-ouro);
+    color: #0b0e14;
+}
+
+/* ── título ───────────────────────────────────────────────────────────────── */
+.galeria-titulo {
+    max-width: 64ch;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.galeria-titulo h1 {
+    font: 700 clamp(1.6rem, 4vw, 2.6rem) 'Cinzel', serif;
+    letter-spacing: 0.04em;
+    color: #f8fafc;
+}
+
+.galeria-titulo h1 em {
+    font-style: normal;
+    color: var(--galeria-ouro);
+}
+
+.galeria-titulo p {
+    margin-top: 6px;
+    font-size: clamp(0.85rem, 1.6vw, 1rem);
+    line-height: 1.5;
+    color: #94a3b8;
+}
+
+/* ── controles ────────────────────────────────────────────────────────────── */
+.galeria-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.galeria-btn {
+    padding: 8px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #e2e8f0;
+    font: 600 0.85rem 'Inter', sans-serif;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.galeria-btn:hover {
+    background: rgba(212, 175, 55, 0.16);
+    border-color: var(--galeria-ouro);
+    color: #fff8e1;
+    transform: translateY(-1px);
+}
+
+.galeria-btn:active {
+    transform: translateY(0) scale(0.98);
+}
+
+.galeria-seta {
+    padding: 4px 15px;
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.galeria-salto {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #94a3b8;
+    font-size: 0.8rem;
+}
+
+.galeria-salto input {
+    width: 78px;
+    padding: 7px 9px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #f1f5f9;
+    font: 600 0.9rem 'Inter', sans-serif;
+    text-align: center;
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
+.galeria-salto input::-webkit-outer-spin-button,
+.galeria-salto input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.galeria-contador {
+    min-width: 96px;
+    text-align: center;
+    font: 700 1rem 'Cinzel', serif;
+    letter-spacing: 0.08em;
+    color: var(--galeria-ouro);
+}
+
+.galeria-aviso {
+    text-align: center;
+    font-size: 0.8rem;
+    color: #fca5a5;
+}
+
+.galeria-btn:focus-visible,
+.galeria-toplink:focus-visible,
+.galeria-salto input:focus-visible {
+    outline: 2px solid var(--galeria-energia);
+    outline-offset: 2px;
+}
+
+/* ── mesa + esteira ───────────────────────────────────────────────────────── */
+.galeria-palco {
+    position: relative;
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    border-radius: 18px;
+    background:
+        radial-gradient(90% 140% at 50% 120%, rgba(212, 175, 55, 0.12), transparent 65%),
+        linear-gradient(180deg, rgba(15, 17, 23, 0.86), rgba(5, 7, 12, 0.94));
+    box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+}
+
+/* Véu de mesa: o verso da carta quase apagado, como feltro. */
+.galeria-palco::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url('../../assets/verso.jpeg');
+    background-size: cover;
+    background-position: center;
+    opacity: 0.07;
+    pointer-events: none;
+}
+
+/* Bordas esmaecidas: a esteira some nas laterais, como numa mesa de verdade.
+   Acima da esteira (z-index 1) e transparente ao ponteiro. */
+.galeria-palco::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: linear-gradient(90deg, rgba(5, 7, 12, 0.95), transparent 9%, transparent 91%, rgba(5, 7, 12, 0.95));
+    pointer-events: none;
+}
+
+.galeria-esteira {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: flex-end;
+    gap: var(--galeria-gap);
+    /* Meio viewport de respiro em cada ponta: a primeira e a última carta
+       também conseguem chegar ao centro. */
+    padding: clamp(26px, 5vh, 54px) 50vw;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(212, 175, 55, 0.6) transparent;
+    -webkit-overflow-scrolling: touch;
+    cursor: grab;
+}
+
+.galeria-esteira.galeria-arrastando {
+    cursor: grabbing;
+    scroll-behavior: auto;
+}
+
+.galeria-esteira::-webkit-scrollbar {
+    height: 8px;
+}
+
+.galeria-esteira::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.galeria-esteira::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(212, 175, 55, 0.5);
+}
+
+.galeria-vazio {
+    padding: 32px 16px;
+    text-align: center;
+    color: #94a3b8;
+}
+
+/* ── cartas esparramadas ────────────────────────────────────────────────────
+   `--galeria-dist` é a distância da carta até a carta ativa. Como o CSS não tem
+   `abs()`, a queda no arco usa o quadrado (sempre ≥ 0) e é limitada por `min()`;
+   o giro usa o sinal (o leque abre para os dois lados) e também é limitado — sem
+   o teto de ±6° a carta 110 giraria 65°. Nada aqui é enumerado por `:nth-child`:
+   funciona com qualquer quantidade de cartas. */
+.galeria-carta {
+    --galeria-dist: calc(var(--i, 0) - var(--galeria-ativo, 0));
+    --galeria-escala: 0.94;
+    flex: 0 0 auto;
+    scroll-snap-align: center;
+    position: relative;
+    padding: 0;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    line-height: 0;
+    /* Double-tap dispara `dblclick` (pegar na mão) em vez de dar zoom na página;
+       pan e pinch continuam liberados, então arrastar a esteira não muda. */
+    touch-action: manipulation;
+    transform-origin: center bottom;
+    transform: rotate(max(min(calc(var(--galeria-dist) * 0.6deg), 6deg), -6deg))
+               translateY(min(calc(var(--galeria-dist) * var(--galeria-dist) * 1.4px), 14px))
+               scale(var(--galeria-escala));
+    opacity: max(min(calc(1 - var(--galeria-dist) * var(--galeria-dist) * 0.012), 1), 0.38);
+    transition: transform 0.28s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.28s ease;
+}
+
+.galeria-carta:hover {
+    --galeria-escala: 1.02;
+    z-index: 6;
+}
+
+.galeria-carta.galeria-ativa {
+    --galeria-escala: 1;
+    z-index: 5;
+}
+
+.galeria-carta:focus-visible {
+    outline: 2px solid var(--galeria-energia);
+    outline-offset: 4px;
+    z-index: 7;
+}
+
+/* A carta canônica de `game.css`, em tamanho de leitura. */
+.galeria-carta .card {
+    display: block;
+    width: var(--galeria-carta-w);
+    height: var(--galeria-carta-h);
+    font-size: clamp(11px, min(1.05vw, 2.1vh), 15px);
+    cursor: pointer;
+    -webkit-user-drag: none;
+}
+
+.galeria-carta img {
+    -webkit-user-drag: none;
+    user-select: none;
+}
+
+/* Aqui a carta é só a arte: no carrossel e na mão. Custo, nome e ataque/defesa já
+   moram no painel de detalhe (chips) e no zoom — na mão o que interessa é a peça
+   física girando, e o `aria-live` (`#galeriaMaoEstado`) continua dizendo o nome e
+   o lado à vista. Escopado de propósito: o `.card` de jogo (game.css) fica intacto. */
+.galeria-carta .card .card-cost,
+.galeria-carta .card .card-name,
+.galeria-carta .card .card-stats,
+.galeria-mao-frente .card-cost,
+.galeria-mao-frente .card-name,
+.galeria-mao-frente .card-stats {
+    display: none;
+}
+
+.galeria-carta.galeria-ativa .card {
+    border-color: var(--galeria-energia);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.65), 0 0 26px rgba(245, 201, 74, 0.45);
+    filter: brightness(1.06);
+}
+
+.galeria-carta:not(.galeria-ativa):hover .card {
+    border-color: rgba(245, 201, 74, 0.75);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.6), 0 0 18px rgba(245, 201, 74, 0.28);
+}
+
+/* ── painel de detalhe ────────────────────────────────────────────────────── */
+.galeria-detalhe {
+    width: 100%;
+    max-width: min(920px, 100%);
+    margin: 0 auto;
+    padding: clamp(14px, 2vw, 22px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    background: rgba(0, 0, 0, 0.34);
+}
+
+.galeria-detalhe-vazio {
+    color: #94a3b8;
+}
+
+.galeria-detalhe-nome {
+    font: 700 clamp(1.2rem, 3vw, 1.8rem) 'Cinzel', serif;
+    color: #f8fafc;
+}
+
+.galeria-detalhe-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 10px 0 12px;
+}
+
+.galeria-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #cbd5e1;
+    font-size: 0.74rem;
+    letter-spacing: 0.03em;
+}
+
+.galeria-tipo-criatura {
+    border-color: rgba(212, 175, 55, 0.5);
+    color: #fde68a;
+}
+
+.galeria-tipo-suporte {
+    border-color: rgba(192, 192, 192, 0.5);
+    color: #e2e8f0;
+}
+
+.galeria-tipo-evolucao {
+    border-color: rgba(74, 222, 128, 0.45);
+    color: #bbf7d0;
+}
+
+.galeria-atk {
+    color: #fca5a5;
+}
+
+.galeria-def {
+    color: #67e8f9;
+}
+
+.galeria-id,
+.galeria-pos {
+    font-family: ui-monospace, 'Cascadia Mono', monospace;
+    opacity: 0.75;
+}
+
+.galeria-chip-ativa {
+    border-color: rgba(251, 191, 36, 0.55);
+    color: #fde68a;
+}
+
+.galeria-traits {
+    margin-bottom: 12px;
+}
+
+.galeria-habilidade {
+    padding-left: 12px;
+    border-left: 2px solid rgba(212, 175, 55, 0.5);
+}
+
+.galeria-habilidade h3 {
+    margin-bottom: 4px;
+    font: 700 0.78rem 'Inter', sans-serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--galeria-ouro);
+}
+
+.galeria-habilidade p {
+    font-size: 0.95rem;
+    line-height: 1.55;
+    color: #e2e8f0;
+}
+
+/* Ações do painel: "na mão" (segurar e girar) e o zoom. */
+.galeria-detalhe-acoes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+/* ── dica + rodapé ────────────────────────────────────────────────────────── */
+.galeria-dica {
+    text-align: center;
+    font-size: 0.78rem;
+    line-height: 1.7;
+    color: #94a3b8;
+}
+
+.galeria-dica kbd,
+.galeria-mao-dica kbd {
+    padding: 1px 6px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-bottom-width: 2px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #e2e8f0;
+    font: 600 0.72rem ui-monospace, 'Cascadia Mono', monospace;
+}
+
+.galeria-rodape {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+/* ── zoom (modal canônico de `game.css`, sem CSS inline) ──────────────────── */
+.modal-card {
+    overflow-y: auto;
+}
+
+.galeria-modal-content {
+    gap: 14px;
+}
+
+.galeria-modal-carta {
+    --hand-card-w: clamp(220px, 42vw, 320px);
+    --hand-card-h: calc(var(--hand-card-w) * 1.42);
+    width: var(--hand-card-w);
+    height: var(--hand-card-h);
+    font-size: clamp(15px, 2.4vw, 21px);
+    cursor: default;
+}
+
+/* ── carta na mão: segurar, girar em 3D e ver o verso ─────────────────────── */
+/* O overlay só desenha: quem escuta o ponteiro é o `document` (o arraste da
+   esteira já tinha capturado o pointer), então `pointer-events` fica liberado
+   só quando está aberto. A pose vem inteira das variáveis --mao-x/--mao-y que o
+   JS escreve — nada de transform inline, como no resto da galeria. */
+.galeria-mao {
+    --mao-carta-w: clamp(190px, 34vw, 300px);
+    --mao-carta-h: calc(var(--mao-carta-w) * 1.42);
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    display: none;
+    place-items: center;
+    perspective: 1200px;
+    perspective-origin: 50% 45%;
+    background: radial-gradient(circle at 50% 45%, rgba(6, 8, 14, 0.72), rgba(4, 5, 9, 0.93));
+    pointer-events: none;
+}
+
+.galeria-mao.aberta {
+    display: grid;
+    pointer-events: auto;
+}
+
+.galeria-mao-carta {
+    position: relative;
+    width: var(--mao-carta-w);
+    height: var(--mao-carta-h);
+    font-size: clamp(13px, min(1.6vw, 2.6vh), 19px);
+    transform-style: preserve-3d;
+    transform: rotateX(var(--mao-x, 0deg)) rotateY(var(--mao-y, 0deg)) scale(var(--mao-escala, 1));
+    transition: transform 0.26s cubic-bezier(0.2, 0.7, 0.3, 1);
+    /* No touch, arrastar na carta da mão não pode rolar a página junto. */
+    touch-action: none;
+    will-change: transform;
+}
+
+/* Seguindo o ponteiro: sem transição, senão o giro corre um quadro atrás do dedo. */
+.galeria-mao.seguindo .galeria-mao-carta {
+    transition: none;
+}
+
+/* Duas faces de verdade: a que fica de costas some e o verso entra já girado. */
+.galeria-mao-frente,
+.galeria-mao-verso {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+}
+
+.galeria-mao-frente {
+    display: block;
+}
+
+/* `.card-back` (game.css) já traz o `assets/verso.jpeg` com fallback em gradiente. */
+.galeria-mao-verso {
+    transform: rotateY(180deg);
+}
+
+/* A carta continua na esteira enquanto está na mão: o lugar dela fica vazio, para
+   offsetLeft/snap/centralização não mudarem no meio do gesto. */
+.galeria-carta.galeria-segurada .card {
+    opacity: 0.16;
+    filter: grayscale(0.7);
+}
+
+.galeria-mao-controles {
+    position: absolute;
+    bottom: clamp(14px, 4vh, 40px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    pointer-events: auto;
+}
+
+.galeria-mao-dica {
+    position: absolute;
+    bottom: calc(clamp(14px, 4vh, 40px) + 46px);
+    left: 50%;
+    transform: translateX(-50%);
+    margin: 0;
+    font-size: 0.78rem;
+    letter-spacing: 0.03em;
+    color: #94a3b8;
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Só para o leitor de tela: anuncia qual carta está na mão e qual lado aparece. */
+.galeria-mao-estado {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.galeria-modal-habilidade {
+    max-width: 46ch;
+    text-align: center;
+}
+
+.galeria-modal-habilidade h3 {
+    margin-bottom: 6px;
+    font: 700 0.8rem 'Inter', sans-serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--galeria-ouro);
+}
+
+.galeria-modal-habilidade p {
+    font-size: 0.95rem;
+    line-height: 1.55;
+    color: #e2e8f0;
+}
+
+.galeria-modal-meta {
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    color: #94a3b8;
+}
+
+/* ── telas pequenas ───────────────────────────────────────────────────────── */
+@media (max-width: 720px) {
+    .galeria-page {
+        --galeria-carta-w: clamp(104px, 30vw, 152px);
+        gap: 12px;
+        padding: 12px;
+    }
+
+    .galeria-topnav {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .galeria-toolbar {
+        gap: 6px;
+    }
+
+    .galeria-btn {
+        padding: 7px 10px;
+        font-size: 0.78rem;
+    }
+
+    .galeria-seta {
+        padding: 3px 12px;
+        font-size: 1.3rem;
+    }
+
+    .galeria-contador {
+        width: 100%;
+        min-width: 0;
+        order: 9;
+    }
+
+    .galeria-carta .card {
+        font-size: clamp(10px, 3.2vw, 13px);
+    }
+
+    .galeria-mao {
+        --mao-carta-w: clamp(160px, 52vw, 240px);
+    }
+
+    /* Os botões já dizem o que fazer; a linha de atalhos só atrapalha no celular. */
+    .galeria-mao-dica {
+        display: none;
+    }
+
+    .galeria-mao-controles {
+        bottom: 12px;
+    }
+}
+
+/* ── movimento reduzido ───────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    .galeria-carta,
+    .galeria-btn,
+    .galeria-toplink,
+    .galeria-mao-carta {
+        transition: none;
+    }
+
+    .galeria-esteira {
+        scroll-behavior: auto;
+    }
+}
+
+
+
+

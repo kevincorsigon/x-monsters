@@ -67,7 +67,10 @@
         .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 3px 0 16px; }
         .section-heading h2 { margin: 0; font: 600 1.1rem Cinzel, serif; letter-spacing: .06em; }
         .section-heading p { margin: 0; color: var(--muted-color); font-size: .82rem; }
-        .portals { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; padding-bottom: 38px; }
+        /* Quatro portais = quatro colunas: os dois modos de jogar já têm botão no
+           hero, então esta fileira só carrega ferramentas/referências (sem CTA
+           repetido) e a galeria de cartas entra como novidade. */
+        .portals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding-bottom: 38px; }
         .portal { position: relative; display: flex; min-height: 142px; flex-direction: column; justify-content: space-between; padding: 17px; overflow: hidden; border: 1px solid var(--border-color); border-radius: 9px; background: linear-gradient(145deg, rgba(26, 30, 40, .92), rgba(15, 17, 21, .95)); transition: transform .2s, border-color .2s, box-shadow .2s; }
         .portal::after { position: absolute; top: -46px; right: -37px; width: 110px; height: 110px; border: 1px solid rgba(212, 175, 55, .14); border-radius: 50%; content: ""; box-shadow: 0 0 0 12px rgba(212, 175, 55, .03), 0 0 0 25px rgba(212, 175, 55, .02); }
         .portal:hover { transform: translateY(-4px); border-color: rgba(212, 175, 55, .7); box-shadow: 0 15px 35px rgba(0, 0, 0, .45); }
@@ -76,6 +79,7 @@
         .portal:nth-child(4) .portal-icon { color: var(--energy-color); }
         .portal-title { display: block; margin-top: 18px; font: 600 .88rem Cinzel, serif; }
         .portal-note { display: block; margin-top: 5px; color: var(--muted-color); font-size: .72rem; line-height: 1.45; }
+        .portal-tag { display: inline-block; margin-left: 7px; padding: 2px 7px; border: 1px solid rgba(212, 175, 55, .45); border-radius: 999px; color: var(--energy-color); font: 700 .56rem Inter, system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; vertical-align: 2px; }
         .portal-button { width: 100%; color: inherit; text-align: left; font: inherit; cursor: pointer; }
         .rules-overlay { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(5, 6, 8, .85); opacity: 0; visibility: hidden; transition: opacity .2s, visibility .2s; }
         .rules-overlay.visible { opacity: 1; visibility: visible; }
@@ -90,11 +94,11 @@
         .rules-close { position: absolute; top: 12px; right: 16px; width: 36px; height: 36px; border: 0; background: transparent; color: var(--primary-color); font-size: 1.8rem; cursor: pointer; }
         .rules-close:hover { color: #fff; }
         footer { display: flex; justify-content: space-between; gap: 16px; padding: 16px 0 25px; border-top: 1px solid rgba(212, 175, 55, .14); color: #7d8798; font-size: .72rem; }
-        @media (max-width: 900px) { .hero { min-height: 460px; gap: 24px; }.card-back { width: min(240px, 60vw); }.portals { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 900px) { .hero { min-height: 460px; gap: 24px; }.card-back { width: min(240px, 60vw); }.portals { grid-template-columns: repeat(2, 1fr); } }
         @media (max-width: 650px) {
             .shell { width: min(100% - 32px, 500px); }.topbar { min-height: 70px; }.toplink { font-size: .76rem; }
             .hero { grid-template-columns: 1fr; gap: 4px; padding: 44px 0 24px; }.hero-copy { position: relative; z-index: 1; }.card-stage { min-height: 300px; margin-top: -3px; }.card-back { width: 185px; max-height: 260px; }.card-caption { right: 12%; bottom: 8%; }.rune-one { top: 12%; left: 16%; }.rune-two { top: 19%; right: 12%; }.rune-three { bottom: 12%; left: 16%; }
-            h1 { max-width: 500px; font-size: clamp(2.8rem, 12vw, 4.1rem); }.section-heading { display: block; }.section-heading p { margin-top: 5px; }.portals { grid-template-columns: repeat(2, 1fr); gap: 9px; }.portal { min-height: 132px; padding: 14px; }.portal:last-child { grid-column: 1 / -1; min-height: 105px; }
+            h1 { max-width: 500px; font-size: clamp(2.8rem, 12vw, 4.1rem); }.section-heading { display: block; }.section-heading p { margin-top: 5px; }.portals { grid-template-columns: repeat(2, 1fr); gap: 9px; }.portal { min-height: 132px; padding: 14px; }
             footer { flex-direction: column; gap: 6px; }
         }
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
@@ -125,10 +129,11 @@
         </section>
 
         <section aria-labelledby="portals-title">
-            <div class="section-heading"><h2 id="portals-title">Entre no universo X Monsters</h2><p>Escolha por onde começar</p></div>
-            <nav class="portals" aria-label="Modos e ferramentas">
-                <a class="portal" href="pvp-lobby.html"><span class="portal-icon" aria-hidden="true">⌁</span><span><strong class="portal-title">Lobby PvP</strong><span class="portal-note">Crie uma sala e desafie outro jogador.</span></span></a>
-                <a class="portal" href="game.html"><span class="portal-icon" aria-hidden="true">⚔</span><span><strong class="portal-title">Jogar vs CPU</strong><span class="portal-note">Treine sua estratégia contra a máquina.</span></span></a>
+            <div class="section-heading"><h2 id="portals-title">Explore o universo X Monsters</h2><p>Cartas, deck, regras e placar</p></div>
+            <!-- Os dois jeitos de jogar já são os botões do hero: aqui entram só as
+                 ferramentas/referências, cada destino com um único CTA. -->
+            <nav class="portals" aria-label="Cartas, ferramentas e regras">
+                <a class="portal" href="cartas.html"><span class="portal-icon" aria-hidden="true">❖</span><span><strong class="portal-title">Galeria de cartas<span class="portal-tag">Novo</span></strong><span class="portal-note">Folheie o catálogo: pegue a carta na mão, gire, vire e leia a habilidade.</span></span></a>
                 <a class="portal" href="deck-builder.html"><span class="portal-icon" aria-hidden="true">▧</span><span><strong class="portal-title">Deck Builder</strong><span class="portal-note">Crie e ajuste seu deck de 40 cartas.</span></span></a>
                 <button class="portal portal-button" type="button" id="openRules"><span class="portal-icon" aria-hidden="true">✧</span><span><strong class="portal-title">Regras do jogo</strong><span class="portal-note">Consulte as regras antes de entrar no campo.</span></span></button>
                 <a class="portal" href="real-play.html"><span class="portal-icon" aria-hidden="true">◉</span><span><strong class="portal-title">Contador de pontos</strong><span class="portal-note">Acompanhe PV e energia nas partidas com cartas físicas.</span></span></a>
