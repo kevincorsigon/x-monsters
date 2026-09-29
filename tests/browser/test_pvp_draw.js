@@ -115,6 +115,28 @@
     assert('DRAW do oponente também para no limite',
         mao('p1') === Model.HAND_LIMIT && versos('p1') === versosAntes);
 
+    // 6b. A mão LOCAL do assento p2 tem que se comportar como a mão do jogador
+    // do assento p1: o painel estica na coluna do meio e o leque cabe dentro da
+    // borda. Antes da regra por assento o painel herdava o `justify-items: start`
+    // da faixa do oponente, encolhia ao conteúdo (~440px em 1800×850) e o leque
+    // saía pelas duas laterais — a mão "pequena e cortada" do PvP.
+    const painelLocal = document.querySelector('.zone-opponent > .player2-hand');
+    const faixaLocal = document.querySelector('.zone-opponent');
+    if (painelLocal && faixaLocal && mao('p2') === Model.HAND_LIMIT) {
+        const bPainel = painelLocal.getBoundingClientRect();
+        const bFaixa = faixaLocal.getBoundingClientRect();
+        const estilosPainel = getComputedStyle(painelLocal);
+        assert('a mão local do assento p2 estica na coluna do meio (como no assento p1)',
+            estilosPainel.justifySelf === 'stretch');
+        const foraDoPainel = Array.from(painelLocal.querySelectorAll('.card'))
+            .map(carta => carta.getBoundingClientRect())
+            .filter(b => b.left < bPainel.left - 1 || b.right > bPainel.right + 1);
+        assert(`o leque local cabe no painel do assento p2 (${foraDoPainel.length} de ${mao('p2')} cartas fora de ${Math.round(bPainel.width)}px)`,
+            foraDoPainel.length === 0);
+        assert(`o painel local não encolhe ao conteúdo (${Math.round(bPainel.width)}px de ${Math.round(bFaixa.width)}px da faixa)`,
+            bPainel.width > bFaixa.width * 0.5);
+    }
+
     // 7. Contagem de mão sincronizada pelo websocket: o contador exibe o número
     // publicado pelo servidor (mesmo que o estado local ainda não o tenha).
     enviados.length = 0;

@@ -41,6 +41,12 @@ Decisão (só apresentação — nenhuma regra, dado, API ou CSS de PvP mudou):
   título, o chip `absolute` no canto e a única regra por faixa; o bloco 9b do
   `test_ui_state.js` mede o degradê, o `static` do título, o chip no canto, o
   canto livre de versos e enche a mão de 5 → 7 cartas sem a largura mudar).
+- Cobertura ao vivo do achado do assento p2 (o print "mão pequena e cortada" do
+  PvP): o bloco 6b do `tests/browser/test_pvp_draw.js` roda em `pvp.html` com o
+  assento p2 e a mão cheia (7 cartas reais) e cobra `justify-self: stretch` no
+  painel local, o painel esticado (472px de 746px da faixa) e ZERO carta fora da
+  borda. Com a regra desligada as três checagens falham na hora (painel de
+  344px, 2 cartas fora) — o teste reproduz o print.
 - Checagem CDP (PvM e PvP p1/p2) em 1800×850, 1280×720, 1024×768, 820×768 e
   758×482: caixa SEMPRE 640/512/410/328/303px com 3 ou 7 versos, chip sempre a
   10px da borda direita, último verso sempre antes da reserva, versos em fila
