@@ -1,6 +1,39 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-29 — Palco: os CAMPOS também espelham no assento p2 do PvP
+
+Pedido: "no pvp, a área de campo do player 2 está do outro lado da tela, onde
+deveria ser do adversário, não do player 2, que deveria estar onde está a do
+player 1".
+
+Diagnóstico: o `pvp.css` trocava as ÁREAS das duas faixas (`grid-area`), mas o
+palco seguia a ordem do markup — `.player2-field` (linha 1) · `.controls` (2) ·
+`.player1-field` (3). No assento p2 isso deixava o campo do PRÓPRIO jogador em
+cima (onde mora o adversário) e o do adversário embaixo, colado na mão local.
+
+Decisão (só apresentação — nenhuma regra de jogo, dado ou JS mudou):
+- `src/css/pvp.css`, colado na troca das faixas: `body[data-seat="p2"]
+  .player1-field { grid-row: 1 }`, `.controls { grid-row: 2 }`, `.player2-field
+  { grid-row: 3 }`. As duas linhas de campo já são `minmax(0, 1fr)` iguais,
+  então virar não muda tamanho nenhum.
+- O `grid-row` é explícito nos TRÊS filhos: com só dois definidos, o
+  auto-placement jogaria a barra de comando numa 4ª linha e o palco cresceria.
+- JS não precisa saber: os campos são achados por id (`field-p1`/`field-p2`) e o
+  ataque não tem `transform` direcional (só borda/brilho/pulso), então espelhar
+  as linhas não desalinha animação nenhuma.
+- Validação: **273/273** unit (teste novo "o palco espelha os campos por
+  assento": as três linhas explícitas, o p1 sem regra extra e o game.css fora do
+  espelho) e **29/29** browser. O `test_field_card_size.js` mede o palco AO VIVO
+  nos dois assentos: ordem campo·barra·campo, campo próprio na metade de baixo,
+  palco com três linhas e vão de 6–12px até a faixa da mão local. Com o espelho
+  desligado as quatro checagens falham (campo próprio em 96–189 e vão de 157px).
+- Checagem CDP em `pvp.html` (1800×850, 1280×720, 1024×768, 820×768 e 758×482),
+  3 criaturas em cada campo, assentos p1 e p2: campo alheio sempre na linha 1,
+  barra no meio, campo próprio na linha 3 colado na faixa da mão, zero carta
+  fora do campo e zero rolagem de página.
+
+
 ## 2026-09-29 — Palco: mão do oponente com o painel da mão própria e largura FIXA
 
 Pedido: "na mão do jogador adversário precisamos do mesmo efeito no espaço de mão

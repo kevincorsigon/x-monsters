@@ -1,9 +1,21 @@
 /* Espelhamento de perspectiva por data-seat (spec parte 4, DoD 1).
  * O assento vive em document.body.dataset.seat; quando e p2 as DUAS FAIXAS
  * trocam de lugar (oponente em cima / jogador embaixo) sem tocar no markup
- * nem em src/css/game.css. O palco (board) continua no meio. */
+ * nem em src/css/game.css. O palco (board) continua no meio — mas por dentro
+ * ele também espelha: os campos trocam de linha (regra logo abaixo). */
 body[data-seat="p2"] .zone-opponent { grid-area: player; }
 body[data-seat="p2"] .zone-player { grid-area: opponent; }
+
+/* O PALCO espelha junto: as faixas trocaram acima, mas os campos seguiam a ordem
+ * do markup — no assento p2 o campo do PRÓPRIO jogador aparecia em cima (onde
+ * mora o adversário) e o do adversário embaixo, colado na mão local. As linhas do
+ * palco são campo · barra de comando · campo (as duas de campo com o mesmo `1fr`),
+ * então basta virar quem ocupa cada uma. O `grid-row` é explícito nos TRÊS filhos:
+ * com só dois com linha definida, o auto-placement empurraria a barra para uma 4ª
+ * linha e o palco cresceria. */
+body[data-seat="p2"] .player1-field { grid-row: 1; }
+body[data-seat="p2"] .controls { grid-row: 2; }
+body[data-seat="p2"] .player2-field { grid-row: 3; }
 
 /* Botoes de espiar nunca aparecem no PvP (rede de seguranca). */
 body[data-seat] .peek-hand-btn {

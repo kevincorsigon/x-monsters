@@ -4894,6 +4894,40 @@ test('o HUD (turno · fase · timer) mora na barra central do palco', () => {
     assert.equal(readSourceText('src/css/pvp.css').includes('.hud'), false,
         'o pvp.css não reposiciona o HUD');
 });
+test('o palco espelha os campos por assento (o campo próprio fica embaixo)', () => {
+    const css = readSourceText('src/css/game.css');
+    const pvp = readSourceText('src/css/pvp.css');
+
+    // O palco do markup é campo do p2 (adversário) · barra de comando · campo do
+    // p1 (próprio). As faixas já trocam por assento no pvp.css; os CAMPOS têm que
+    // trocar junto — sem isso, no assento p2, o campo próprio nascia em cima,
+    // onde mora o adversário, e o do adversário ficava ao lado da mão local.
+    const palco = css.slice(css.indexOf('.board {'), css.indexOf('.pile-rail {'));
+    assert.match(palco, /grid-template-rows: minmax\(0, 1fr\) auto minmax\(0, 1fr\);/,
+        'as duas linhas de campo têm a mesma altura (virar não muda o tamanho)');
+
+    assert.match(pvp, /body\[data-seat="p2"\] \.player1-field \{ grid-row: 1;/,
+        'no assento p2 o campo do adversário (p1) sobe para a primeira linha');
+    assert.match(pvp, /body\[data-seat="p2"\] \.controls \{ grid-row: 2;/,
+        'a barra de comando continua na linha do meio');
+    assert.match(pvp, /body\[data-seat="p2"\] \.player2-field \{ grid-row: 3;/,
+        'o campo próprio do assento p2 desce para a última linha');
+
+    // Os três filhos com linha explícita: sem o `.controls` fixo, o
+    // auto-placement jogaria a barra numa 4ª linha e o palco cresceria.
+    const espelho = pvp.slice(pvp.indexOf('body[data-seat="p2"] .player1-field {'),
+        pvp.indexOf('body[data-seat="p2"] .player2-field {') + 60);
+    assert.equal((espelho.match(/grid-row:/g) || []).length, 3,
+        'as três linhas do palco ficam explícitas no espelhamento');
+
+    // O assento p1 (e o PvM) segue a ordem do markup: nenhuma regra a mais.
+    assert.equal(/body\[data-seat="p1"\][^{]*\.player[12]-field/.test(pvp), false,
+        'o assento p1 usa a ordem do markup (campo do p2 em cima)');
+    assert.equal(/body\[data-seat="p2"\][^{]*\.player[12]-field/.test(css), false,
+        'o game.css não espelha os campos — é papel do pvp.css');
+});
+
+
 
 test('o menu de opções (⚙️) abre o canto esquerdo da barra, na altura do HUD', () => {
     const css = readSourceText('src/css/game.css');
