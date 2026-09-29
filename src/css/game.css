@@ -19,6 +19,19 @@
             --field-border: #475569;
             --border-radius: 8px;
             --spacing: 15px;
+            /* ══ Layout do palco (3 faixas: oponente · board · jogador) ══ */
+            --gap: clamp(4px, 0.8vw, 12px);
+            /* Slot do campo: encolhe com a viewport para o palco nunca rolar.
+               ~7% maior que antes: é a altura da faixa da mão que virou altura
+               de campo, e o teto da carta em campo é este slot (slot × 1.4). */
+            --field-slot-w: clamp(94px, min(10.2vw, 16.1vh), 176px);
+            /* Carta na mão: o leque é a leitura principal do jogador, sempre
+               inteira na faixa — mas 15% menor que a versão anterior, para a
+               faixa da mão (base) ceder altura aos dois campos. */
+            --hand-card-w: clamp(68px, min(6.8vw, 11vh), 112px);
+            --hand-card-h: calc(var(--hand-card-w) * 1.42);
+            /* Quanto a carta cresce/levanta no hover do leque */
+            --fan-lift: clamp(18px, 3.4vh, 40px);
         }
 
         * {
@@ -36,77 +49,384 @@
             overflow: hidden;
         }
 
-        /* Novo layout em grid */
+        /* ══ Palco em 3 faixas: oponente (topo) · board (meio) · jogador (base).
+           O campo de batalha é o protagonista e fica com a maior fração do eixo
+           vertical; as faixas laterais viram trilhos compactos de stats · mão ·
+           pilhas, como nos TCGs de referência.
+           A faixa do jogador leva 0.89fr (22.25% da altura livre) — 15% menos
+           que os 1.05fr de antes; a diferença foi para o board (2.45fr → 2.61fr),
+           que hospeda os DOIS campos. Como a soma continua 4fr, a faixa do
+           oponente mantém exatamente a altura de antes. ══ */
         .game-container {
             display: grid;
-            grid-template-areas: 
-                "player2-discard player2-hand player2-deck"
-                "player2-stats player2-field player2-field"
-                "phase-buttons phase-buttons phase-buttons"
-                "player1-stats player1-field player1-field"
-                "player1-deck player1-hand player1-discard";
-            grid-template-columns: minmax(160px, 1fr) minmax(400px, 3fr) minmax(160px, 1fr);
-            grid-template-rows: minmax(80px, 0.5fr) minmax(180px, 1.5fr) minmax(60px, 0.4fr) minmax(180px, 1.5fr) minmax(80px, 0.5fr);
+            grid-template-areas:
+                "opponent"
+                "board"
+                "player";
+            grid-template-rows:
+                minmax(64px, 0.5fr)
+                minmax(0, 2.61fr)
+                minmax(112px, 0.89fr);
             height: 100dvh;
             width: 100dvw;
             overflow: hidden;
-            gap: clamp(4px, 1vw, 12px);
-            padding: clamp(4px, 1vw, 12px);
-            min-height: 600px;
+            gap: var(--gap);
+            padding: var(--gap);
         }
 
-        /* Grid areas */
-        .player2-discard { grid-area: player2-discard; }
-        .player2-hand { grid-area: player2-hand; }
-        .player2-deck { grid-area: player2-deck; }
-        .player2-stats { grid-area: player2-stats; }
-        .player2-field { grid-area: player2-field; }
-        .phase-buttons { grid-area: phase-buttons; }
-        .player1-stats { grid-area: player1-stats; }
-        .player1-field { grid-area: player1-field; }
-        .player1-deck { grid-area: player1-deck; }
-        .player1-hand { grid-area: player1-hand; }
-        .player1-discard { grid-area: player1-discard; }
+        /* Faixas (topo/base): stats · mão · pilhas numa única linha */
+        .zone {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            align-items: center;
+            gap: var(--gap);
+            min-height: 0;
+        }
 
-        /* Estilos das áreas do grid */
-        .player2-discard, .player1-discard {
-            background-color: var(--field-color);
-            border: 2px solid var(--secondary-color);
+        .zone-opponent {
+            grid-area: opponent;
+            /* stats · mão (ilustrativa, encolhível) · pilhas: a coluna do meio
+               absorve a sobra de largura, então a faixa nunca estoura (a mão
+               encolhe antes). O HUD não mora mais aqui: turno/fase/timer foram
+               para o centro da mesa, junto do menu de fases. */
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            justify-items: start;
+        }
+
+        /* ── Centralização da mão alheia: a faixa reparte a sobra em DUAS colunas
+           iguais ──────────────────────────────────────────────────────────────
+           Stats e pilhas não têm a mesma largura (390px contra 110px em
+           1800×850), então com `auto | 1fr | auto` o centro da coluna do meio cai
+           ~140px fora do centro da TELA: centrar a mão nela deixaria o desvio de
+           pé. Com `minmax(min-content, 1fr)` nas duas pontas a sobra é dividida
+           em partes iguais, o centro da coluna do meio passa a coincidir com o
+           centro da tela e a mão (centrada nela) cai no meio — o pedido.
+
+           O piso `min-content` é a trava de segurança: em janela estreita a
+           coluna para antes de espremer o bloco de stats (o desvio degrada para
+           poucos pixels em vez de virar sobreposição), e o miolo segue `auto`
+           (tamanho do conteúdo) para a mão não encolher nem cortar os versos —
+           quem cede são as laterais, nunca a tira. */
+        body[data-seat="p1"] .zone-opponent,
+        body:not([data-seat]) .zone-opponent,
+        body[data-seat="p2"] .zone-player {
+            grid-template-columns: minmax(min-content, 1fr) auto minmax(min-content, 1fr);
+            /* Coluna larga não estica stats/pilhas: cada bloco fica do tamanho
+               que precisa, ancorado na ponta de fora. */
+            justify-items: start;
+        }
+
+        /* A faixa do p1 é espelhada no markup (pilhas · mão · stats): em cada
+           assento o bloco de stats ancora na ponta de FORA e as pilhas na outra,
+           como antes — o que mudou foi só a largura das colunas. */
+        body[data-seat="p1"] .zone-opponent > .pile-rail,
+        body:not([data-seat]) .zone-opponent > .pile-rail,
+        body[data-seat="p2"] .zone-player > .player1-stats {
+            justify-self: end;
+        }
+
+        /* ── Mão do oponente (CLASSE da mão, não a faixa) ─────────────────────
+           Redesenho: uma tira COMPACTA e legível. O título (com a contagem)
+           fica AO LADO dos versos, numa linha só — antes o leque subia por cima
+           do texto e o gradiente transparente do título deixava o nome
+           ilegível sobre a arte dos versos. Sem leque: o arco não diz nada sobre
+           cartas que ninguém pode ler, e era ele que empurrava as cartas para
+           fora da faixa. A caixa não estica mais a faixa inteira: ocupa só o
+           que o conteúdo pede (`fit-content`) e fica centrada na coluna do meio.
+
+           O seletor vai pela CLASSE da mão, não por `.zone-opponent`: o assento
+           p2 do PvP troca as ÁREAS do grid (`pvp.css`), então `.zone-opponent`
+           pode estar embaixo carregando a mão do PRÓPRIO jogador — estilizar
+           por faixa entregaria `pointer-events: none` e cartas minúsculas para a
+           mão local. A mão alheia é `.player2-hand` em PvM/p1 e `.player1-hand`
+           em p2; sem assento definido vale o markup (p2 no topo). */
+        body[data-seat="p1"] .player2-hand,
+        body:not([data-seat]) .player2-hand,
+        body[data-seat="p2"] .player1-hand {
+            width: fit-content;
+            max-width: 100%;
+            justify-self: center;
+            flex-direction: row;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
+            padding: 4px 10px;
+            /* O recorte é a garantia dura: nada da mão alheia sai da faixa. */
+            overflow: hidden;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* A tira de versos não encolhe nem centraliza: ela é o conteúdo da caixa
+           (o `1fr` do meio da faixa não tem mais mão para esticar). */
+        body[data-seat="p1"] .player2-hand #hand-p2,
+        body:not([data-seat]) .player2-hand #hand-p2,
+        body[data-seat="p2"] .player1-hand #hand-p1 {
+            flex: 0 0 auto;
+            justify-content: flex-start;
+        }
+
+        /* Faixa do jogador: pilhas · mão · stats (a mão grande fica no meio) */
+        .zone-player {
+            grid-area: player;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+        }
+
+        /* Faixa de cima: a mão do oponente é ilustrativa — o que interessa é a
+           contagem de cartas — então as cartas ficam pequenas e a altura sobra
+           para o campo. Fila RETA (sem rotação, sem levantar) com sobreposição
+           mínima: as cartas continuam lendo como "mão", mas sem arco. */
+        body[data-seat="p1"] .player2-hand .card,
+        body:not([data-seat]) .player2-hand .card,
+        body[data-seat="p2"] .player1-hand .card {
+            --hand-card-w: clamp(34px, min(3.2vw, 5.2vh), 56px);
+            /* O `--hand-card-h` do `:root` chega aqui JÁ resolvido com o token
+               base (custom property resolve onde é declarada), então precisa ser
+               recalculado do zero — era isso que deixava os versos com a altura
+               da mão grande, cortados pelo recorte da faixa. */
+            --hand-card-h: calc(var(--hand-card-w) * 1.42);
+            transform: none;
+            margin: 0 -3px;
+            z-index: 1;
+        }
+
+        /* O verso carrega mínimos próprios (70×100) pensados para o palco: aqui
+           eles venceriam o token e a tira estouraria a faixa. */
+        body[data-seat="p1"] .player2-hand .card-back,
+        body:not([data-seat]) .player2-hand .card-back,
+        body[data-seat="p2"] .player1-hand .card-back {
+            min-width: 0;
+            min-height: 0;
+        }
+
+        /* Título do oponente: uma pílula SÓLIDA (fundo escuro + borda dourada,
+           sem gradiente transparente e sem text-shadow) para o nome caber
+           legível ao lado dos versos, e o badge de contagem no fluxo, na mesma
+           linha — o `nowrap` impede que qualquer um dos dois quebre ou cubra o
+           outro. As três partes do seletor são as mesmas da tira acima. */
+        body[data-seat="p1"] .player2-hand .hand-title,
+        body:not([data-seat]) .player2-hand .hand-title,
+        body[data-seat="p2"] .player1-hand .hand-title {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 6px;
+            flex: 0 0 auto;
+            margin-bottom: 0;
+            font-size: 0.78em;
+            padding: 3px 10px;
+            white-space: nowrap;
+            color: var(--primary-color);
+            background: rgba(15, 17, 21, 0.92);
+            border: 1px solid rgba(212, 175, 55, 0.45);
+            border-radius: 999px;
+            text-shadow: none;
+        }
+
+        body[data-seat="p1"] .player2-hand .hand-title::after,
+        body:not([data-seat]) .player2-hand .hand-title::after,
+        body[data-seat="p2"] .player1-hand .hand-title::after {
+            position: static;
+            transform: none;
+            flex: 0 0 auto;
+            white-space: nowrap;
+            font-size: 0.75em;
+            padding: 1px 6px;
+            /* Sem `opacity`: era o que deixava o "N cartas" apagado. */
+            opacity: 1;
+        }
+
+        /* Palco (meio): campo do oponente · fases · campo do jogador */
+        .board {
+            grid-area: board;
+            display: grid;
+            grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
+            gap: var(--gap);
+            min-height: 0;
+        }
+
+        /* Trilho de pilhas: deck e descarte empilhados no canto da faixa */
+        .pile-rail {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        /* HUD de turno/fase/timer: um SEGMENTO da barra de comando central (a
+           moldura é do `.controls`), então ele fica colado no menu de fases, na
+           área onde o jogador olha — e não perdido na faixa do oponente. */
+        .hud {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: clamp(8px, 1.2vw, 18px);
+            padding-right: clamp(6px, 0.9vw, 14px);
+            border-right: 1px solid rgba(212, 175, 55, 0.3);
+            font-size: clamp(10px, 1.05vw, 13px);
+            font-weight: bold;
+        }
+
+        /* Botão do painel de habilidades manuais: uma pílula do próprio HUD,
+           colada no timer (turno · fase · ⏱ · 🎯) em vez de solta no canto da
+           tela. */
+        .hud-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            padding: 0;
+            border-radius: 50%;
+            border: 2px solid var(--primary-color);
+            background: var(--primary-color);
+            color: var(--bg-color);
+            font-size: 13px;
+            line-height: 1;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .hud-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 12px rgba(212, 175, 55, 0.6);
+        }
+
+        /* Painel de habilidades manuais: pendura logo ABAIXO da barra de comando
+           (o botão que o abre vive no HUD, ao lado do timer), ancorado na borda
+           direita da barra — mesmo lugar nos dois assentos do PvP. */
+        .manual-abilities-panel {
+            position: absolute;
+            top: calc(100% + var(--gap));
+            right: 0;
+            display: none;
+            width: min(300px, 92vw);
+            max-height: min(420px, calc(100dvh - 220px));
+            overflow-y: auto;
+            padding: 12px;
+            background: rgba(15, 17, 21, 0.96);
+            border: 2px solid var(--primary-color);
             border-radius: var(--border-radius);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65);
+            color: var(--text-color);
+            font-size: 12px;
+            z-index: 60;
+        }
+
+        .manual-abilities-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .manual-abilities-title {
+            margin: 0;
+            font-size: 12px;
+            color: var(--primary-color);
+        }
+
+        .manual-abilities-close {
+            background: var(--pv-zero-color);
+            color: #fff;
+            border: none;
+            border-radius: 3px;
+            padding: 2px 7px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .manual-abilities-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .manual-abilities-empty {
+            text-align: center;
+            color: var(--secondary-color);
+        }
+
+        /* Barra de comando do palco: HUD (turno · fase · timer), menu de fases e
+           controles de turno (Ataque Direto · Fim Turno) num único bloco, centrado
+           na linha entre os dois campos — a leitura de "de quem é a vez / em que
+           fase estou" fica onde a ação acontece, e a faixa do oponente sobra
+           inteira para a mão ilustrativa. */
+        .controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: clamp(6px, 0.9vw, 12px);
+            justify-self: center;
+            /* Âncora do painel de habilidades manuais, que pendura abaixo do HUD.
+               O `z-index` sobe a barra acima dos dois campos — sem ele o campo do
+               jogador (linha seguinte do `.board`) cobria o que pende abaixo dela. */
+            position: relative;
+            z-index: 45;
+            max-width: 100%;
+            padding: clamp(3px, 0.5vw, 6px) clamp(8px, 1vw, 16px);
+            background: rgba(15, 17, 21, 0.82);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 999px;
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(6px);
+        }
+
+        /* Pilhas (deck/descarte): caixas compactas no canto da faixa, enxutas o
+           bastante para caber no trilho sem roubar espaço do palco. */
+        .player2-deck, .player1-deck,
+        .player2-discard, .player1-discard {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            gap: 1px;
+            padding: 4px 8px;
+            min-width: clamp(84px, 8vw, 110px);
+            max-width: 132px;
+            overflow: hidden;
             font-weight: bold;
-            font-size: 14px;
+            font-size: 9px;
+            line-height: 1.15;
             text-align: center;
-            padding: 10px;
-            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
-            background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.02) 10px, rgba(255,255,255,0.02) 20px);
+            border-radius: var(--border-radius);
+            background: linear-gradient(135deg, var(--card-bg-color) 0%, #11151e 100%);
+            border: 2px solid var(--primary-color);
+            box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.55);
+            position: relative;
+        }
+
+        .player2-discard, .player1-discard {
+            background: linear-gradient(135deg, var(--field-color) 0%, #11151e 100%);
+            border: 2px solid var(--secondary-color);
+            background-image: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(255,255,255,0.02) 8px, rgba(255,255,255,0.02) 16px);
         }
 
         .player2-deck, .player1-deck {
-            background: linear-gradient(135deg, var(--card-bg-color) 0%, #11151e 100%);
-            border: 2px solid var(--primary-color);
-            border-radius: var(--border-radius);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 14px;
-            text-align: center;
-            padding: 10px;
             cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 4px 4px 0px rgba(40,40,40,0.8), 8px 8px 0px rgba(30,30,30,0.6), 12px 12px 0px rgba(20,20,20,0.4);
-            position: relative;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
         .player2-deck:hover, .player1-deck:hover {
             border-color: var(--energy-color);
-            transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0px rgba(40,40,40,0.8), 10px 10px 0px rgba(30,30,30,0.6), 14px 14px 0px rgba(20,20,20,0.4), 0 0 15px rgba(212, 175, 55, 0.3);
+            box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.55), 0 0 12px rgba(212, 175, 55, 0.3);
+        }
+
+        .pile-label {
+            font-size: 9px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-color);
+            opacity: 0.85;
+        }
+
+        .pile-hint {
+            font-size: 8px;
+            color: var(--primary-color);
+            opacity: 0.9;
         }
 
         /* Contagem restante na área de saque: quantas cartas ainda dá para comprar.
@@ -145,58 +465,74 @@
             50% { opacity: 0.35; }
         }
 
+        /* Bloco de stats: avatar · nome · PV · energia numa linha só, no canto da
+           faixa (antes era uma coluna alta que empurrava o campo para o lado). */
         .player2-stats, .player1-stats {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: clamp(8px, 1vw, 14px);
+            padding: clamp(6px, 0.9vw, 12px) clamp(8px, 1.2vw, 16px);
+            font-size: clamp(11px, 1.2vw, 15px);
             background-color: var(--field-color);
             border: 2px solid var(--secondary-color);
             border-radius: var(--border-radius);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: clamp(10px, 2vw, 18px);
-            gap: clamp(6px, 1vw, 12px);
-            font-size: clamp(12px, 1.5vw, 16px);
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.45);
+            min-width: 0;
         }
 
 
 
+        /* Campo de batalha: slots estáveis e centrados, como zonas de criatura de
+           TCG (antes as cartas amontoavam à esquerda num flex com scroll). */
         .player2-field, .player1-field {
-            background-color: var(--field-color);
-            border: 3px solid var(--field-border);
-            border-radius: var(--border-radius);
-            display: flex;
-            flex-direction: row;
+            display: grid;
+            grid-auto-flow: column;
+            grid-auto-columns: var(--field-slot-w);
+            grid-auto-rows: minmax(0, 1fr);
             align-items: center;
-            justify-content: flex-start;
-            padding: clamp(10px, 2vw, 20px);
+            justify-content: safe center;
+            gap: clamp(6px, 0.9vw, 16px);
+            padding: clamp(6px, 1vw, 14px);
+            min-height: 0;
             position: relative;
             overflow-x: auto;
             overflow-y: hidden;
-            font-size: clamp(14px, 2.5vw, 18px);
-            gap: clamp(8px, 1vw, 15px);
+            background-color: var(--field-color);
+            border: 3px solid var(--field-border);
+            border-radius: var(--border-radius);
             box-shadow: inset 0 10px 30px rgba(0, 0, 0, 0.6);
             background-image: linear-gradient(0deg, rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
             background-size: 20px 20px;
         }
 
+        /* Carta em campo: preenche o slot (aspecto 5:7) sem estourar a linha */
+        .player2-field > .card, .player1-field > .card {
+            width: auto;
+            height: 100%;
+            max-height: calc(var(--field-slot-w) * 1.4);
+            aspect-ratio: 5 / 7;
+            justify-self: center;
+            font-size: clamp(10px, 0.95vw, 14px);
+        }
+
+        /* Mão: a faixa do leque. `overflow: visible` deixa a carta crescer no
+           hover para fora da caixa, sem clipar o arco do leque. */
         .player2-hand, .player1-hand {
             background: linear-gradient(135deg, rgba(26, 30, 40, 0.9) 0%, rgba(43, 48, 61, 0.8) 100%);
             border: 2px solid var(--primary-color);
             border-radius: var(--border-radius);
             display: flex;
             flex-direction: column;
-            padding: 8px;
+            justify-content: center;
+            height: 100%;
+            max-height: 100%;
+            min-width: 0;
+            padding: 6px 8px;
             overflow: visible;
             position: relative;
             backdrop-filter: blur(10px);
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-        }
-
-        .player2-hand {
-            z-index: 20;
-        }
-
-        .player1-hand {
             z-index: 20;
         }
 
@@ -307,79 +643,66 @@
             display: flex;
             flex-direction: row;
             justify-content: center;
-            align-items: flex-end;
-            overflow: visible;
-            padding: 20px 10px;
-            min-height: 120px;
+            min-height: 0;
+            padding: 0 clamp(4px, 0.6vw, 10px);
             position: relative;
-            perspective: 1000px;
-        }
-
-        .player2-hand #hand-p2 {
+            overflow: visible;
             z-index: 25;
         }
 
-        .player1-hand #hand-p1 {
-            z-index: 25;
-        }
-
-        /* Layout em arco para Player 1 (parte inferior) */
+        /* O leque "pendura" na borda da faixa: embaixo o arco abre para cima,
+           em cima espelha (o sinal vem de `--fan-dir`, definido nas cartas). */
         .player1-hand #hand-p1 {
             align-items: flex-end;
         }
 
-        /* Layout em arco para Player 2 (parte superior - invertido) */
         .player2-hand #hand-p2 {
             align-items: flex-start;
         }
 
-        /* Área dos botões de fase centralizados */
-        .phase-buttons {
-            background-color: var(--card-bg-color);
-            border: 2px solid var(--primary-color);
-            border-radius: var(--border-radius);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 15px;
-            padding: 15px;
-            position: relative;
-        }
-
+        /* Fases: controle segmentado (pílulas coladas) no meio do palco — o
+           antigo bloco de fase ocupava uma linha inteira do grid. */
         .phases-section {
             display: flex;
-            gap: 15px;
-            align-items: center;
+            gap: 0;
+            align-items: stretch;
             justify-content: center;
-            flex: 1;
-            /* O Ataque Direto flutua abaixo deste bloco (fora do fluxo) */
-            position: relative;
         }
 
         .control-section {
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             gap: 5px;
             align-items: center;
         }
 
         .phase-button {
-            flex: 1;
-            padding: 10px 15px;
-            min-height: 40px;
-            border-radius: 4px;
+            padding: clamp(6px, 0.8vw, 10px) clamp(10px, 1.2vw, 18px);
+            min-height: 38px;
+            border-radius: 0;
             border: 2px solid var(--secondary-color);
+            border-left-width: 0;
             background-color: var(--bg-color);
             color: var(--text-color);
             font-weight: bold;
-            font-size: clamp(10px, 1vw, 14px);
+            font-size: clamp(10px, 1vw, 13px);
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: background-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
             display: flex;
             align-items: center;
             justify-content: center;
             text-align: center;
+            white-space: nowrap;
             box-shadow: inset 0 2px 5px rgba(255,255,255,0.05), 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .phase-button:first-of-type {
+            border-left-width: 2px;
+            border-radius: 6px 0 0 6px;
+        }
+
+        .phase-button:last-of-type {
+            border-radius: 0 6px 6px 0;
         }
 
         .phase-button:hover {
@@ -387,58 +710,41 @@
             background-color: var(--secondary-color);
         }
 
+        /* Fase ativa: só o preenchimento dourado (sem `scale`, que desalinhava
+           os segmentos colados). */
         .phase-button.active {
             background-color: var(--primary-color);
             border-color: #fff;
             color: #000;
             box-shadow: 0 0 15px rgba(212, 175, 55, 0.6), inset 0 0 10px rgba(255,255,255,0.4);
-            transform: scale(1.05);
             z-index: 2;
         }
 
-        /* Painel de informações do jogo */
-        .game-info-panel {
-            background-color: rgba(26, 30, 40, 0.9);
-            border: 2px solid var(--secondary-color);
-            border-radius: clamp(6px, 0.8vw, 10px);
-            padding: clamp(6px, 1vw, 12px) clamp(8px, 1.5vw, 15px);
-            font-size: clamp(10px, 1.2vw, 14px);
-            font-weight: bold;
-            backdrop-filter: blur(5px);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            min-width: clamp(120px, 15vw, 180px);
-            max-width: 200px;
+        /* HUD (turno · fase · timer): linha fina sobre o palco */
+        .hud-item {
+            white-space: nowrap;
+            color: var(--text-color);
         }
 
-        .game-info-panel > div {
-            margin-bottom: 4px;
-        }
-
-        .game-info-panel > div:last-child {
-            margin-bottom: 0;
-        }
-
-        .game-info-panel #current-player {
+        .hud #current-player {
             color: var(--energy-color);
             text-shadow: 0 0 5px rgba(245, 201, 74, 0.5);
         }
 
-        .game-info-panel #current-phase {
+        .hud #current-phase {
             color: var(--primary-color);
             text-shadow: 0 0 5px rgba(201, 165, 103, 0.5);
         }
 
-        .game-info-panel #combat-info {
+        /* Instrução de combate: entra na mesma linha do HUD quando existe */
+        .hud #combat-info {
             display: none;
             color: var(--pv-zero-color);
             font-size: 11px;
-            margin-top: 6px;
-            padding-top: 6px;
-            border-top: 1px solid var(--secondary-color);
             text-shadow: 0 0 3px rgba(255, 107, 107, 0.5);
         }
 
-        .game-info-panel #combat-info[style*="display: block"] {
+        .hud #combat-info[style*="display: block"] {
             display: block !important;
         }
 
@@ -457,101 +763,130 @@
             }
         }
 
-        /* Responsividade aprimorada */
-        @media (max-width: 1024px) {
-            .game-container {
-                grid-template-columns: minmax(140px, 1fr) minmax(350px, 3fr) minmax(140px, 1fr);
-            }
-        }
-
-        @media (max-width: 768px) {
-            .game-container {
-                grid-template-columns: minmax(120px, 1fr) minmax(300px, 3fr) minmax(120px, 1fr);
-                grid-template-rows: minmax(100px, 1fr) minmax(180px, 2fr) minmax(70px, 0.8fr) minmax(180px, 2fr) minmax(100px, 1fr);
-                min-height: 500px;
-            }
-            
-            .player2-field, .player1-field {
-                font-size: clamp(12px, 2vw, 16px);
-                padding: clamp(8px, 1.5vw, 15px);
-            }
-            
-            .player2-stats, .player1-stats,
-            .player2-info, .player1-info {
-                font-size: clamp(11px, 1.8vw, 14px);
-                padding: clamp(6px, 1vw, 12px);
+        /* ── Responsividade: o palco nunca rola. As faixas compactam primeiro
+           (pilhas/stats), depois a barra de comando central encolhe e por fim
+           quebra em duas linhas dentro do próprio bloco (flex-wrap), sem que
+           nenhum controle saia da tela. ── */
+        @media (max-width: 1180px) {
+            .player1-stats, .player2-stats {
+                gap: 6px;
+                padding: 3px 8px;
+                font-size: 11px;
             }
 
-            .phase-buttons {
-                flex-direction: column;
-                gap: 8px;
-                padding: 10px;
+            .player-avatar {
+                width: 30px;
+                height: 30px;
+                font-size: 0.8em;
             }
 
-            .phases-section {
-                gap: 10px;
+            .stat {
+                gap: 3px;
+                padding: 2px 6px;
             }
 
-            .control-section {
-                flex-direction: row;
-                flex-wrap: wrap;
-                justify-content: center;
-                gap: 5px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .game-container {
-                grid-template-columns: minmax(100px, 1fr) minmax(250px, 3fr) minmax(100px, 1fr);
-                grid-template-rows: minmax(80px, 1fr) minmax(150px, 2fr) minmax(80px, 1fr) minmax(150px, 2fr) minmax(80px, 1fr);
-                min-height: 450px;
-            }
-            
-            .phase-buttons {
-                gap: clamp(5px, 1vw, 10px);
-                padding: 8px;
+            .stat-energy > .dice-button {
+                width: 22px;
+                height: 22px;
             }
 
-            .phases-section {
-                gap: 5px;
-            }
-
-            .phase-button {
-                width: clamp(45px, 4vw, 60px);
-                height: clamp(45px, 4vw, 60px);
-                font-size: clamp(8px, 0.7vw, 10px);
-            }
-
-            .control-section .action-button {
-                font-size: 9px;
+            /* Pilhas enxutas: elas só informam o saldo, não podem disputar
+               altura com a mão nem com o campo. */
+            .player2-deck, .player1-deck,
+            .player2-discard, .player1-discard {
                 padding: 3px 6px;
             }
 
-            .game-info-panel {
-                font-size: clamp(9px, 1vw, 12px);
-                padding: clamp(4px, 0.8vw, 8px) clamp(6px, 1.2vw, 10px);
-                min-width: clamp(100px, 12vw, 140px);
+            .pile-hint {
+                display: none;
+            }
+
+            .pile-label {
+                font-size: 8px;
+            }
+
+            .phase-button {
+                padding: 7px 10px;
+                font-size: 10px;
+            }
+
+            /* Barra de comando: menos respiro entre os segmentos */
+            .controls {
+                gap: 6px;
+                padding: 3px 10px;
             }
         }
 
-        @media (orientation: landscape) and (max-height: 600px) {
+        @media (max-width: 900px) {
+            /* Mesma conta da base: a faixa da mão perde 15% (1.35fr → 1.15fr) e a
+               sobra vai para o board (2.1fr → 2.30fr), mantendo a soma 4.17fr. */
             .game-container {
-                grid-template-rows: minmax(60px, 1fr) minmax(120px, 2fr) minmax(50px, 0.6fr) minmax(120px, 2fr) minmax(60px, 1fr);
-                gap: clamp(2px, 0.5vw, 6px);
-                padding: clamp(2px, 0.5vw, 6px);
+                grid-template-rows: minmax(96px, 0.72fr) minmax(0, 2.30fr) minmax(143px, 1.15fr);
+            }
+
+            /* Faixa de cima estreita: stats menores (o essencial é o número), o
+               nome do oponente sai e as pilhas encolhem para tudo caber numa
+               linha, com o campo levando a altura. */
+            .zone-opponent .player-name {
+                display: none;
+            }
+
+            .zone-opponent .stats-block {
+                gap: 5px;
+                padding: 3px 6px;
+                font-size: 10px;
+            }
+
+            /* HUD e menu de fases dividem a mesma linha estreita: o HUD perde o
+               respiro interno e o divisor vira uma marca fina. */
+            .hud {
+                gap: 6px;
+                padding-right: 6px;
+                font-size: 10px;
+            }
+
+            .controls {
+                gap: 5px;
+                padding: 3px 8px;
+                /* Em telas apertadas o bloco deixa de ser pílula (pode quebrar
+                   em duas linhas) e vira um cartão arredondado. */
+                border-radius: 14px;
+            }
+
+            .pile-rail {
+                min-width: 0;
+            }
+
+            .player2-deck, .player1-deck,
+            .player2-discard, .player1-discard {
+                min-width: 62px;
+            }
+
+            /* Em tela estreita o título da mão não aparece — o da mão ALHEIA é a
+               exceção e continua visível: a regra por assento (mais específica)
+               declara `display: flex` e vence este `none` por especificidade,
+               não por ordem. */
+            .hand-title {
+                display: none;
             }
         }
 
-        .player-info {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            min-width: 280px;
-            flex: 1;
-        }
+        /* Janelas baixas (notebook deitado, tablet): a mão encolhe o suficiente
+           para as duas faixas caberem sem espremer o campo. Os mesmos -15% da
+           base (1.35fr → 1.15fr, sobra para o board) e um piso menor, senão o
+           piso antigo (156px) anulava o corte em 1024×600. */
+        @media (max-height: 620px) {
+            :root {
+                --hand-card-w: clamp(61px, min(6.8vw, 8.9vh), 95px);
+            }
 
-        .player-info.player2 {
-            flex-direction: row-reverse;
+            .game-container {
+                grid-template-rows: minmax(84px, 0.62fr) minmax(0, 2.40fr) minmax(132px, 1.15fr);
+            }
+
+            .pile-hint {
+                display: none;
+            }
         }
 
         .player-avatar {
@@ -567,12 +902,6 @@
             color: var(--bg-color);
             border: 2px solid var(--secondary-color);
             flex-shrink: 0;
-        }
-
-        .player-stats {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
         }
 
         .player-name {
@@ -802,48 +1131,35 @@
         }
 
         /* Ação mais agressiva do jogo: gradiente carmesim (mesma família do
-           `.card.direct-attack`) com borda clara, para o botão não se confundir
-           com os vizinhos dourados do menu central. */
+           `.card.direct-attack`) com aro claro, para o botão não se confundir
+           com os vizinhos dourados do menu central. O aro é `box-shadow`, não
+           `border`: assim o botão fica com a caixa idêntica à dos demais
+           `.action-button` do bloco (border: none) e a linha não cresce. */
         .action-button.direct-attack-btn {
             background: linear-gradient(180deg, #ff7a7a 0%, var(--pv-zero-color) 55%, #c81e23 100%);
             color: #fff;
-            border: 1px solid rgba(255, 216, 216, 0.8);
+            box-shadow: inset 0 0 0 1px rgba(255, 216, 216, 0.8), inset 0 -2px 0 rgba(0, 0, 0, 0.3);
             letter-spacing: 0.5px;
             text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
         }
 
         .action-button.direct-attack-btn:hover {
             background: linear-gradient(180deg, #ff9a9a 0%, #f75c5c 55%, #d81f24 100%);
-            box-shadow: 0 0 14px rgba(220, 20, 60, 0.75);
+            box-shadow: inset 0 0 0 1px rgba(255, 216, 216, 0.8), 0 0 14px rgba(220, 20, 60, 0.75);
         }
 
-        /* Ataque Direto flutuando logo abaixo do menu central (abaixo de
-           Invocação e no centro da tela): fora do fluxo para não espremer os
-           botões de fase e acima do tabuleiro para não sumir entre as cartas. */
-        .direct-attack-float {
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            margin-top: 10px;
-            z-index: 40;
-            /* Só o botão recebe clique; a caixa do float não bloqueia a mesa */
-            pointer-events: none;
-        }
-
-        .direct-attack-float .direct-attack-btn {
+        /* Ataque Direto: é mais um botão do bloco de controles, no fluxo ao lado
+           do Fim Turno — mesmo `padding`/`font-size` do `.action-button` (a regra
+           só acrescenta o recorte da faixa de luz e a entrada). */
+        .control-section .direct-attack-btn {
             position: relative;
             overflow: hidden;
-            pointer-events: auto;
-            padding: 10px 22px;
-            font-size: 13px;
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
             animation: directAttackFloat 0.35s ease-out;
         }
 
         /* Faixa de luz diagonal parada fora do botão até o pulso ligar; o
            `overflow: hidden` da regra acima recorta a varredura nas bordas. */
-        .direct-attack-float .direct-attack-btn::after {
+        .control-section .direct-attack-btn::after {
             content: '';
             position: absolute;
             inset: 0;
@@ -861,12 +1177,13 @@
            (mesma família do `.card.direct-attack`) pulsando para fora, respiração
            de escala e a faixa de luz varrendo o botão a cada ciclo. Nada de
            opacidade: o fade deixava o botão translúcido — mais apagado
-           justamente quando ele é a única jogada possível. */
-        .direct-attack-float .direct-attack-btn.direct-attack-pulse {
+           justamente quando ele é a única jogada possível. O `transform` do
+           ciclo não reflui o bloco: os vizinhos não se mexem. */
+        .control-section .direct-attack-btn.direct-attack-pulse {
             animation: directAttackFloat 0.35s ease-out, directAttackPulse 1.6s ease-in-out 0.35s infinite;
         }
 
-        .direct-attack-float .direct-attack-btn.direct-attack-pulse::after {
+        .control-section .direct-attack-btn.direct-attack-pulse::after {
             animation: directAttackSheen 1.6s ease-in-out 0.35s infinite;
         }
 
@@ -874,13 +1191,13 @@
             0%, 100% {
                 opacity: 1;
                 transform: scale(1);
-                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5), 0 0 0 0 rgba(220, 20, 60, 0), 0 0 0 rgba(220, 20, 60, 0);
+                box-shadow: inset 0 0 0 1px rgba(255, 216, 216, 0.8), inset 0 -2px 0 rgba(0, 0, 0, 0.3), 0 0 0 0 rgba(220, 20, 60, 0), 0 0 0 rgba(220, 20, 60, 0);
                 filter: brightness(1) saturate(1);
             }
             50% {
                 opacity: 1;
                 transform: scale(1.08);
-                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55), 0 0 0 7px rgba(220, 20, 60, 0.22), 0 0 26px rgba(220, 20, 60, 0.95);
+                box-shadow: inset 0 0 0 1px rgba(255, 216, 216, 0.8), inset 0 -2px 0 rgba(0, 0, 0, 0.3), 0 0 0 7px rgba(220, 20, 60, 0.22), 0 0 26px rgba(220, 20, 60, 0.95);
                 filter: brightness(1.35) saturate(1.15);
             }
         }
@@ -890,55 +1207,8 @@
             55%, 100% { transform: translateX(160%); }
         }
 
-        /* Tabuleiro do jogo */
-        .game-board {
-            flex: 1;
-            display: grid;
-            grid-template-rows: 1fr auto 1fr;
-            gap: 8px;
-            padding: 8px;
-            background: linear-gradient(180deg, 
-                rgba(75, 88, 110, 0.3) 0%, 
-                rgba(58, 69, 86, 0.5) 50%, 
-                rgba(75, 88, 110, 0.3) 100%);
-            min-height: 0;
-            overflow: visible;
-        }
-
-        /* Áreas do tabuleiro */
-        .player-area {
-            display: grid;
-            grid-template-columns: minmax(180px, 220px) 1fr;
-            gap: 10px;
-            padding: 8px;
-            background-color: rgba(43, 48, 61, 0.6);
-            border-radius: var(--border-radius);
-            border: 2px solid var(--secondary-color);
-            min-height: 0;
-            overflow: hidden;
-        }
-
-        .player-area.player1 {
-            transform: rotate(180deg);
-        }
-
-        .player-area.player1 .card {
-            transform: rotate(180deg);
-        }
-
-        /* Mão do jogador */
-        .hand {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            padding: 8px;
-            background-color: var(--bg-color);
-            border-radius: var(--border-radius);
-            border: 1px solid var(--primary-color);
-            overflow-y: auto;
-            height: 100%;
-            min-height: 0;
-        }
+        /* O palco (3 faixas) e o campo com slots vivem no topo do arquivo:
+           `.game-container`, `.zone`, `.board` e `.player1-field/.player2-field`. */
 
         .hand-title {
             font-size: 0.9em;
@@ -969,99 +1239,18 @@
             font-weight: bold;
         }
 
-        /* Container para mão com indicadores do player 2 */
-        .hand-container {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            height: 100%;
-        }
-
-        .player-info-local {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            padding: 8px;
-            background-color: var(--card-bg-color);
-            border-radius: var(--border-radius);
-            border: 1px solid var(--primary-color);
-            flex-shrink: 0;
-        }
-
-        .player-info-local .player-avatar {
-            width: 40px;
-            height: 40px;
-            font-size: 1em;
-        }
-
-        .player-info-local .player-name {
-            font-size: 0.9em;
-        }
-
-        .player-info-local .stat-group {
-            gap: 8px;
-        }
-
-        .player-info-local .stat {
-            padding: 3px 6px;
-        }
-
-        /* Campo de batalha */
-        .battlefield {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            align-content: flex-start;
-            padding: 10px;
-            background: radial-gradient(circle at center, 
-                rgba(201, 165, 103, 0.1) 0%, 
-                rgba(58, 69, 86, 0.3) 100%);
-            border-radius: var(--border-radius);
-            border: 2px dashed var(--primary-color);
-            min-height: 100px;
-            height: 100%;
-            overflow-y: auto;
-        }
-
-        /* Zona central */
-        .center-zone {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 15px;
-            background-color: rgba(43, 48, 61, 0.8);
-            border-radius: var(--border-radius);
-            border: 3px solid var(--primary-color);
-            position: relative;
-            min-height: 80px;
-            flex-shrink: 0;
-        }
-
-        .turn-indicator {
-            text-align: center;
-            flex: 1;
-        }
-
-        .current-turn {
-            font-size: 1em;
-            color: var(--primary-color);
-            margin-bottom: 5px;
-        }
-
-        .phase-indicator {
-            font-size: 0.8em;
-            color: var(--energy-color);
-            margin-bottom: 10px;
-        }
-
         /* Cartas */
         .card {
-            width: clamp(100px, 15vh, 200px);
-            height: clamp(140px, 20vh, 260px);
+            width: var(--hand-card-w);
+            height: var(--hand-card-h);
+            /* Os badges internos (custo/nome/stats) usam `em`: mudar o font-size
+               da carta escala tudo junto (antes os `clamp` de `vw` brigavam com
+               o tamanho da carta). */
+            font-size: clamp(9px, 0.85vw, 12px);
             border: 2px solid var(--primary-color);
             border-radius: clamp(6px, 0.5vw, 10px);
             cursor: grab;
-            transition: all 0.3s ease;
+            transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s ease, border-color 0.3s ease, filter 0.3s ease;
             position: relative;
             overflow: hidden;
             box-shadow: 0 3px 6px rgba(0,0,0,0.3);
@@ -1074,92 +1263,55 @@
             cursor: grabbing;
         }
 
-        .card:hover {
-            transform: scale(1.05) translateY(-5px);
+        /* Carta em campo: só sobe um pouco no hover (o tamanho é do slot) */
+        .player2-field > .card:hover, .player1-field > .card:hover {
+            transform: translateY(-4px);
             box-shadow: 0 8px 16px rgba(201, 165, 103, 0.4);
             border-color: var(--energy-color);
         }
 
-        /* Sistema de posicionamento em arco - Player 1 */
-        .player1-hand .card {
-            margin: 0 -15px;
-            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-            transform-origin: center bottom;
+        /* ── Leque da mão ────────────────────────────────────────────────────
+           O arco é calculado, não enumerado: `--n` (cartas na mão) e `--i`
+           (posição da carta) vêm do renderer (`renderHandsFromState`), então o
+           leque funciona com qualquer quantidade de cartas. `--fan-dir` inverte
+           o arco entre a faixa de cima (-1) e a de baixo (1). */
+        .player1-hand .card,
+        .player2-hand .card {
+            --fan-offset: calc(var(--i, 0) - (var(--n, 1) - 1) / 2);
+            margin: 0 calc(-1 * clamp(8px, 1vw, 20px));
+            transform: rotate(calc(var(--fan-offset) * 5deg * var(--fan-dir, 1)))
+                       translateY(calc(var(--fan-offset) * var(--fan-dir, 1) * -2.5px));
             z-index: 1;
         }
 
-        .player1-hand .card:nth-child(1) { transform: rotate(-20deg) translateY(10px); }
-        .player1-hand .card:nth-child(2) { transform: rotate(-15deg) translateY(5px); }
-        .player1-hand .card:nth-child(3) { transform: rotate(-10deg) translateY(2px); }
-        .player1-hand .card:nth-child(4) { transform: rotate(-5deg) translateY(0px); }
-        .player1-hand .card:nth-child(5) { transform: rotate(0deg) translateY(0px); }
-        .player1-hand .card:nth-child(6) { transform: rotate(5deg) translateY(0px); }
-        .player1-hand .card:nth-child(7) { transform: rotate(10deg) translateY(2px); }
-        .player1-hand .card:nth-child(8) { transform: rotate(15deg) translateY(5px); }
-        .player1-hand .card:nth-child(9) { transform: rotate(20deg) translateY(10px); }
+        /* Faixa de baixo (jogador local): arco abrindo para cima */
+        .player1-hand .card {
+            --fan-dir: 1;
+            transform-origin: center bottom;
+        }
 
-        /* Efeito hover para Player 1 */
-        .player1-hand .card:hover {
-            transform: rotate(0deg) scale(2.2) translateY(-60px) !important;
+        /* Faixa de cima (oponente): arco espelhado, pendurado no topo */
+        .player2-hand .card {
+            --fan-dir: -1;
+            transform-origin: center top;
+            z-index: 10;
+        }
+
+        /* Hover: a carta sai do leque e cresce — contido, sem estourar a faixa
+           (era `scale(2.2)` com 60px de deslocamento). */
+        .player1-hand .card:hover,
+        .player2-hand .card:hover {
+            transform: rotate(0deg) scale(1.7) translateY(calc(var(--fan-lift) * -1 * var(--fan-dir, 1)));
             z-index: 1000;
             box-shadow: 0 20px 40px rgba(201, 165, 103, 0.8), 0 0 30px rgba(245, 201, 74, 0.6);
             border-color: var(--energy-color);
             filter: brightness(1.2) drop-shadow(0 0 20px rgba(245, 201, 74, 0.8));
         }
 
-        /* Sistema de posicionamento em arco - Player 2 (invertido) */
-        .player2-hand .card {
-            margin: 0 -15px;
-            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-            transform-origin: center top;
-            z-index: 10;
-        }
-
-        .player2-hand .card:nth-child(1) { transform: rotate(20deg) translateY(-10px); }
-        .player2-hand .card:nth-child(2) { transform: rotate(15deg) translateY(-5px); }
-        .player2-hand .card:nth-child(3) { transform: rotate(10deg) translateY(-2px); }
-        .player2-hand .card:nth-child(4) { transform: rotate(5deg) translateY(0px); }
-        .player2-hand .card:nth-child(5) { transform: rotate(0deg) translateY(0px); }
-        .player2-hand .card:nth-child(6) { transform: rotate(-5deg) translateY(0px); }
-        .player2-hand .card:nth-child(7) { transform: rotate(-10deg) translateY(-2px); }
-        .player2-hand .card:nth-child(8) { transform: rotate(-15deg) translateY(-5px); }
-        .player2-hand .card:nth-child(9) { transform: rotate(-20deg) translateY(-10px); }
-
-        /* Efeito hover para Player 2 */
-        .player2-hand .card:hover {
-            transform: rotate(0deg) scale(2.2) translateY(60px) !important;
-            z-index: 1001;
-            box-shadow: 0 20px 40px rgba(201, 165, 103, 0.8), 0 0 30px rgba(245, 201, 74, 0.6);
-            border-color: var(--energy-color);
-            filter: brightness(1.2) drop-shadow(0 0 20px rgba(245, 201, 74, 0.8));
-        }
-
-        /* Efeito de afastamento das cartas vizinhas ao fazer hover */
-        .player1-hand .card:hover ~ .card {
-            transform: translateX(20px) !important;
-        }
-
-        .player1-hand .card:hover + .card + .card {
-            transform: translateX(10px) !important;
-        }
-
-        .player2-hand .card:hover ~ .card {
-            transform: translateX(20px) !important;
-        }
-
-        .player2-hand .card:hover + .card + .card {
-            transform: translateX(10px) !important;
-        }
-
-        /* Quando passa o mouse por cima de uma carta, as anteriores se afastam para a esquerda */
-        .player1-hand:hover .card:not(:hover) {
-            filter: brightness(0.7);
-            transform: scale(0.95) !important;
-        }
-
+        /* As outras cartas do leque escurecem de leve (o arco não se mexe) */
+        .player1-hand:hover .card:not(:hover),
         .player2-hand:hover .card:not(:hover) {
-            filter: brightness(0.7);
-            transform: scale(0.95) !important;
+            filter: brightness(0.72);
         }
 
         /* Efeitos especiais para cartas selecionáveis */
@@ -1367,23 +1519,16 @@
         .card.support:hover {
             border: 3px solid #e6e6e6 !important;
             box-shadow: 0 0 15px rgba(192, 192, 192, 0.8), 0 0 30px rgba(192, 192, 192, 0.5) !important;
-            transform: scale(1.05) translateY(-5px) !important;
         }
 
-        /* Regras específicas para cartas de suporte na mão do jogador */
-        .player1-hand .card.support:hover {
-            transform: rotate(0deg) scale(2.2) translateY(-60px) !important;
-            border: 3px solid #e6e6e6 !important;
-            box-shadow: 0 20px 40px rgba(192, 192, 192, 0.8), 0 0 30px rgba(230, 230, 230, 0.6) !important;
-            filter: brightness(1.2) drop-shadow(0 0 20px rgba(230, 230, 230, 0.8)) !important;
-        }
-
+        /* Regras específicas para cartas de suporte na mão do jogador: o transform
+           do hover é o do leque (`.playerN-hand .card:hover`), então aqui só a
+           moldura prateada muda. */
+        .player1-hand .card.support:hover,
         .player2-hand .card.support:hover {
-            transform: rotate(0deg) scale(2.2) translateY(60px) !important;
             border: 3px solid #e6e6e6 !important;
             box-shadow: 0 20px 40px rgba(192, 192, 192, 0.8), 0 0 30px rgba(230, 230, 230, 0.6) !important;
             filter: brightness(1.2) drop-shadow(0 0 20px rgba(230, 230, 230, 0.8)) !important;
-            z-index: 1001 !important;
         }
 
         /* Custo prateado para cartas de suporte */
@@ -1399,21 +1544,24 @@
             box-shadow: 0 0 12px rgba(192, 192, 192, 0.8) !important;
         }
 
+        /* Badges da carta em `em`: escalam junto do `font-size` de `.card`
+           (antes usavam `vw`, então estouravam em cartas pequenas e sumiam nas
+           grandes). */
         .card-cost {
             position: absolute;
-            top: 4px;
-            left: 4px;
-            width: clamp(22px, 2.2vw, 30px);
-            height: clamp(22px, 2.2vw, 30px);
+            top: 0.3em;
+            left: 0.3em;
+            width: 1.9em;
+            height: 1.9em;
             background-color: var(--energy-color);
             color: var(--bg-color);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: clamp(0.8em, 1vw, 1.1em);
+            font-size: 0.95em;
             font-weight: bold;
-            border: 2px solid var(--bg-color);
+            border: 0.15em solid var(--bg-color);
             z-index: 3;
         }
 
@@ -1424,7 +1572,7 @@
             width: 100%;
             height: 100%;
             background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
-            border-radius: clamp(4px, 0.4vw, 8px);
+            border-radius: inherit;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1433,36 +1581,36 @@
 
         .card-name {
             position: absolute;
-            bottom: clamp(25px, 3vw, 35px);
+            bottom: 2.2em;
             left: 50%;
             transform: translateX(-50%);
-            font-size: clamp(0.6em, 0.8vw, 0.9em);
+            font-size: 0.72em;
             text-align: center;
             color: white;
             line-height: 1.1;
             font-weight: bold;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
             background: rgba(0,0,0,0.6);
-            padding: 2px 6px;
-            border-radius: 4px;
+            padding: 0.15em 0.45em;
+            border-radius: 0.35em;
             z-index: 3;
-            max-width: 90%;
+            max-width: 92%;
         }
 
         .card-stats {
             position: absolute;
-            bottom: clamp(4px, 0.5vw, 8px);
+            bottom: 0.35em;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: clamp(4px, 0.5vw, 8px);
-            font-size: clamp(0.8em, 1vw, 1.2em);
+            gap: 0.4em;
+            font-size: 0.8em;
             font-weight: bold;
             color: white;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
             background: rgba(0,0,0,0.6);
-            padding: 2px 8px;
-            border-radius: 4px;
+            padding: 0.15em 0.55em;
+            border-radius: 0.35em;
             z-index: 3;
         }
 
@@ -1473,7 +1621,7 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            border-radius: clamp(4px, 0.4vw, 8px);
+            border-radius: inherit;
         }
 
         .attack {
@@ -2079,200 +2227,79 @@
             transform: scale(1.05);
         }
 
-        /* Responsividade */
-        @media (max-width: 1400px) {
-            .player-area {
-                grid-template-columns: minmax(160px, 200px) 1fr;
-            }
-            
-            .card {
-                width: 65px;
-                height: 90px;
-            }
-        }
-
-        @media (max-width: 1200px) {            
-            .player-area {
-                grid-template-columns: minmax(140px, 180px) 1fr;
-            }
-            
-            .card {
-                width: 60px;
-                height: 80px;
-            }
-            
-            .card-image {
-                width: 35px;
-                height: 35px;
-                font-size: 1em;
-            }
-        }
-
+        /* Telas estreitas: só o que ainda precisa de ajuste — o tamanho das
+           cartas vem dos tokens do leque/campo, que já encolhem com a viewport. */
         @media (max-width: 1000px) {
-            .game-header {
-                padding: 6px 10px;
-                min-height: 70px;
-            }
-            
-            .player-info {
-                gap: 10px;
-                min-width: 240px;
-            }
-            
-            .player-avatar {
-                width: 40px;
-                height: 40px;
-                font-size: 1em;
-            }
-            
             .action-button {
                 padding: 5px 8px;
                 font-size: 0.75em;
             }
         }
 
-        @media (max-width: 768px) {
-            .game-header {
-                flex-wrap: wrap;
-                justify-content: center;
-                gap: 8px;
-                padding: 8px;
-                min-height: auto;
-            }
-            
-            .player-info {
-                min-width: auto;
-                flex: none;
-            }
-            
-            .center-controls {
-                order: -1;
-                width: 100%;
-                justify-content: center;
-            }
-            
-            .player-info-local {
-                flex-direction: column;
-                gap: 8px;
-                text-align: center;
-            }
-            
-            .hand-container {
-                gap: 8px;
-            }
-            
-            .player-area {
-                grid-template-columns: 120px 1fr;
-                gap: 8px;
-                padding: 6px;
-            }
-            
-            .card {
-                width: 50px;
-                height: 70px;
-            }
-            
-            .card-image {
-                width: 30px;
-                height: 30px;
-                font-size: 0.9em;
-            }
-            
-            .hand {
-                padding: 6px;
-                gap: 4px;
-            }
-            
-            .battlefield {
-                padding: 8px;
-                gap: 6px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .game-header {
-                flex-direction: column;
-            }
-            
-            .player-info {
-                width: 100%;
-                justify-content: center;
-            }
-            
-            .player-info-local {
-                flex-direction: column;
-                align-items: center;
-            }
-            
-            .player-info-local .stat-group {
-                justify-content: center;
-            }
-            
-            .stat-group {
-                gap: 8px;
-            }
-            
+        @media (max-width: 720px) {
             .stat {
                 padding: 3px 6px;
             }
-            
-            .player-area {
-                grid-template-columns: 100px 1fr;
-            }
-            
-            .card {
-                width: 45px;
-                height: 60px;
-                padding: 2px;
-            }
-            
-            .card-name {
-                font-size: 0.5em;
-            }
-            
-            .card-stats {
-                font-size: 0.5em;
-            }
         }
 
-/* Botão flutuante de opções */
+/* Menu de opções (⚙️): PRIMEIRO segmento da barra de comando — canto esquerdo
+   extremo do bloco central e na mesma altura do HUD (turno · fase · ⏱). O painel
+   pendura abaixo do botão, dentro da âncora `.controls`, como o painel de
+   habilidades manuais. */
 .gear-menu {
-    position: fixed;
-    top: 12px;
-    left: 12px;
-    z-index: 1000;
-}
-
-.gear-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--card-bg);
-    border: 1px solid var(--primary-color);
-    cursor: pointer;
-    font-size: 18px;
+    position: relative;
     display: flex;
     align-items: center;
+    flex: 0 0 auto;
+}
+
+/* Pílula redonda no padrão do `.hud-toggle` (26px): entra na linha do HUD sem
+   crescer a barra nem deslocar as fases/Fim Turno. */
+.gear-btn {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border-radius: 50%;
+    /* Cor de painel do jogo (`--card-bg-color`): o token `--card-bg` NÃO existe
+       — era ele que deixava botão e painel transparentes. */
+    background-color: var(--card-bg-color);
+    border: 2px solid var(--primary-color);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
     justify-content: center;
-    transition: background 0.2s;
+    transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
 }
 
 .gear-btn:hover {
-    background: rgba(255, 215, 0, 0.15);
+    /* Só clareia: o fundo continua opaco (nada de `background` transparente,
+       senão a grade do campo reaparece por dentro da pílula no hover). */
+    background-image: linear-gradient(160deg, rgba(255, 215, 0, 0.25) 0%, rgba(0, 0, 0, 0.15) 100%);
+    transform: scale(1.1);
+    box-shadow: 0 0 12px rgba(212, 175, 55, 0.6);
 }
 
 .gear-dropdown {
     display: none;
     position: absolute;
-    top: 48px;
+    top: calc(100% + 10px);
     left: 0;
-    background: var(--card-bg);
-    border: 1px solid var(--primary-color);
+    z-index: 60;
+    /* Preenchido: base OPACA do painel (`--card-bg-color`) com um brilho sutil
+       por cima. O painel abre sobre o campo, então a grade não pode aparecer
+       através dele (antes o `background` apontava para um token inexistente). */
+    background-color: var(--card-bg-color);
+    background-image: linear-gradient(160deg, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0.35) 100%);
+    border: 2px solid var(--primary-color);
     border-radius: 8px;
     min-width: 140px;
+    max-height: calc(100dvh - 120px);
     flex-direction: column;
     box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-    overflow: hidden;
+    overflow-y: auto;
 }
 
 .gear-dropdown.open {
@@ -2299,6 +2326,16 @@
     background: rgba(255, 215, 0, 0.1);
 }
 
+/* Janela baixa: o painel abre abaixo da barra central (que fica no MEIO do
+   palco), então as opções encolhem para caber entre a barra e a base da tela —
+   em 758x482 o painel cheio estourava 8px. */
+@media (max-height: 620px) {
+    .gear-dropdown button {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+}
+
 /* Verso de carta oculta (oponente da IA no PvM): assets/verso.jpeg com
    gradiente de fallback caso a imagem não carregue. Mesma regra do pvp.css. */
 .card-back {
@@ -2311,9 +2348,11 @@
 }
 
 
-/* PvM: a mão da máquina (oponente no topo) fica discreta — encolhida,
-   translúcida e sem capturar ponteiro — para não cobrir o campo da máquina
-   (mesma ideia do PvP em body[data-seat="p1"]). */
+/* PvM: a mão da máquina (oponente no topo) fica discreta — sem capturar
+   ponteiro e um pouco translúcida — mas NÃO subindo por cima do título: o
+   `translateY(-70%) scale(0.78)` antigo pendurava os versos fora da caixa e o
+   texto do título acabava atrás deles (mesma ideia do PvP em
+   body[data-seat="p1"]). */
 body[data-seat="p1"] .player2-hand {
     z-index: 0;
     overflow: hidden;
@@ -2321,12 +2360,6 @@ body[data-seat="p1"] .player2-hand {
 }
 
 body[data-seat="p1"] .player2-hand #hand-p2 {
-    transform: translateY(-70%) scale(0.78);
-    transform-origin: center top;
     opacity: 0.85;
-}
-
-body[data-seat="p1"] .player2-hand .hand-title {
-    z-index: 26;
 }
 

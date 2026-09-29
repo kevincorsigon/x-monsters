@@ -2056,7 +2056,7 @@ test('a área de sacar mostra as cartas restantes (game.html e pvp.html)', () =>
 
         ['p1', 'p2'].forEach(seat => {
             const numero = seat === 'p1' ? '1' : '2';
-            const inicio = html.indexOf(`class="player${numero}-deck"`);
+            const inicio = html.indexOf(`class="player${numero}-deck`);
             assert.notEqual(inicio, -1, `área de saque de ${seat} não encontrada em ${arquivo}`);
 
             const contador = html.indexOf(`id="deck-count-${seat}"`, inicio);
@@ -4792,18 +4792,32 @@ test('avisos do jogo viram toasts empilhados no canto direito', () => {
     assert.equal(css.includes('.turn-notification'), false, 'CSS do popup central removido');
 });
 
-test('Ataque Direto flutua abaixo do menu central (abaixo de Invocação)', () => {
+test('o Ataque Direto é um botão do bloco de controles, ao lado do Fim Turno', () => {
     const css = readSourceText('src/css/game.css');
-    const secao = css.slice(css.indexOf('.phases-section {'), css.indexOf('.phase-button {'));
-    assert.match(secao, /position: relative;/, 'a seção das fases ancora o float');
+    assert.equal(css.includes('.direct-attack-float'), false,
+        'o float abaixo da barra saiu do CSS');
 
-    const floatCss = css.slice(css.indexOf('.direct-attack-float {'), css.indexOf('@keyframes directAttackFloat'));
-    assert.match(floatCss, /position: absolute;/);
-    assert.match(floatCss, /top: 100%;/, 'logo abaixo do menu central');
-    assert.match(floatCss, /left: 50%;/);
-    assert.match(floatCss, /transform: translateX\(-50%\);/, 'centralizado sob Invocação');
-    assert.match(floatCss, /pointer-events: none;/);
-    assert.match(floatCss, /pointer-events: auto;/, 'só o botão recebe clique');
+    // A regra só acrescenta recorte/entrada: o tamanho vem do `.action-button`,
+    // então o botão sai igual ao Fim Turno, no fluxo, sem mexer na barra.
+    const botaoCss = css.slice(css.indexOf('.control-section .direct-attack-btn {'),
+        css.indexOf('@keyframes directAttackFloat'));
+    assert.match(botaoCss, /position: relative;/);
+    assert.match(botaoCss, /overflow: hidden;/, 'o recorte contém a faixa de luz');
+    assert.equal(/padding:|font-size:|box-shadow:/.test(botaoCss), false,
+        'nada de padding/fonte próprios: o botão segue o tamanho dos demais');
+
+    // A variante carmesim também não altera a caixa: o aro claro é `box-shadow`
+    // interno. Com `border` o botão crescia 2px em relação ao Fim Turno vizinho.
+    const variante = css.slice(css.indexOf('.action-button.direct-attack-btn {'),
+        css.indexOf('@keyframes directAttackPulse'));
+    assert.match(variante, /box-shadow: inset 0 0 0 1px rgba\(255, 216, 216, 0\.8\)/,
+        'o aro claro vem do box-shadow interno');
+    assert.equal(/border:/.test(variante), false,
+        'nenhuma borda própria: a altura bate com os demais botões');
+
+    const barraCss = css.slice(css.indexOf('.controls {'), css.indexOf('.player2-deck, .player1-deck'));
+    assert.match(barraCss, /position: relative;/, 'a barra segue âncora do painel de habilidades');
+    assert.match(barraCss, /z-index: 45;/);
 
     ['game.html', 'pvp.html'].forEach(pagina => {
         const html = readSourceText(pagina);
@@ -4811,20 +4825,334 @@ test('Ataque Direto flutua abaixo do menu central (abaixo de Invocação)', () =
             html.indexOf('<div class="phases-section">'),
             html.indexOf('<div class="control-section">')
         );
-        assert.match(fases, /<div class="direct-attack-float" id="direct-attack-float">/);
-        assert.match(fases, /id="direct-attack-btn"[^>]*>Ataque Direto<\/button>/);
+        assert.equal(fases.includes('direct-attack'), false,
+            `o Ataque Direto saiu do menu de fases em ${pagina}`);
 
         const controles = html.slice(
             html.indexOf('<div class="control-section">'),
-            html.indexOf('<!-- Player 1 Stats')
+            html.indexOf('class="player1-stats')
         );
-        assert.equal(controles.includes('direct-attack-btn'), false, 'o botão saiu do bloco de controles');
+        const ataque = controles.indexOf('id="direct-attack-btn"');
+        const fimTurno = controles.indexOf('onclick="endTurn()"');
+        assert.ok(ataque !== -1, `o Ataque Direto vive no bloco de controles em ${pagina}`);
+        assert.ok(fimTurno > ataque, `o Ataque Direto fica ao lado do Fim Turno em ${pagina}`);
+        assert.match(controles, /id="direct-attack-btn"[^>]*>Ataque Direto<\/button>/);
         assert.match(controles, /<button class="action-button" onclick="endTurn\(\)">Fim Turno<\/button>/);
     });
 });
+
+test('o HUD (turno · fase · timer) mora na barra central do palco', () => {
+    const css = readSourceText('src/css/game.css');
+
+    // Faixas (topo/base): stats · mão · pilhas — nenhuma delas guarda o HUD
+    assert.match(css, /\.zone \{\s*display: grid;\s*grid-template-columns: auto minmax\(0, 1fr\) auto;/,
+        'as faixas dividem a linha entre stats, mão e pilhas');
+    assert.equal(css.includes('.zone-opponent .hud'), false,
+        'a faixa do oponente não ancora mais o HUD');
+
+    // Palco: campo · barra de comando · campo
+    const board = css.slice(css.indexOf('.board {'), css.indexOf('.pile-rail {'));
+    assert.match(board, /grid-template-rows: minmax\(0, 1fr\) auto minmax\(0, 1fr\);/,
+        'a barra de comando é a linha do meio do palco');
+
+    const controle = css.slice(css.indexOf('.controls {'), css.indexOf('.player2-deck, .player1-deck'));
+    assert.match(controle, /justify-content: center;/, 'a barra central fica centrada na mesa');
+    assert.match(controle, /justify-self: center;/);
+
+    const hud = css.slice(css.indexOf('.hud {'), css.indexOf('.hud-toggle {'));
+    assert.match(hud, /border-right: 1px solid rgba\(212, 175, 55, 0\.3\);/,
+        'o HUD é um segmento da barra, separado por um divisor dourado');
+    assert.equal(/border: \d/.test(hud), false,
+        'a moldura da pílula é do .controls, não do HUD');
+
+    ['game.html', 'pvp.html'].forEach(pagina => {
+        const html = readSourceText(pagina);
+
+        const faixa = html.slice(
+            html.indexOf('<section class="zone zone-opponent">'),
+            html.indexOf('<section class="board">')
+        );
+        assert.equal(faixa.includes('id="current-player"'), false,
+            `turno/fase/timer saíram da faixa do oponente em ${pagina}`);
+
+        const barra = html.slice(
+            html.indexOf('<div class="controls">'),
+            html.indexOf('<div class="player1-field"')
+        );
+        ['id="current-player"', 'id="current-phase"', 'id="turn-timer"'].forEach(id => {
+            assert.ok(barra.includes(id), `${id} vive na barra central em ${pagina}`);
+        });
+        assert.match(barra, /<div class="hud game-info-panel">/,
+            `o HUD é um segmento da barra, depois do gear em ${pagina}`);
+        assert.ok(barra.indexOf('class="phases-section"') > barra.indexOf('class="hud game-info-panel"'),
+            `a leitura do HUD vem antes do menu de fases em ${pagina}`);
+        assert.ok(barra.indexOf('class="control-section"') > barra.indexOf('class="phases-section"'),
+            `Fim Turno fecha a barra em ${pagina}`);
+    });
+
+    // PvP só troca quem mora em cada faixa: o HUD não é reposicionado por assento
+    assert.equal(readSourceText('src/css/pvp.css').includes('.hud'), false,
+        'o pvp.css não reposiciona o HUD');
+});
+
+test('o menu de opções (⚙️) abre o canto esquerdo da barra, na altura do HUD', () => {
+    const css = readSourceText('src/css/game.css');
+    const menu = css.slice(css.indexOf('.gear-menu {'), css.indexOf('.gear-dropdown {'));
+    assert.match(menu, /position: relative;/,
+        'o gear sai do canto da tela e passa a ser um segmento da barra');
+    assert.equal(/\.gear-menu \{[^}]*position: fixed/.test(css), false,
+        'nenhum resquício do botão flutuante');
+
+    // Pílula do mesmo tamanho do `.hud-toggle`: entra na linha do HUD sem
+    // crescer a barra (as fases é que dão a altura do bloco).
+    const botao = css.slice(css.indexOf('.gear-btn {'), css.indexOf('.gear-dropdown {'));
+    assert.match(botao, /width: 26px;\s*height: 26px;/,
+        'o gear tem a mesma altura dos itens do HUD');
+    assert.match(botao, /font-size: 13px;/);
+    assert.match(botao, /display: inline-flex;/);
+
+    // O painel abre SOBRE o campo: precisa de cor de verdade (o `--card-bg` que
+    // estava ali não existe — deixava o dropdown e o botão transparentes).
+    assert.equal(css.includes('var(--card-bg)'), false,
+        'nenhum `background` aponta para o token inexistente');
+    assert.match(css, /--card-bg-color: #1a1e28;/, 'a cor de painel do jogo existe no :root');
+    const painel = css.slice(css.indexOf('.gear-dropdown {'), css.indexOf('.gear-dropdown.open {'));
+    assert.match(painel, /background-color: var\(--card-bg-color\);/,
+        'o painel se preenche com a cor de painel do jogo, não com transparência');
+    assert.match(botao, /background-color: var\(--card-bg-color\);/,
+        'o botão do gear também é preenchido, não vazado');
+    const hover = css.slice(css.indexOf('.gear-btn:hover {'), css.indexOf('.gear-dropdown {'));
+    assert.equal(/background:\s*rgba/.test(hover), false,
+        'o hover do botão não deixa a pílula translúcida');
+    assert.match(painel, /top: calc\(100% \+ 10px\);\s*left: 0;/,
+        'o dropdown abre abaixo do botão, alinhado ao canto esquerdo da barra');
+    assert.match(painel, /z-index: 60;/, 'o painel abre acima das fases e do Fim Turno');
+
+    ['game.html', 'pvp.html'].forEach(pagina => {
+        const html = readSourceText(pagina);
+        assert.equal((html.match(/id="gearMenu"/g) || []).length, 1,
+            `só existe um gear no documento (${pagina})`);
+
+        const barra = html.slice(
+            html.indexOf('<div class="controls">'),
+            html.indexOf('<div class="player1-field"')
+        );
+        const gear = barra.indexOf('class="gear-menu"');
+        const hud = barra.indexOf('class="hud game-info-panel"');
+        assert.ok(gear !== -1 && gear < hud,
+            `o gear é o primeiro segmento da barra em ${pagina}`);
+        assert.ok(barra.includes('id="gearDropdown"'),
+            `o painel de opções vive dentro da barra em ${pagina}`);
+    });
+});
+
+test('o botão de habilidades manuais fica no HUD, ao lado do timer', () => {
+    ['game.html', 'pvp.html'].forEach(pagina => {
+        const html = readSourceText(pagina);
+        const hud = html.slice(
+            html.indexOf('<div class="hud game-info-panel">'),
+            html.indexOf('<div id="combat-info">')
+        );
+        const timer = hud.indexOf('id="turn-timer"');
+        const slot = hud.indexOf('id="abilities-slot"');
+        assert.ok(timer !== -1, `o timer vive no HUD em ${pagina}`);
+        assert.ok(slot > timer, `o slot do botão entra logo depois do timer em ${pagina}`);
+    });
+
+    const css = readSourceText('src/css/game.css');
+    const painel = css.slice(css.indexOf('.manual-abilities-panel {'), css.indexOf('.manual-abilities-head {'));
+    assert.match(painel, /position: absolute;/);
+    assert.match(painel, /top: calc\(100% \+ var\(--gap\)\);/, 'o painel pendura abaixo da barra');
+    assert.match(painel, /right: 0;/);
+    assert.equal(css.includes('.abilities-float'), false, 'o container flutuante antigo saiu do CSS');
+    assert.equal(css.includes('bottom: calc(100% + var(--gap));'), false,
+        'nada mais abre para cima a partir da faixa do jogador');
+
+    const js = readSourceText('src/js/manual_abilities.js');
+    assert.match(js, /document\.querySelector\('\.controls'\)/, 'a barra de comando é a âncora');
+    assert.match(js, /document\.getElementById\('abilities-slot'\)/, 'o botão entra no slot do HUD');
+    assert.equal(js.includes('abilities-float'), false, 'o JS não cria mais o container flutuante');
+});
+
+test('a mão do oponente vira uma tira reta, compacta e legível ao lado dos versos', () => {
+    const css = readSourceText('src/css/game.css');
+    assert.equal(css.includes('--opp-hand-w'), false,
+        'a largura fixa saiu do CSS: a caixa acompanha o conteúdo');
+
+    // A mão alheia é escolhida pela CLASSE, nunca por `.zone-opponent`: o assento
+    // p2 do PvP troca as ÁREAS do grid, então a faixa de cima é `.player1-hand` e
+    // `.zone-opponent` pode estar embaixo carregando a mão do próprio jogador —
+    // estilizar por faixa entregaria `pointer-events: none` para a mão local.
+    assert.equal(css.includes('.zone-opponent .player2-hand'), false,
+        'nenhuma regra da mão alheia entra pela faixa (só pela classe do assento)');
+    assert.equal(css.includes('.zone-opponent .player1-hand'), false);
+    assert.equal(css.includes('.zone-opponent .hand-title'), false,
+        'o título do oponente também vai por classe (`.player*-hand .hand-title`)');
+
+    // Centralização (o pedido): a faixa que hospeda a mão alheia reparte a sobra
+    // em DUAS colunas IGUAIS. Stats (390px) e pilhas (110px) não são simétricos,
+    // então com `auto` nas pontas o centro da coluna do meio caía ~140px fora do
+    // centro da TELA — a mão ficaria "centrada" no lugar errado. O piso
+    // `min-content` é a trava: em janela estreita a coluna para antes de espremer
+    // o bloco de stats, e o desvio degrada para poucos pixels em vez de virar
+    // sobreposição.
+    const faixaDaMao = css.slice(css.indexOf('body[data-seat="p1"] .zone-opponent,'),
+        css.indexOf('/* ── Mão do oponente'));
+    assert.match(faixaDaMao, /body\[data-seat="p2"\] \.zone-player \{/,
+        'o assento p2 centraliza na faixa espelhada dele (`.zone-player` no topo)');
+    assert.match(faixaDaMao,
+        /grid-template-columns: minmax\(min-content, 1fr\) auto minmax\(min-content, 1fr\);/,
+        'a sobra vira duas colunas iguais: o meio da faixa passa a ser o meio da tela');
+    assert.equal(faixaDaMao.includes('minmax(0, 1fr) auto minmax(0, 1fr)'), false,
+        'o piso é `min-content`: sem ele a coluna espremeria o bloco de stats');
+    assert.match(faixaDaMao, /justify-items: start;/,
+        'coluna larga não estica stats/pilhas (cada um fica do tamanho que precisa)');
+    assert.match(faixaDaMao, /justify-self: end;/,
+        'o bloco da ponta (stats ou pilhas) ancora na borda de fora da faixa');
+
+    const caixa = css.slice(css.indexOf('body[data-seat="p1"] .player2-hand,'),
+        css.indexOf('body[data-seat="p1"] .player2-hand .card,'));
+    assert.match(caixa, /body\[data-seat="p2"\] \.player1-hand \{/,
+        'o assento p2 cobre a mão alheia dele (`.player1-hand`)');
+    assert.match(caixa, /width: fit-content;/, 'a caixa ocupa só o que o conteúdo pede');
+    assert.match(caixa, /justify-self: center;/,
+        'a tira é centrada na coluna do meio — e o meio da faixa é o meio da tela');
+    assert.match(caixa, /flex-direction: row;/, 'título e versos na mesma linha, lado a lado');
+    assert.match(caixa, /overflow: hidden;/, 'o recorte continua sendo a garantia dura da faixa');
+    assert.match(caixa, /pointer-events: none;/, 'versos não são jogáveis nem espiáveis');
+    assert.equal(/[^-]width: 100%;/.test(caixa), false, 'a caixa não estica mais a faixa inteira');
+    assert.equal(caixa.includes('justify-self: stretch;'), false);
+
+    // Fila reta: sem rotação do leque e com sobreposição mínima. O `--hand-card-h`
+    // precisa ser recalculado aqui — o valor do `:root` chega JÁ resolvido com o
+    // token base (custom property resolve onde é declarada).
+    const carta = css.slice(css.indexOf('body[data-seat="p1"] .player2-hand .card,'),
+        css.indexOf('/* Título do oponente'));
+    assert.match(carta, /transform: none;/, 'sem arco: os versos ficam em fila reta');
+    assert.match(carta, /--hand-card-h: calc\(var\(--hand-card-w\) \* 1\.42\);/,
+        'a altura da carta segue o token pequeno da faixa (não o da mão grande)');
+    assert.match(carta, /\.card-back[\s\S]*min-height: 0;/,
+        'os mínimos de 70×100 do verso não vencem o token na tira');
+
+    const titulo = css.slice(css.indexOf('body[data-seat="p1"] .player2-hand .hand-title,'),
+        css.indexOf('.board {'));
+    assert.match(titulo, /display: flex;/,
+        'o título fica visível mesmo em tela estreita (vence o `none` do @media)');
+    assert.match(titulo, /background: rgba\(15, 17, 21, 0\.92\);/,
+        'pílula sólida: o nome não é lido sobre a arte dos versos');
+    assert.match(titulo, /text-shadow: none;/, 'sem glow: era o que borrava o texto');
+    assert.match(titulo, /border-radius: 999px;/, 'formato de pílula, colado ao lado dos versos');
+    assert.match(titulo, /margin-bottom: 0;/, 'sem respiro de coluna: a caixa agora é linha');
+    assert.match(titulo, /white-space: nowrap;/, 'o título não quebra: nome e badge na mesma linha');
+    assert.match(titulo, /body\[data-seat="p2"\] \.player1-hand \.hand-title::after \{[\s\S]*position: static;/,
+        'o badge "N cartas" entra no fluxo, ao lado do nome');
+    assert.match(titulo, /hand-title::after \{[\s\S]*flex: 0 0 auto;/,
+        'o badge mantém a largura natural (não encolhe até quebrar)');
+    assert.match(titulo, /hand-title::after \{[\s\S]*opacity: 1;/,
+        'o badge perdeu o `opacity: .8` que o deixava apagado');
+
+    // Telas estreitas: só o título da mão própria desaparece.
+    const estreito = css.slice(css.indexOf('@media (max-width: 900px) {'),
+        css.indexOf('@media (max-height: 620px)'));
+    assert.match(estreito, /\.hand-title \{\s*display: none;/, 'o título da mão própria sai');
+    assert.equal(estreito.includes('.zone-opponent .hand-title'), false,
+        'nada mais esconde o título da mão alheia em tela estreita');
+});
+
+test('a mão do oponente fica contida na faixa (sem pendurar para fora)', () => {
+    const css = readSourceText('src/css/game.css');
+    const pvp = readSourceText('src/css/pvp.css');
+
+    // O `translateY(-70%)`/`(-58%)` pendurava os versos fora da caixa: era o que
+    // empurrava os versos para cima do título e recortava as cartas na faixa.
+    assert.equal(/transform:\s*translateY\(-70%\)/.test(css), false,
+        'a mão da máquina não sobe mais para fora da faixa (PvM)');
+    assert.equal(/transform:\s*translateY\(-58%\)/.test(pvp), false,
+        'a mão alheia não sobe mais para fora da faixa (PvP)');
+    assert.equal(/#hand-p[12] \{[\s\S]{0,200}?transform:/.test(pvp), false,
+        'sem pilha de transform sobrando no container de versos');
+
+    // O que sobra das regras antigas é só o recuo visual.
+    const recuo = pvp.slice(pvp.indexOf('body[data-seat="p1"] .player2-hand,'),
+        pvp.indexOf('.player1-hand #hand-p1 {') + 320);
+    assert.match(recuo, /overflow: hidden;/, 'o PvP mantém o recorte da faixa');
+    assert.match(recuo, /pointer-events: none;/, 'versos do PvP seguem sem ponteiro');
+    assert.match(recuo, /opacity: 0\.9;/, 'só o recuo visual ficou');
+
+    // A faixa de BAIXO continua com leque (a mão grande do assento p2).
+    assert.match(pvp, /body\[data-seat="p2"\] \.player2-hand\.card|body\[data-seat="p2"\] \.player2-hand \.card \{[\s\S]*--fan-dir: 1;/,
+        'a mão própria do assento p2 preserva o arco');
+    assert.equal(pvp.includes('body[data-seat="p2"] .player1-hand .card {'), false,
+        'nada de leque sobrou na faixa de cima');
+});
+
+test('a mão do jogador 1 encolhe ~15% e a sobra vira altura de campo', () => {
+    const css = readSourceText('src/css/game.css');
+
+    // Lê as três trilhas do palco (`oponente / board / mão`) de um bloco CSS.
+    const trilhas = bloco => {
+        const m = bloco.match(
+            /grid-template-rows:\s*minmax\([\d.]+px,\s*([\d.]+)fr\)\s*minmax\(0,\s*([\d.]+)fr\)\s*minmax\(([\d.]+)px,\s*([\d.]+)fr\);/);
+        return m ? { oponente: +m[1], board: +m[2], mao: +m[4] } : null;
+    };
+    const participacao = t => {
+        const total = t.oponente + t.board + t.mao;
+        return { oponente: t.oponente / total, board: t.board / total, mao: t.mao / total };
+    };
+
+    const blocos = {
+        base: css.slice(css.indexOf('.game-container {'), css.indexOf('/* Faixas (topo/base)')),
+        estreito: css.slice(css.indexOf('@media (max-width: 900px) {'),
+            css.indexOf('@media (max-height: 620px)')),
+        baixo: css.slice(css.indexOf('@media (max-height: 620px)'), css.indexOf('\n        .player-avatar {'))
+    };
+
+    // Antes: 1.05fr/4fr (base) e 1.35fr/4.17fr (as duas media queries).
+    const antes = { base: 1.05 / 4, estreito: 1.35 / 4.17, baixo: 1.35 / 4.17 };
+
+    Object.entries(blocos).forEach(([nome, bloco]) => {
+        const t = trilhas(bloco);
+        assert.ok(t, `o palco define as três trilhas em ${nome}`);
+        const p = participacao(t);
+        const corte = 1 - p.mao / antes[nome];
+        assert.ok(corte > 0.14 && corte < 0.16,
+            `em ${nome} a faixa da mão cai ~15% (caiu ${(corte * 100).toFixed(1)}%)`);
+        assert.ok(p.board > 0.55, `em ${nome} o board fica com a maior fatia (${(p.board * 100).toFixed(1)}%)`);
+        // A soma das frações não mudou: a faixa do oponente segue do tamanho de antes.
+        assert.ok(Math.abs(p.oponente - { base: 0.5 / 4, estreito: 0.72 / 4.17, baixo: 0.62 / 4.17 }[nome]) < 0.001,
+            `em ${nome} a faixa do oponente não cedeu nem roubou altura`);
+    });
+
+    // O que sobra do board é campo: ele cresce exatamente o que a mão perde.
+    const boardBase = trilhas(blocos.base).board;
+    assert.ok(Math.abs((boardBase / trilhas(blocos.base).mao) - 2.61 / 0.89) < 0.001,
+        'a altura retirada da mão foi adicionada ao board');
+
+    // Piso das trilhas também encolhe: senão o `minmax` antigo anulava o corte
+    // em telas baixas (1024×600 ficava preso nos 156px).
+    assert.match(blocos.base, /minmax\(112px,\s*0\.89fr\)/,
+        'o piso da faixa da mão desceu de 132px para 112px');
+    assert.match(blocos.estreito, /minmax\(143px,\s*1\.15fr\)/,
+        'o piso de tela estreita desceu de 168px para 143px');
+    assert.match(blocos.baixo, /minmax\(132px,\s*1\.15fr\)/,
+        'o piso de janela baixa desceu de 156px para 132px');
+
+    // Carta da mão: 15% menor (o leque acompanha a faixa, senão vaza para o campo).
+    assert.match(css, /--hand-card-w: clamp\(68px, min\(6\.8vw, 11vh\), 112px\);/,
+        'a carta da mão encolheu 15% na base (80/8vw/13vh/132 → 68/6.8vw/11vh/112)');
+    assert.match(blocos.baixo, /--hand-card-w: clamp\(61px, min\(6\.8vw, 8\.9vh\), 95px\);/,
+        'a carta da mão encolheu 15% também em janela baixa');
+
+    // Campo: o slot (teto da carta em campo, `slot × 1.4`) sobe junto.
+    assert.match(css, /--field-slot-w: clamp\(94px, min\(10\.2vw, 16\.1vh\), 176px\);/,
+        'o slot do campo cresce ~7% para a carta em campo usar a altura nova');
+    assert.match(css, /max-height: calc\(var\(--field-slot-w\) \* 1\.4\);/,
+        'o teto da carta em campo continua derivado do slot');
+});
+
 test('o botão de ataque direto chama atenção sem ficar translúcido', () => {
     const css = readSourceText('src/css/game.css');
-    assert.match(css, /\.direct-attack-float \.direct-attack-btn\.direct-attack-pulse/,
+    assert.match(css, /\.control-section \.direct-attack-btn\.direct-attack-pulse/,
         'a classe ativa o destaque no botão');
     assert.match(css, /@keyframes directAttackPulse/,
         'a animação directAttackPulse está definida');
@@ -4846,11 +5174,11 @@ test('o botão de ataque direto chama atenção sem ficar translúcido', () => {
 
     assert.match(css, /@keyframes directAttackSheen/,
         'a faixa de luz que varre o botão está definida');
-    assert.match(css, /\.direct-attack-float \.direct-attack-btn\.direct-attack-pulse::after\s*\{\s*animation: directAttackSheen/,
+    assert.match(css, /\.control-section \.direct-attack-btn\.direct-attack-pulse::after\s*\{\s*animation: directAttackSheen/,
         'a varredura só roda junto do pulso');
-    const floatBtn = css.slice(css.indexOf('.direct-attack-float .direct-attack-btn {'),
+    const botaoPulso = css.slice(css.indexOf('.control-section .direct-attack-btn {'),
         css.indexOf('@keyframes directAttackFloat'));
-    assert.match(floatBtn, /overflow: hidden;/,
+    assert.match(botaoPulso, /overflow: hidden;/,
         'o recorte do botão contém a faixa de luz');
 
     const gameJs = readSourceText('src/js/game.js');

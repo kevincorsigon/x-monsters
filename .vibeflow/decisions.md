@@ -1,6 +1,197 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-09-29 — Palco: mão do oponente centrada no meio da tela
+
+Pedido: "pode centralizar a área da mão do oponente no meio da tela".
+
+Decisão (só apresentação — nenhuma regra, dado, API ou markup mudou):
+- A faixa de cima virou uma grade com **laterais iguais**:
+  `grid-template-columns: minmax(min-content, 1fr) auto minmax(min-content, 1fr)`
+  no lugar de `auto minmax(0,1fr) auto` (stats · mão · pilhas). Com os dois
+  trilhos laterais do MESMO tamanho, a coluna do meio cai no centro real da tela
+  seja qual for o conteúdo das pontas. `justify-items: start` + `justify-self: end`
+  das pilhas mantêm os blocos colados nos cantos, e nada de `overflow` na faixa
+  (é `display: grid`: o trilho que estoura é o lateral, não o do meio).
+- A tira da mão ganhou `justify-self: center` nessa coluna do meio: o trilho é
+  `auto` (largura = conteúdo), então o grid nunca corta a tira e o `overflow:
+  hidden` dela continua sem nada para recortar.
+- Piso `min-content` (e não `0`) nos trilhos laterais: em janela estreita os stats
+  são o bloco mais largo, e piso 0 deixaria o trilho passar do `1fr` e empurrar a
+  coluna do meio para a direita (era o que aparecia em 1024×768).
+- PvP assento p2: a mesma grade foi espelhada em `body[data-seat="p2"] .zone-player`
+  — são as regras que TROCAM as áreas do grid, então sem elas o assento trocado
+  manteria a faixa antiga e a mão voltaria a encostar nos stats (o `pvp.css` só
+  comenta onde o layout mora).
+- Validação: **272/272** unit (o teste da faixa de cima cobra as colunas
+  simétricas + `justify-self: center` e rejeita o `auto/1fr/auto` antigo) e
+  **29/29** browser (o bloco 9b mede o centro da tira contra o centro da tela com
+  tolerância de metade da diferença entre os blocos laterais — 1024×768: desvio
+  24px em 750px) + checagem CDP em 1800×850, 1280×720, 1024×768, 900×700 e
+  758×482 (PvM e PvP p1/p2): mão no meio da faixa, versos 54×77 em toda janela,
+  faixa sem sobreposição e mão local intacta em todos os casos.
+
+
+## 2026-09-28 — Redesenho da área da mão do jogador 2: tira reta, compacta e legível
+
+Pedido: "pode pensar num redesign da área da mão do jogador 2, não precisa de
+efeito de leque, os textos precisam estar mais legíveis e não sobre as cartas, a
+área pode ter uma largura menor, mas a altura está ótima".
+
+Causa do problema (medida por CDP, não suposta): a faixa de cima é baixa
+(~100px) e a mão alheia pendurava **para fora** dela com
+`translateY(-70%) scale(0.78)` (PvM, `game.css`) / `translateY(-58%) scale(0.82)`
+(PvP, `pvp.css`), enquanto o título ficava no fluxo no topo da caixa. Resultado:
+"7 CARTAS" empilhava sobre "MÃO - COMPUTADOR (7)" e o nome era lido por cima da
+arte dos versos, com o gradiente transparente + `text-shadow` do `.hand-title`
+borrando o texto. Junto disso os versos mediam **70×133** dentro de uma faixa de
+100px — o `.card-back` tem `min-width: 70px/min-height: 100px` e o
+`--hand-card-h` do `:root` chega resolvido com o token *base* (custom property
+resolve onde é declarada), então o token pequeno da faixa nunca valia para a
+altura → cartas cortadas (16px em cima, 17px embaixo).
+
+Decisão (só apresentação — nenhuma regra, dado, API ou markup mudou):
+- A caixa da mão alheia virou **linha** (`flex-direction: row`): título e versos
+  lado a lado, `gap: 10px`. Nada mais se sobrepõe por construção.
+- `width: fit-content` + `justify-self: start`: a tira ocupa só o que precisa
+  (30% a 63% da faixa, contra 100% antes), encostada nos stats.
+- Título em **pílula sólida** (`rgba(15,17,21,.92)` + borda dourada, sem
+  gradiente e sem `text-shadow`) e o badge `N cartas` sem `opacity`, no fluxo.
+  Em tela estreita o título da mão própria continua saindo (`@media` ⇒
+  `display: none`) mas o da mão **alheia** permanece: a regra por assento é mais
+  específica e vence o `none` por especificidade, não por ordem.
+- Sem leque na faixa de cima: `transform: none` e `margin: 0 -3px` (sobreposição
+  mínima, sem arco). O hover/rotação continuam na faixa de baixo.
+- A altura da faixa não mudou (pedido explícito: "a altura está ótima"); o que
+  mudou foi o verso **caber**: `--hand-card-h: calc(var(--hand-card-w) * 1.42)`
+  recalculado no elemento e `.card-back { min-width: 0; min-height: 0 }` na tira.
+  Clamp novo dos versos: `clamp(34px, min(3.2vw, 5.2vh), 56px)` → 44×63 em
+  1800×850 (antes 70×133 cortado).
+- **Armadilha central**: os seletores vão pela CLASSE da mão por assento
+  (`body[data-seat="p1"] .player2-hand`, `body:not([data-seat]) .player2-hand`,
+  `body[data-seat="p2"] .player1-hand`), **nunca** por `.zone-opponent`. O assento
+  p2 do PvP troca as ÁREAS do grid, então `.zone-opponent` passa a carregar a mão
+  do PRÓPRIO jogador — estilizar por faixa entregaria `pointer-events: none`,
+  `transform: none` e cartas de 44px para a mão local (medido e corrigido: com
+  seletores por faixa a mão própria do assento p2 ficava inutilizável).
+- Limpeza: `translateY(-70%)/scale(.78)` e `translateY(-58%)/scale(.82)` saíram;
+  `overflow: hidden`/`pointer-events: none`/`opacity` do recuo visual ficaram; em
+  `pvp.css` sobraram só o `align-items`/`--fan-dir` da faixa de BAIXO.
+- Medido por CDP (PvM e PvP, assentos p1 e p2, 1800×850, 1280×720, 1024×768,
+  820×768 e 758×482): caixa em `row`, 30% a 63% da faixa, versos dentro da faixa
+  (folga simétrica de 18-22px), `transform: none`, título e cartas sem interseção,
+  badge opaco, zero rolagem de página, e a mão local intacta em todos os casos
+  (`column`, `pointer-events: auto`, carta grande e arco).
+- Validação: **272/272** unit (teste reescrito "a mão do oponente vira uma tira
+  reta, compacta e legível ao lado dos versos" + novo "a mão do oponente fica
+  contida na faixa (sem pendurar para fora)") e **29/29** browser (novo bloco 9b
+  do `test_ui_state.js` mede linha, largura relativa, ausência de sobreposição,
+  pílula sólida, badge opaco, `transform: none` e cartas dentro da faixa).
+
+## 2026-09-28 — Palco: faixa da mão do jogador 1 encolhe 15% e a sobra vira altura de campo
+
+Pedido: "diminuir o tamanho da área da mão do jogador 1 em uns 15 por cento e
+aproveitar esse espaço na área do campo dos dois players".
+
+Decisão (só apresentação — nenhuma regra, dado, API ou CSS de PvP mudou):
+- As três trilhas do palco (`oponente / board / mão`) perderam 15% **na faixa da
+  mão** e jogaram a diferença no board, que é onde os DOIS campos vivem:
+  base `0.5fr / 2.45fr / 1.05fr` → `0.5fr / 2.61fr / 0.89fr`; ≤900px de largura
+  `0.72 / 2.1 / 1.35` → `0.72 / 2.30 / 1.15`; ≤620px de altura
+  `0.62 / 2.2 / 1.35` → `0.62 / 2.40 / 1.15`. A **soma em fr é a mesma** de antes
+  em cada bloco (4fr e 4.17fr), então a faixa do oponente mantém exatamente a
+  altura que tinha — nada de "roubar" do topo.
+- Os pisos de `minmax` da mão caíram na mesma proporção (132→112px na base,
+  168→143px em tela estreita, 156→132px em janela baixa). Sem isso o piso antigo
+  anulava o corte em 1024×600 (a trilha ficava presa em 156px) — o `fr` novo nem
+  era aplicado.
+- `--hand-card-w` acompanhou (-15%): `clamp(68px, min(6.8vw, 11vh), 112px)` na
+  base e `clamp(61px, min(6.8vw, 8.9vh), 95px)` em janela baixa. O leque tinha
+  que encolher junto: com a faixa menor, cartas do tamanho antigo vazariam para
+  dentro do campo do jogador.
+- `--field-slot-w` subiu ~7% (`clamp(94px, min(10.2vw, 16.1vh), 176px)`): o teto
+  da carta em campo é `slot × 1.4`, então sem isso o campo ganhava altura mas a
+  carta continuava do mesmo tamanho (era o caso de 1024×768).
+- Medido por CDP (PvM e PvP idênticos): faixa da mão −15.0% a −15.6% em
+  1800×850, 1280×720, 1024×768, 820×768, 1024×600 e 758×482; board +6.5% a
+  +11%; campos +7.7% a +15%; carta em campo até +9% (135×189 em 1800×850); faixa
+  do oponente inalterada (100/85/92/128/84/84px); nenhuma rolagem na página e o
+  leque sempre dentro da faixa.
+- Validação: 271/271 unit (novo teste "a mão do jogador 1 encolhe ~15% e a sobra
+  vira altura de campo", que lê os três blocos de `grid-template-rows`, calcula a
+  fração de cada faixa e cobra o corte de 15% ± 1pp, o board com a maior fatia e
+  a faixa do oponente intacta) e 29/29 browser (o `test_ui_state.js` mede a fração
+  de cada faixa e que o leque cabe dentro da faixa da mão).
+
+## 2026-09-28 — Palco: mão do oponente em largura total e gear ⚙️ no canto da barra
+
+Pedidos: (1) "`.zone-opponent .player2-hand` deve usar o tamanho da área toda de
+largura"; (2) "gear-menu pode estar na barra central ao canto esquerdo extremo,
+na mesma altura do hud".
+
+Decisão (só apresentação — nenhuma regra, dado, API ou CSS de PvP mudou):
+- `.zone-opponent .player2-hand` / `.player1-hand`: `width: 100%;
+  justify-self: stretch` no lugar do quadro fixo. O token `--opp-hand-w`
+  (240px, 150px em ≤900px) foi **removido** do `:root`; o leque segue centrado
+  por `justify-content: center` e o título/badge continuam na mesma linha.
+  A caixa agora encosta nos stats e nas pilhas (o que muda é o quadro, não as
+  cartas). Posição depois revista: a tira foi centralizada — ver a entrada de
+  2026-09-29.
+- Gear: saiu do `position: fixed` no canto da tela e virou o **primeiro
+  segmento** de `.controls` (`.gear-menu { position: relative }`), nas duas
+  páginas. Botão em pílula de 26px, no padrão do `.hud-toggle`, então ele entra
+  na linha do HUD sem crescer a barra (a altura do bloco continua sendo a das
+  fases); o dropdown pendura abaixo do botão (`top: calc(100% + 10px); left: 0;
+  z-index: 60`) usando a mesma âncora do painel de habilidades manuais.
+- Janela baixa: como a barra fica no MEIO do palco, o painel cheio do PvM
+  (5 opções) estourava 8px em 758×482 — em `@media (max-height: 620px)` as
+  opções encolhem (6px/12px, 12px) e o painel ganha
+  `max-height: calc(100dvh - 120px)` com scroll.
+- Painel do gear vazado: `.gear-btn` e `.gear-dropdown` usavam `background:
+  var(--card-bg)` — token que **não existe** neste repo (o correto é
+  `--card-bg-color`), então o menu abria transparente sobre a grade do campo.
+  Agora `background-color: var(--card-bg-color)` (base opaca `#1a1e28`) com um
+  `background-image: linear-gradient(160deg, rgba(255,255,255,.05), rgba(0,0,0,.35))`
+  por cima, no padrão dos painéis cheios do jogo (`.modal-card`), e a borda do
+  painel virou 2px dourada. O `background-image` separado do `background-color`
+  é de propósito: mantém o fundo computado opaco (`rgb(26, 30, 40)`), o que o
+  teste de browser consegue medir.
+- Validação: 270/270 unit (novo teste "o menu de opções (⚙️) abre o canto
+  esquerdo da barra, na altura do HUD"; o teste da faixa de cima virou "usa a
+  largura toda"), 29/29 browser (o `test_ui_state.js` agora mede canto, alinhamento,
+  abertura do dropdown e alfa ≥ 0.99 do fundo) e checagem CDP em 1800×850, 1280×720,
+  1024×768, 820×768, 758×482 (PvM e PvP): gear colado a 1px do canto interno da
+  barra, mesmo centro vertical do HUD, dropdown sempre dentro da tela e sem
+  transparência.
+
+## 2026-09-28 — Palco: HUD (turno · fase · timer) na barra central, junto das fases
+
+Pedido: mover o HUD (turno/fase/timer) para o centro da tela, ao lado dos
+botões de fase e de turno.
+
+Decisão (só apresentação — nenhum dado, regra, CSS de PvP ou API mudaram):
+- `game.html` / `pvp.html`: o bloco `.hud` (`Turno` · `Fase` · `⏱` ·
+  `#combat-info`) saiu da faixa do oponente e virou o primeiro segmento de
+  `.controls`, na linha entre os dois campos, antes de `.phases-section` e do
+  `Fim Turno` — a leitura de "de quem é a vez / em que fase estou" fica onde a
+  ação acontece, e a faixa do oponente sobra inteira para a mão ilustrativa.
+- `src/css/game.css`: `.zone`/`.zone-opponent` ficam com
+  `grid-template-columns: auto minmax(0, 1fr) auto` (stats · mão · pilhas, a
+  coluna do meio absorve a sobra) e `.controls` passa a ser a pílula central do
+  palco (`justify-self: center`, fundo translúcido, borda dourada
+  `rgba(212,175,55,0.3)`, `border-radius: 999px`, `backdrop-filter`), com o
+  `.hud` como segmento separado por um `border-right` dourado. A moldura é do
+  `.controls` — o HUD não tem mais fundo/borda próprios.
+- Responsivo: em ≤1180px a barra só reduz gap/padding; em ≤900px o `.hud` perde
+  respiro e a pílula vira cartão (`border-radius: 14px`), podendo quebrar em
+  duas linhas — nenhum controle sai da tela e o palco continua sem scroll.
+- `src/css/pvp.css` não muda: o PvP só troca qual assento mora em cada faixa
+  (`body[data-seat]`), então o HUD segue no meio nos dois assentos.
+- Validação: 267/267 unit (novo teste "o HUD (turno · fase · timer) mora na
+  barra central do palco"), 29/29 browser, e checagem CDP em 1800×900 e
+  1280×720 (HUD + fases + Fim Turno numa linha centrada; faixa do oponente só
+  com stats, mão e pilhas).
+
 ## 2026-09-23 — Deck Builder: cards de tamanho fixo e tela em 3 colunas
 
 Pedido: "ainda ha quebras de tamanho do card no deck por conta do tamanho de

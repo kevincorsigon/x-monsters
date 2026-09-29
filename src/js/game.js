@@ -998,10 +998,10 @@
         }
 
         /**
-         * Mostra/oculta o "Ataque Direto" no float do menu central. O destaque
-         * (brilho carmesim pulsando + respiração de escala, sem fade) fica
-         * ligado só com o campo adversário vazio — a situação em que o ataque
-         * direto é a única jogada possível.
+         * Mostra/oculta o "Ataque Direto" no bloco de controles da barra central
+         * (ao lado do Fim Turno). O destaque (brilho carmesim pulsando +
+         * respiração de escala, sem fade) fica ligado só com o campo adversário
+         * vazio — a situação em que o ataque direto é a única jogada possível.
          */
         function exibirAtaqueDireto(visivel, campoInimigoVazio = false) {
             const botao = document.getElementById('direct-attack-btn');
@@ -1544,6 +1544,18 @@
             return cardInstance;
         }
 
+        // Leque da mão: o CSS calcula o arco a partir de `--n` (total de cartas) e
+        // `--i` (posição), sem enumerar `:nth-child` — vale para a carta revelada
+        // e para o verso do oponente. Chamado pelo `renderHandsFromState` e por
+        // todo caminho que põe carta na mão sem repintar a mão inteira.
+        function atualizarLequeDaMao(player) {
+            const handElement = document.getElementById(`hand-${player}`);
+            if (!handElement) return;
+            const cartas = Array.from(handElement.children);
+            handElement.style.setProperty('--n', String(cartas.length));
+            cartas.forEach((carta, indice) => carta.style.setProperty('--i', String(indice)));
+        }
+
         function renderHandsFromState() {
             ['p1', 'p2'].forEach(player => {
                 const handElement = document.getElementById(`hand-${player}`);
@@ -1575,6 +1587,10 @@
                     const renderedCard = createCard(cardInstance, player);
                     handElement.appendChild(renderedCard.element);
                 });
+
+                // Leque da mão: o arco é calculado a partir de `--n` (total) e
+                // `--i` (posição), sem enumerar `:nth-child`.
+                atualizarLequeDaMao(player);
 
                 // A área de saque anda junto: mão e deck são as duas metades do
                 // mesmo movimento (a compra tira 1 do deck e põe 1 na mão).
@@ -1695,6 +1711,7 @@
                         : null;
                     if (drawnCard) {
                         document.getElementById(`hand-${player}`).appendChild(createCardBack(drawnCard));
+                        atualizarLequeDaMao(player);
                         updateHandCounter(player);
                         updateDeckCounter(player);
                     }
@@ -1710,6 +1727,7 @@
                     const newCard = createCard(drawnCard, player);
                     newCard.element.classList.add('new-card');
                     document.getElementById(`hand-${player}`).appendChild(newCard.element);
+                    atualizarLequeDaMao(player);
                     updateHandCounter(player);
                     updateDeckCounter(player);
                     setTimeout(() => { newCard.element.classList.remove('new-card'); }, 800);
@@ -1727,6 +1745,7 @@
 
             window.GameStateModel.registerCard(gameState, newCard, 'hand', player);
             document.getElementById(`hand-${player}`).appendChild(newCard.element);
+            atualizarLequeDaMao(player);
             updateHandCounter(player);
         }
 

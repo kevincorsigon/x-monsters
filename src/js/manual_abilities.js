@@ -8,62 +8,45 @@ function createManualAbilityInterface() {
         return;
     }
     
+    // A BARRA DE COMANDO (`.controls`) é a âncora: o botão entra no slot do HUD,
+    // colado no timer, e o painel pendura logo abaixo da barra. A barra é a
+    // mesma nos dois assentos (o PvP troca quem mora nas faixas), então o
+    // controle acompanha o jogador local sem o JS precisar saber o assento.
+    const barra = document.querySelector('.controls')
+        || document.querySelector('.game-container')
+        || document.body;
+
     // Criar painel flutuante
     const panel = document.createElement('div');
     panel.id = 'manual-abilities-panel';
-    panel.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        width: 300px;
-        max-height: 400px;
-        background: rgba(0, 0, 0, 0.9);
-        border: 2px solid var(--primary-color);
-        border-radius: 10px;
-        padding: 15px;
-        color: white;
-        font-family: Arial, sans-serif;
-        font-size: 12px;
-        z-index: 1000;
-        overflow-y: auto;
-        display: none;
-    `;
-    
+    panel.className = 'manual-abilities-panel';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-label', 'Habilidades manuais');
     panel.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <h3 style="margin: 0; color: var(--primary-color);">🎯 Habilidades Manuais</h3>
-            <button onclick="toggleAbilityPanel()" style="background: var(--pv-zero-color); color: white; border: none; border-radius: 3px; padding: 2px 6px; cursor: pointer;">✕</button>
+        <div class="manual-abilities-head">
+            <h3 class="manual-abilities-title">🎯 Habilidades Manuais</h3>
+            <button class="manual-abilities-close" onclick="toggleAbilityPanel()" title="Fechar">✕</button>
         </div>
-        <div id="abilities-list" style="max-height: 300px; overflow-y: auto;">
-            <p style="text-align: center; color: #888;">Nenhuma carta com habilidade manual em campo</p>
+        <div id="abilities-list" class="manual-abilities-list">
+            <p class="manual-abilities-empty">Nenhuma carta com habilidade manual em campo</p>
         </div>
     `;
-    
-    document.body.appendChild(panel);
-    
-    // Adicionar botão para abrir painel
+
+    barra.appendChild(panel);
+
+    // Adicionar botão para abrir painel: pílula redonda do HUD, ao lado do timer
     const toggleButton = document.createElement('button');
     toggleButton.id = 'ability-panel-toggle';
+    toggleButton.type = 'button';
+    toggleButton.className = 'hud-toggle';
     toggleButton.innerHTML = '🎯';
     toggleButton.title = 'Ativar Habilidades Manuais';
     toggleButton.onclick = () => toggleAbilityPanel();
-    toggleButton.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        background: var(--primary-color);
-        color: white;
-        border: 2px solid white;
-        font-size: 20px;
-        cursor: pointer;
-        z-index: 999;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-    `;
-    
-    document.body.appendChild(toggleButton);
+
+    // O slot vem do markup (`#abilities-slot`, dentro do HUD); em página sem o
+    // slot, o botão cai no fim da barra.
+    const slot = document.getElementById('abilities-slot');
+    (slot || barra).appendChild(toggleButton);
     
     console.log('✅ Interface criada com sucesso!');
 }
@@ -78,7 +61,7 @@ function toggleAbilityPanel() {
         updateManualAbilitiesList();
     } else {
         panel.style.display = 'none';
-        button.style.display = 'block';
+        button.style.display = 'inline-flex';
     }
 }
 
@@ -161,7 +144,7 @@ function updateManualAbilitiesList() {
     });
     
     if (!hasManualAbilities) {
-        htmlContent = '<p style="text-align: center; color: #888;">Nenhuma carta com habilidade manual em campo</p>';
+        htmlContent = '<p class="manual-abilities-empty">Nenhuma carta com habilidade manual em campo</p>';
     }
     
     listContainer.innerHTML = htmlContent;
@@ -270,7 +253,7 @@ function initManualAbilitySystem() {
     setupAbilitySystemIntegration();
     
     console.log('✅ Sistema de habilidades manuais ativo!');
-    console.log('🎯 Clique no botão no canto superior direito para acessar');
+    console.log('🎯 Clique no botão do HUD (junto do turno/fase) para acessar');
 }
 
 // Auto-inicializar quando carregado

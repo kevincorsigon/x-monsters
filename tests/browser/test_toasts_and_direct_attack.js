@@ -1,6 +1,6 @@
 // Avisos de acontecimento (toasts) e Ataque Direto: os avisos entram empilhados
-// no canto direito, com entrada deslizando de cima, e o botão de ataque direto
-// flutua abaixo do menu central, centrado sob o botão de Invocação. Roda contra
+// no canto direito, com entrada deslizando de cima, e o botão de ataque direto é
+// mais um botão do bloco de controles, ao lado do Fim Turno. Roda contra
 // game.html (game.js real), sem servidor.
 (function runToastAndDirectAttackTests() {
     let passed = 0;
@@ -19,7 +19,7 @@
     function relatorio() {
         console.log(`\n🧪 Resultado toasts/ataque direto: ${passed}/${passed + failed} checks`);
         console.log(failed === 0
-            ? '✅ avisos no canto direito e ataque direto flutuando sob Invocação'
+            ? '✅ avisos no canto direito e ataque direto ao lado do Fim Turno'
             : `❌ ${failed} falhas\n`);
     }
 
@@ -70,23 +70,51 @@
     assert('a notificação também fica no canto direito',
         Boolean(turno) && turno.getBoundingClientRect().left > window.innerWidth / 2);
 
-    // 3. Ataque Direto: flutua abaixo do menu central, centrado sob Invocação
+    // 3. Ataque Direto: botão do bloco de controles, ao lado do Fim Turno
     const botao = document.getElementById('direct-attack-btn');
-    const float = document.getElementById('direct-attack-float');
-    const invocacao = document.getElementById('invocation-phase');
-    assert('o botão de ataque direto vive no float', Boolean(botao && float) && float.contains(botao));
+    const controles = document.querySelector('.control-section');
+    const fimTurno = Array.from(controles ? controles.querySelectorAll('button') : [])
+        .find(b => b.textContent.includes('Fim Turno'));
+    const barra = document.querySelector('.controls');
+    assert('o botão de ataque direto vive no bloco de controles',
+        Boolean(botao && controles) && controles.contains(botao));
+    assert('o Ataque Direto é irmão do Fim Turno', Boolean(botao && fimTurno) && botao.parentElement === fimTurno.parentElement);
 
-    if (botao && float && invocacao) {
+    if (botao && controles && fimTurno && barra) {
+        // Entrada e pulso são `transform`: com a animação ligada a caixa lida é a
+        // transformada (10px acima na entrada, 8% maior no pulso) e a comparação
+        // com o Fim Turno mentiria. Medir com a animação desligada.
+        botao.classList.remove('direct-attack-pulse');
+        botao.style.animation = 'none';
         botao.style.display = 'inline-block';
-        const caixaBotao = botao.getBoundingClientRect();
-        const caixaInvocacao = invocacao.getBoundingClientRect();
-        assert('o botão aparece abaixo do menu central',
-            caixaBotao.top >= caixaInvocacao.bottom - 1);
-        assert('o botão fica centrado sob o botão de Invocação',
-            Math.abs((caixaBotao.left + caixaBotao.width / 2) - (caixaInvocacao.left + caixaInvocacao.width / 2)) <= 6);
-        assert('o botão fica visível sobre o tabuleiro',
-            caixaBotao.width > 0 && caixaBotao.height > 0);
+        const caixaAtaque = botao.getBoundingClientRect();
+        const caixaFim = fimTurno.getBoundingClientRect();
+        const caixaBarra = barra.getBoundingClientRect();
+        assert('os dois botões dividem a mesma linha (topo alinhado)',
+            Math.abs(caixaAtaque.top - caixaFim.top) <= 1);
+        assert('o Ataque Direto fica à esquerda do Fim Turno',
+            caixaAtaque.right <= caixaFim.left + 1);
+        assert('o Ataque Direto não escapa da barra de comando',
+            caixaAtaque.left >= caixaBarra.left - 1 && caixaAtaque.right <= caixaBarra.right + 1);
+        const estiloAtaque = getComputedStyle(botao);
+        const estiloFim = getComputedStyle(fimTurno);
+        assert('mesmo tamanho de fonte dos demais botões',
+            estiloAtaque.fontSize === estiloFim.fontSize);
+        assert('mesmo padding dos demais botões',
+            estiloAtaque.padding === estiloFim.padding);
+        assert('mesma altura dos demais botões',
+            Math.abs(caixaAtaque.height - caixaFim.height) <= 1);
+
+        // O pulso escala sem refluir: a caixa de layout do vizinho não se mexe
+        const larguraDeLayout = botao.offsetWidth;
+        const alturaDeLayout = botao.offsetHeight;
+        botao.style.animation = '';
+        botao.classList.add('direct-attack-pulse');
+        assert('o pulso não reflui o botão (caixa de layout intacta)',
+            botao.offsetWidth === larguraDeLayout && botao.offsetHeight === alturaDeLayout);
+        botao.classList.remove('direct-attack-pulse');
         botao.style.display = 'none';
+        botao.style.animation = '';
     }
 
     // 4. Os avisos não somem no meio da leitura (antes eram removidos em 2s)
