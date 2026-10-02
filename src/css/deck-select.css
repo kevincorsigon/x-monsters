@@ -429,6 +429,21 @@ body.deck-select-aberto {
     font-size: 22px;
 }
 
+/* Placeholder de baixa qualidade até a arte cheia: o <img> abre com o LQIP
+   (`assets/lqip`) e o JS troca para o WebP (`assets/webp`) só no `onload` —
+   nada pisca. O blur disfarça o LQIP esticado; `.card-carregada` revela a
+   arte nítida. */
+.deck-card-mini-img.card-lqip {
+    filter: blur(8px);
+    transform: scale(1.06);
+    transition: filter 0.35s ease, transform 0.35s ease;
+}
+
+.deck-card-mini-img.card-carregada {
+    filter: none;
+    transform: none;
+}
+
 .deck-card-mini-custo {
     position: absolute;
     top: 0;

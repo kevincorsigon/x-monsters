@@ -23,6 +23,11 @@
     const janela = typeof window !== 'undefined' ? window : null;
     const $ = id => (typeof document !== 'undefined' ? document.getElementById(id) : null);
 
+    // ── imagens: placeholder LQIP → arte cheia (WebP) ────────────────────────
+    // Pipeline em `card-images.js` (`window.CardImages`), carregado antes deste
+    // módulo.
+    const CardImages = (typeof window !== 'undefined' ? window : globalThis).CardImages;
+
     /** Cartas filtradas por busca/tipo/custo/trait. */
     function cartasFiltradas() {
         const busca = ($('builderBusca')?.value || '').toLowerCase();
@@ -125,7 +130,7 @@
 
             botao.innerHTML = `
                 <span class="deck-card-mini-custo" title="Custo: ${carta.cost} de energia">${carta.cost}</span>
-                ${carta.image ? `<img class="deck-card-mini-img" src="${carta.image}" alt="${carta.name}" loading="lazy">` : '<span class="deck-card-mini-img is-vazia">🎴</span>'}
+                ${CardImages.imagemDaCarta(carta, { classes: 'deck-card-mini-img', fallback: '<span class="deck-card-mini-img is-vazia">🎴</span>' })}
                 <span class="deck-card-mini-nome" title="${carta.name}">${carta.name}</span>
                 <div class="builder-carta-combate">${atkDef}</div>
                 <span class="deck-card-mini-copias ${copias > 0 ? 'ativa' : ''}" title="Cópias no deck">${copias}/${maxCopias}</span>`;
@@ -146,6 +151,7 @@
             wrapper.appendChild(btnInfo);
             grade.appendChild(wrapper);
         });
+        CardImages.prepararImagens(grade);
     }
 
     /** Abre o modal de detalhes/habilidade com a mesmíssima estética de showCardModal do jogo. */
@@ -199,7 +205,7 @@
             <div class="modal-card-content">
                 <div class="card ${cssType}" style="width: 280px; height: 390px; margin: 0 auto; position: relative;">
                     <div class="card-cost">${carta.cost}</div>
-                    ${carta.image ? `<img src="${carta.image}" alt="${carta.name}" class="card-image-real">` : '<div class="card-image"></div>'}
+                    ${CardImages.imagemDaCarta(carta)}
                     <div class="card-name">${carta.name}</div>
                     ${atkDef}
                 </div>
@@ -224,6 +230,7 @@
             removerCarta(carta.id);
             abrirModalCarta(carta);
         });
+        CardImages.prepararImagens(corpo, true);
         modal.classList.add('visible');
     }
 
@@ -362,7 +369,7 @@
                     const noLimite = n >= limite(def.id) || draft.length >= (janela?.DECK_SIZE || 40);
                     cardBtn.innerHTML = `
                         <span class="deck-card-mini-custo">${def.cost}</span>
-                        ${def.image ? `<img class="deck-card-mini-img" src="${def.image}" alt="${def.name}" loading="lazy">` : '<span class="deck-card-mini-img is-vazia">🎴</span>'}
+                        ${CardImages.imagemDaCarta(def, { classes: 'deck-card-mini-img', fallback: '<span class="deck-card-mini-img is-vazia">🎴</span>' })}
                         <span class="deck-card-mini-nome">${def.name}</span>
                         <span class="deck-card-mini-copias">×${n}</span>
                         <div class="builder-card-mini-overlay-acoes">
@@ -378,6 +385,7 @@
                     lista.appendChild(cardBtn);
                 });
             }
+            CardImages.prepararImagens(lista);
         }
 
         const barra = $('builderProgressoBarra');

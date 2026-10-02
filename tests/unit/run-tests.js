@@ -9,6 +9,7 @@ const PvpProtocol = require('../../src/js/pvp-protocol.js');
 const PvmAi = require('../../src/js/pvm-ai.js');
 const { DeckBuilder, mulberry32 } = require('../../scripts/deck_factory.js');
 const cardsDatabase = require('../../data/cards_database.json');
+const CardImages = require('../../src/js/card-images.js');
 const CardGallery = require('../../src/js/card-gallery.js');
 
 // O repositório guarda os arquivos com LF, mas um checkout Windows com

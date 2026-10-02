@@ -12,8 +12,8 @@
 - No `package.json`, no bundler, no transpiler, no TypeScript. Plain ES6
   loaded via `<script src="...">` at the end of `<body>`, in this order:
   `src/js/game-state.js` → `game-engine.js` → `card-rules.js` →
-  `card-abilities.js` → `deck_system.js` → `deck-select.js` →
-  `manual_abilities.js` → `game.js`. `pvp.html` appends the PvP layer after it:
+  `card-abilities.js` → `deck_system.js` → `card-images.js` →
+  `deck-select.js` → `manual_abilities.js` → `game.js`. `pvp.html` appends the PvP layer after it:
   `pvp-protocol.js` → `pvp-state.js` → `pvp-session.js` → `pvp-game.js`.
   New runtime JS must be inserted in that list so dependents load after
   their dependencies (`game.html` keeps only markup + scripts).

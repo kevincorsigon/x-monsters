@@ -223,6 +223,11 @@
         return deck;
     }
 
+    // ── imagens: placeholder LQIP → arte cheia (WebP) ────────────────────────
+    // Pipeline em `card-images.js` (`window.CardImages`), carregado antes deste
+    // módulo.
+    const CardImages = (typeof window !== 'undefined' ? window : globalThis).CardImages;
+
     // ── detalhe do deck ──────────────────────────────────────────────────────
 
     function linhaDeCurva(rotulo, valor, maximo) {
@@ -236,9 +241,10 @@
     }
 
     function miniCarta(definicao, copias, deck) {
-        const imagem = definicao.image
-            ? `<img class="deck-card-mini-img" src="${definicao.image}" alt="${definicao.name}" loading="lazy">`
-            : '<span class="deck-card-mini-img is-vazia">🎴</span>';
+        const imagem = CardImages.imagemDaCarta(definicao, {
+            classes: 'deck-card-mini-img',
+            fallback: '<span class="deck-card-mini-img is-vazia">🎴</span>'
+        });
         return `
             <button type="button" class="deck-card-mini" data-carta="${definicao.id}"
                     style="--deck-primaria:${deck.cores?.primaria || '#d4af37'}"
@@ -300,6 +306,7 @@
     }
 
     function ligarMiniCartas(container) {
+        CardImages.prepararImagens(container);
         container.querySelectorAll('.deck-card-mini').forEach(mini => {
             mini.addEventListener('click', () => {
                 const definicao = window.cardsDatabase?.cards?.find(carta => carta.id === mini.dataset.carta);

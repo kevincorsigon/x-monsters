@@ -1029,6 +1029,20 @@ body {
 }
 
 /* ── 13. Ajustes do Modal de Carta (.card-modal) ─────────────────────────── */
+/* Placeholder de baixa qualidade até a arte cheia (mesmo pipeline de
+   `card-gallery.js`): o <img> abre com o LQIP (`assets/lqip`) e o JS troca
+   para o WebP (`assets/webp`) só no `onload`; `.card-carregada` revela nítido. */
+.card-modal .card-image-real.card-lqip {
+    filter: blur(10px);
+    transform: scale(1.06);
+    transition: filter 0.4s ease, transform 0.4s ease;
+}
+
+.card-modal .card-image-real.card-carregada {
+    filter: none;
+    transform: none;
+}
+
 .card-modal .modal-card {
     max-height: 92vh;
     overflow-y: auto;

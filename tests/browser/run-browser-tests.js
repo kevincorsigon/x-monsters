@@ -59,6 +59,11 @@ const GALLERY_CONSOLE_SCRIPTS = [
     'tests/browser/test_gallery_images.js',
 ];
 
+// Scripts de console do deck builder (precisam de deck-builder.html carregado)
+const BUILDER_CONSOLE_SCRIPTS = [
+    'tests/browser/test_deck_builder_images.js',
+];
+
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 /**
@@ -340,6 +345,12 @@ async function main() {
     for (const script of GALLERY_CONSOLE_SCRIPTS) {
         const wsUrl = await openNewTab();
         await runConsoleAndReport(script, wsUrl, 'cartas.html');
+    }
+
+    // Rodar scripts de console do deck builder contra deck-builder.html
+    for (const script of BUILDER_CONSOLE_SCRIPTS) {
+        const wsUrl = await openNewTab();
+        await runConsoleAndReport(script, wsUrl, 'deck-builder.html');
     }
 
     chrome.kill();
