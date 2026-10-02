@@ -361,6 +361,24 @@ body {
     user-select: none;
 }
 
+/* Placeholder de baixa qualidade até a arte cheia: o <img> abre com o LQIP
+   (`assets/lqip`) e o JS só troca para o WebP (`assets/webp`) depois do
+   `onload` — nada pisca. O blur disfarça o LQIP esticado; `.card-carregada`
+   revela a arte nítida. Escopado no carrossel e no zoom; na mão a troca é
+   imediata (`prepararImagens(..., true)`) e o filtro brigaria com o 3D. */
+.galeria-carta img.card-lqip,
+.galeria-modal-carta img.card-lqip {
+    filter: blur(10px);
+    transform: scale(1.06);
+    transition: filter 0.4s ease, transform 0.4s ease;
+}
+
+.galeria-carta img.card-carregada,
+.galeria-modal-carta img.card-carregada {
+    filter: none;
+    transform: none;
+}
+
 /* Aqui a carta é só a arte: no carrossel e na mão. Custo, nome e ataque/defesa já
    moram no painel de detalhe (chips) e no zoom — na mão o que interessa é a peça
    física girando, e o `aria-live` (`#galeriaMaoEstado`) continua dizendo o nome e

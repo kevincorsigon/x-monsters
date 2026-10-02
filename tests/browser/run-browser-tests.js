@@ -54,6 +54,11 @@ const LOBBY_CONSOLE_SCRIPTS = [
     'tests/browser/test_pvp_lobby_rules.js',
 ];
 
+// Scripts de console da galeria (precisam de cartas.html carregado)
+const GALLERY_CONSOLE_SCRIPTS = [
+    'tests/browser/test_gallery_images.js',
+];
+
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 /**
@@ -329,6 +334,12 @@ async function main() {
     for (const script of LOBBY_CONSOLE_SCRIPTS) {
         const wsUrl = await openNewTab();
         await runConsoleAndReport(script, wsUrl, 'pvp-lobby.html');
+    }
+
+    // Rodar scripts de console da galeria contra cartas.html
+    for (const script of GALLERY_CONSOLE_SCRIPTS) {
+        const wsUrl = await openNewTab();
+        await runConsoleAndReport(script, wsUrl, 'cartas.html');
     }
 
     chrome.kill();

@@ -82,6 +82,66 @@
         }[caractere]));
     }
 
+    // ── imagens: placeholder LQIP → arte cheia (WebP) ────────────────────────
+    // O <img> nasce com o LQIP (`assets/lqip/<nome>.png`) no `src`: a primeira
+    // pintura é barata e a carta nunca fica em branco. O WebP
+    // (`assets/webp/<nome>.webp`) só assume o `src` depois de decodificar (preload
+    // via `new Image()`), então não há piscada. O nome base sai do caminho
+    // canônico do catálogo (`assets/cards/<nome>.png`), fonte de verdade.
+    const MARGEM_IMAGEM = '400px 800px';
+    let observadorDeCartas = null;
+
+    /** Troca o LQIP pelo WebP mantendo o placeholder à vista até a arte cheia estar pronta. */
+    function carregarArteCheia(img) {
+        if (!img || img.dataset.arteCheia === '1') return;
+        img.dataset.arteCheia = '1';
+        const lqip = img.getAttribute('src') || '';
+        const cheia = lqip.replace('/lqip/', '/webp/').replace(/\.png$/, '.webp');
+        const revelar = () => {
+            img.classList.remove('card-lqip');
+            img.classList.add('card-carregada');
+        };
+        if (!cheia || cheia === lqip) { revelar(); return; }
+        const cevada = new janela.Image();
+        cevada.onload = () => { img.src = cheia; revelar(); };
+        cevada.onerror = revelar;   // sem WebP o LQIP fica: nunca fica em branco
+        cevada.src = cheia;
+    }
+
+    /**
+     * Liga as imagens de um trecho recém-renderizado. `imediato` é para o que já
+     * está à vista (modal/mão); no carrossel a arte cheia espera a carta chegar
+     * perto da tela, para as 110 não baixarem de uma vez.
+     */
+    function prepararImagens(raiz, imediato) {
+        if (!raiz) return;
+        const alvos = raiz.querySelectorAll('img.card-lqip');
+        if (imediato || !janela?.IntersectionObserver) {
+            alvos.forEach(carregarArteCheia);
+            return;
+        }
+        if (!observadorDeCartas) {
+            observadorDeCartas = new janela.IntersectionObserver((entradas, observador) => {
+                entradas.forEach(entrada => {
+                    if (!entrada.isIntersecting) return;
+                    observador.unobserve(entrada.target);
+                    carregarArteCheia(entrada.target);
+                });
+            }, { rootMargin: MARGEM_IMAGEM, threshold: 0.01 });
+        }
+        alvos.forEach(img => observadorDeCartas.observe(img));
+    }
+
+    /** `<img>` canônico da carta: LQIP no `src`, WebP trocado por `carregarArteCheia`. */
+    function imagemDaCarta(carta, opcoes) {
+        const opts = opcoes || {};
+        if (!carta || !carta.image) return opts.fallback || '<div class="card-image"></div>';
+        const base = String(carta.image).split('/').pop().replace(/\.[^.]+$/, '');
+        return `<img class="${opts.classes || 'card-image-real'} card-lqip" ` +
+            `src="assets/lqip/${base}.png" alt="${esc(carta.name)}" ` +
+            `loading="lazy" decoding="async">`;
+    }
+
     /** `evolução` → `evolucao`: só para virar classe CSS. */
     function chaveDoTipo(tipo) {
         return String(tipo ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -145,9 +205,7 @@
         botao.innerHTML = `
             <span class="card ${classeDoTipo(carta.type)}">
                 <span class="card-cost">${carta.cost ?? 0}</span>
-                ${carta.image
-                    ? `<img class="card-image-real" src="${carta.image}" alt="${esc(carta.name)}" loading="lazy" decoding="async">`
-                    : '<span class="card-image">🎴</span>'}
+                ${imagemDaCarta(carta, { fallback: '<span class="card-image">🎴</span>' })}
                 <span class="card-name">${esc(carta.name)}</span>
                 <span class="card-stats">
                     <span class="attack">${carta.attack ?? 0}</span>
@@ -167,6 +225,7 @@
             fecharZoom();
             pegarNaMao(indice);
         });
+        prepararImagens(botao);
         return botao;
     }
 
@@ -322,9 +381,7 @@
     function frenteDaCarta(carta) {
         return `
             <div class="card-cost">${carta.cost ?? 0}</div>
-            ${carta.image
-                ? `<img src="${carta.image}" alt="${esc(carta.name)}" class="card-image-real">`
-                : '<div class="card-image"></div>'}
+            ${imagemDaCarta(carta)}
             <div class="card-name">${esc(carta.name)}</div>
             <div class="card-stats">
                 <span class="attack">${carta.attack ?? 0}</span>
@@ -358,6 +415,7 @@
                     ${esc(carta.type)} · ${esc(carta.id)} · posição ${ativo + 1} de ${cartas.length}
                 </p>
             </div>`;
+        prepararImagens(corpo, true);
         modal.classList.add('visible');
         modal.querySelector('.modal-close')?.focus();
     }
@@ -406,6 +464,7 @@
         marcarAtivo(indice);   // contador e painel acompanham a carta que subiu
         frente.className = `card ${classeDoTipo(carta.type)} galeria-mao-frente`;
         frente.innerHTML = frenteDaCarta(carta);
+        prepararImagens(frente, true);
 
         mao.indice = indice;
         mao.giroX = 0;
