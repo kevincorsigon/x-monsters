@@ -81,6 +81,37 @@
         .portal-note { display: block; margin-top: 5px; color: var(--muted-color); font-size: .72rem; line-height: 1.45; }
         .portal-tag { display: inline-block; margin-left: 7px; padding: 2px 7px; border: 1px solid rgba(212, 175, 55, .45); border-radius: 999px; color: var(--energy-color); font: 700 .56rem Inter, system-ui, sans-serif; letter-spacing: .14em; text-transform: uppercase; vertical-align: 2px; }
         .portal-button { width: 100%; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+        /* Seção "A origem": narrativa de 2003 até o digital + comparador
+           antes/depois (rascunho a lápis x arte final em WebP). */
+        .origem { padding: 34px 0 40px; border-top: 1px solid rgba(212, 175, 55, .18); }
+        .origem-intro { display: grid; grid-template-columns: 1.35fr .65fr; align-items: start; gap: clamp(22px, 5vw, 58px); }
+        .origem-copy p { margin: 0 0 15px; color: var(--muted-color); font-size: .92rem; line-height: 1.85; }
+        .origem-copy p:last-child { margin-bottom: 0; }
+        .origem-copy strong { color: var(--text-color); font-weight: 600; }
+        .origem-verso { margin: 0; }
+        .origem-verso img { width: 100%; aspect-ratio: .72; border: 1px solid rgba(212, 175, 55, .45); border-radius: 10px; object-fit: cover; box-shadow: 0 18px 50px rgba(0, 0, 0, .55), 0 0 40px rgba(212, 175, 55, .12); transform: rotate(-2deg); }
+        .origem-verso figcaption { margin-top: 14px; color: var(--muted-color); font: 600 .64rem Cinzel, serif; letter-spacing: .18em; text-align: center; text-transform: uppercase; }
+        .linha-do-tempo { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(215px, 1fr); gap: 12px; margin: 28px 0 36px; padding: 4px 4px 14px; overflow-x: auto; list-style: none; scroll-snap-type: x mandatory; }
+        .linha-do-tempo:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 3px; }
+        .marco { scroll-snap-align: start; padding: 15px; border: 1px solid var(--border-color); border-radius: 9px; background: linear-gradient(145deg, rgba(26, 30, 40, .92), rgba(15, 17, 21, .95)); }
+        .marco-etapa { display: block; color: var(--primary-color); font: 700 .62rem Inter, system-ui, sans-serif; letter-spacing: .18em; text-transform: uppercase; }
+        .marco strong { display: block; margin: 9px 0 6px; font: 600 .95rem Cinzel, serif; }
+        .marco span:last-child { color: var(--muted-color); font-size: .78rem; line-height: 1.65; }
+        .antes-depois { width: min(430px, 100%); margin: 0 auto; }
+        .section-heading h3 { margin: 0; font: 600 1rem Cinzel, serif; letter-spacing: .06em; }
+        .abas { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+        .aba { padding: 8px 15px; border: 1px solid var(--border-color); border-radius: 999px; background: rgba(26, 30, 40, .78); color: var(--muted-color); font: 600 .78rem Inter, system-ui, sans-serif; cursor: pointer; transition: color .2s, border-color .2s, background .2s; }
+        .aba:hover { border-color: var(--primary-color); color: var(--text-color); }
+        .aba[aria-pressed="true"] { border-color: #e6cd7c; color: #0f1115; background: linear-gradient(120deg, #f3e0a4, #d4af37); }
+        .comparador { position: relative; overflow: hidden; width: 100%; aspect-ratio: 768 / 1017; border: 1px solid var(--border-color); border-radius: 12px; background: var(--card-bg-color); box-shadow: 0 20px 60px rgba(0, 0, 0, .5); }
+        .comparador img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        .comparador-final { clip-path: inset(0 calc(100% - var(--pos, 50%)) 0 0); }
+        .comparador-linha { position: absolute; top: 0; bottom: 0; left: var(--pos, 50%); width: 2px; margin-left: -1px; background: var(--primary-color); box-shadow: 0 0 14px var(--energy-color); pointer-events: none; }
+        .comparador-controle { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+        .comparador-range { flex: 1; min-width: 0; margin: 0; accent-color: var(--primary-color); cursor: grab; }
+        .comparador-selo { color: var(--primary-color); font: 700 .62rem Inter, system-ui, sans-serif; letter-spacing: .16em; text-transform: uppercase; white-space: nowrap; }
+        .comparador-selo:last-child { color: var(--muted-color); }
+        .antes-depois figcaption { margin-top: 14px; color: var(--muted-color); font-size: .78rem; line-height: 1.65; }
         .rules-overlay { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: rgba(5, 6, 8, .85); opacity: 0; visibility: hidden; transition: opacity .2s, visibility .2s; }
         .rules-overlay.visible { opacity: 1; visibility: visible; }
         .rules-dialog { position: relative; width: min(650px, 100%); max-height: min(82vh, 760px); overflow: auto; padding: 28px clamp(20px, 5vw, 38px); border: 1px solid rgba(212, 175, 55, .45); border-radius: 12px; background: linear-gradient(145deg, #1a1e28, #0f1115 68%); box-shadow: 0 20px 70px #000, 0 0 40px rgba(212, 175, 55, .16); }
@@ -94,11 +125,12 @@
         .rules-close { position: absolute; top: 12px; right: 16px; width: 36px; height: 36px; border: 0; background: transparent; color: var(--primary-color); font-size: 1.8rem; cursor: pointer; }
         .rules-close:hover { color: #fff; }
         footer { display: flex; justify-content: space-between; gap: 16px; padding: 16px 0 25px; border-top: 1px solid rgba(212, 175, 55, .14); color: #7d8798; font-size: .72rem; }
-        @media (max-width: 900px) { .hero { min-height: 460px; gap: 24px; }.card-back { width: min(240px, 60vw); }.portals { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 900px) { .hero { min-height: 460px; gap: 24px; }.card-back { width: min(240px, 60vw); }.portals { grid-template-columns: repeat(2, 1fr); }.origem-intro { grid-template-columns: 1fr; }.origem-verso { width: min(250px, 62%); }.linha-do-tempo { grid-auto-flow: row; grid-auto-columns: auto; overflow: visible; } }
         @media (max-width: 650px) {
             .shell { width: min(100% - 32px, 500px); }.topbar { min-height: 70px; }.toplink { font-size: .76rem; }
             .hero { grid-template-columns: 1fr; gap: 4px; padding: 44px 0 24px; }.hero-copy { position: relative; z-index: 1; }.card-stage { min-height: 300px; margin-top: -3px; }.card-back { width: 185px; max-height: 260px; }.card-caption { right: 12%; bottom: 8%; }.rune-one { top: 12%; left: 16%; }.rune-two { top: 19%; right: 12%; }.rune-three { bottom: 12%; left: 16%; }
             h1 { max-width: 500px; font-size: clamp(2.8rem, 12vw, 4.1rem); }.section-heading { display: block; }.section-heading p { margin-top: 5px; }.portals { grid-template-columns: repeat(2, 1fr); gap: 9px; }.portal { min-height: 132px; padding: 14px; }
+            .origem { padding: 26px 0 30px; }.origem-verso { width: min(230px, 74%); }.linha-do-tempo { margin: 22px 0 28px; }.marco { padding: 14px; }.aba { padding: 7px 13px; font-size: .74rem; }
             footer { flex-direction: column; gap: 6px; }
         }
         @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
@@ -138,6 +170,48 @@
                 <button class="portal portal-button" type="button" id="openRules"><span class="portal-icon" aria-hidden="true">✧</span><span><strong class="portal-title">Regras do jogo</strong><span class="portal-note">Consulte as regras antes de entrar no campo.</span></span></button>
                 <a class="portal" href="real-play.html"><span class="portal-icon" aria-hidden="true">◉</span><span><strong class="portal-title">Contador de pontos</strong><span class="portal-note">Acompanhe PV e energia nas partidas com cartas físicas.</span></span></a>
             </nav>
+        </section>
+
+        <section class="origem" aria-labelledby="origem-title">
+            <div class="section-heading"><h2 id="origem-title">De onde veio o X Monsters</h2><p>2003 — nove anos, um lápis e um verso</p></div>
+            <div class="origem-intro">
+                <div class="origem-copy">
+                    <p>Tudo começou em <strong>2003</strong>, aos nove anos, com Yu-Gi-Oh! na cabeça: as primeiras cartas nasceram desenhadas à mão <strong>nos versos</strong> — o nome do monstro em cima e os números da batalha embaixo. A mecânica veio depois: a lore de cada criatura, o sistema de <strong>mana elemental</strong> e as folhas de layout que passaram a detalhar arte, tipo, custo, atributos e habilidade de cada monstro.</p>
+                    <p>Anos mais tarde o projeto voltou a andar com o <strong>Nanobanana</strong>, que organizou o que era só intuição e destravou o lado estratégico e visual do jogo. Com o sistema em pé, a parceria com um <strong>designer</strong> levou os monstros para cartas físicas reimaginadas: moldura, arte final e leitura limpa na mesa.</p>
+                    <p>Hoje o X Monsters é digital — o mesmo jogo de 2003, agora com deck builder, placar de pontos, partidas contra a CPU e PvP online. As cartas daquele caderno seguem guardadas: é o caminho inteiro que aparece aqui embaixo.</p>
+                </div>
+                <figure class="origem-verso">
+                    <img src="assets/verso.jpeg" alt="Verso azul luminoso das cartas X Monsters" loading="lazy" decoding="async">
+                    <figcaption>O primeiro traço: o verso</figcaption>
+                </figure>
+            </div>
+            <ol class="linha-do-tempo" tabindex="0" aria-label="Marcos do X Monsters, 2003 até hoje">
+                <li class="marco"><span class="marco-etapa">2003</span><strong>Nove anos</strong><span>Yu-Gi-Oh! na cabeça e as primeiras cartas desenhadas à mão, verso por verso.</span></li>
+                <li class="marco"><span class="marco-etapa">A lore</span><strong>Cada monstro ganha história</strong><span>Nome, tipo, elemento e lugar no mundo: as criaturas deixam de ser só desenho.</span></li>
+                <li class="marco"><span class="marco-etapa">A mecânica</span><strong>Mana elemental</strong><span>O jogo vira estratégia: custo de energia, evolução e cartas de suporte.</span></li>
+                <li class="marco"><span class="marco-etapa">A virada</span><strong>Nanobanana</strong><span>A IA reorganiza o projeto e destrava o desenvolvimento visual e estratégico.</span></li>
+                <li class="marco"><span class="marco-etapa">A mesa</span><strong>Cartas físicas</strong><span>Com um designer parceiro, os monstros viram cartas de verdade, reimaginadas.</span></li>
+                <li class="marco"><span class="marco-etapa">Hoje</span><strong>X Monsters online</strong><span>Deck builder, CPU e PvP no navegador — a mesma ideia de 2003.</span></li>
+            </ol>
+            <figure class="antes-depois" id="antesDepois" style="--pos: 50%">
+                <div class="section-heading"><h3>Como eram, como ficaram</h3><p>Rascunho de 2003 x carta final</p></div>
+                <!-- Aba única = fallback sem JS; o script abaixo substitui por um
+                     trio sorteado do caderno a cada carga da página. -->
+                <div class="abas" role="group" aria-label="Escolha a carta para comparar">
+                    <button class="aba" type="button" aria-pressed="true" data-nome="Trox" data-original="card_039_trox" data-final="trox">Trox</button>
+                </div>
+                <div class="comparador">
+                    <img class="comparador-rascunho" src="assets/original-cards/card_039_trox.jpg" alt="Rascunho a lápis de Trox, desenhado em 2003 no verso de uma carta" width="768" height="1017" loading="lazy" decoding="async">
+                    <img class="comparador-final" src="assets/webp/trox.webp" alt="Carta final de Trox" width="768" height="1017" loading="lazy" decoding="async">
+                    <span class="comparador-linha" aria-hidden="true"></span>
+                </div>
+                <div class="comparador-controle">
+                    <span class="comparador-selo">2003</span>
+                    <input class="comparador-range" type="range" min="0" max="100" step="1" value="50" aria-label="Arraste para comparar o rascunho de 2003 com a carta final">
+                    <span class="comparador-selo">Hoje</span>
+                </div>
+                <figcaption>As abas sorteiam cartas do caderno a cada visita: arraste a barra para cruzar o rascunho a lápis com a arte final. Mesmo monstro, mesmo nome — outra era do projeto.</figcaption>
+            </figure>
         </section>
     </main>
     <div class="rules-overlay" id="rulesModal" aria-hidden="true">
@@ -191,6 +265,82 @@
         document.getElementById('closeRules').addEventListener('click', fecharRegras);
         regras.addEventListener('click', evento => { if (evento.target === regras) fecharRegras(); });
         document.addEventListener('keydown', evento => { if (evento.key === 'Escape' && regras.classList.contains('visible')) fecharRegras(); });
+
+        // Comparador da origem: as abas sorteiam um trio de cartas do caderno a
+        // cada carga (rascunho de 2003 x arte final em WebP) e a barra move o
+        // corte entre as duas imagens via --pos.
+        const antesDepois = document.getElementById('antesDepois');
+        const imagemRascunho = antesDepois.querySelector('.comparador-rascunho');
+        const imagemFinal = antesDepois.querySelector('.comparador-final');
+        const controlePosicao = antesDepois.querySelector('.comparador-range');
+        const containerAbas = antesDepois.querySelector('.abas');
+        const abasSorteadas = 3;
+        const memoriaDoSorteio = 'xm-origem-trio';
+
+        // Cada par existe nos dois formatos: a foto-protótipo recortada por
+        // scripts/extract_prototype_cards.py (assets/original-cards/) e a carta
+        // final em assets/webp/. Nome = o mesmo de data/cards_database.json.
+        const cartasDaOrigem = [
+            { nome: 'ETC', prototipo: 'card_003_etc', final: 'etc' },
+            { nome: 'Kirb', prototipo: 'card_011_kirb', final: 'kirb' },
+            { nome: 'Cp-2', prototipo: 'card_018_cp-2', final: 'cp-2' },
+            { nome: 'Aladar', prototipo: 'card_029_aladar', final: 'aladar' },
+            { nome: 'Ptera', prototipo: 'card_035_ptera', final: 'ptera' },
+            { nome: 'Scoul', prototipo: 'card_037_scoul', final: 'scoul' },
+            { nome: 'Trox', prototipo: 'card_039_trox', final: 'trox' },
+            { nome: 'Turtol', prototipo: 'card_048_turtol', final: 'turtol' },
+            { nome: 'Alucard', prototipo: 'card_062_alucard', final: 'alucard' },
+            { nome: 'Iron Dragon', prototipo: 'card_065_iron_dragon', final: 'iron_dragon' },
+            { nome: 'Roller', prototipo: 'card_069_roller', final: 'roller' },
+            { nome: 'Nucles', prototipo: 'card_074_nucles', final: 'nucles' },
+            { nome: 'Marik 2', prototipo: 'card_085_marik_2', final: 'marik_2' },
+            { nome: 'Lobo Alfa Fly', prototipo: 'card_078_lobo_alfa_fly', final: 'lobo_alfa_fly' },
+            { nome: 'Latex', prototipo: 'card_081_latex', final: 'latex' },
+        ];
+
+        function sortearCartas(quantidade) {
+            const copia = cartasDaOrigem.slice();
+            for (let i = copia.length - 1; i > 0; i -= 1) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copia[i], copia[j]] = [copia[j], copia[i]];
+            }
+            return copia.slice(0, quantidade);
+        }
+
+        function mostrarPar(aba) {
+            imagemRascunho.src = `assets/original-cards/${aba.dataset.original}.jpg`;
+            imagemRascunho.alt = `Rascunho a lápis de ${aba.dataset.nome}, desenhado em 2003 no verso de uma carta`;
+            imagemFinal.src = `assets/webp/${aba.dataset.final}.webp`;
+            imagemFinal.alt = `Carta final de ${aba.dataset.nome}`;
+            [...containerAbas.children].forEach(outra => outra.setAttribute('aria-pressed', String(outra === aba)));
+        }
+
+        // O trio novo não pode abrir com a mesma carta que ficou visível na
+        // carga anterior (memória de sessão; modo privado segue só aleatório).
+        let trio = sortearCartas(abasSorteadas);
+        try {
+            const anterior = (sessionStorage.getItem(memoriaDoSorteio) || '').split('|')[0];
+            for (let tentativa = 0; tentativa < 3 && trio[0].nome === anterior; tentativa += 1) trio = sortearCartas(abasSorteadas);
+            sessionStorage.setItem(memoriaDoSorteio, trio.map(carta => carta.nome).join('|'));
+        } catch (erro) { /* armazenamento bloqueado: mantém o sorteio simples */ }
+
+        containerAbas.replaceChildren(...trio.map((carta, indice) => {
+            const aba = document.createElement('button');
+            aba.type = 'button';
+            aba.className = 'aba';
+            aba.dataset.nome = carta.nome;
+            aba.dataset.original = carta.prototipo;
+            aba.dataset.final = carta.final;
+            aba.textContent = carta.nome;
+            aba.setAttribute('aria-pressed', String(indice === 0));
+            aba.addEventListener('click', () => {
+                if (aba.getAttribute('aria-pressed') === 'true') return;
+                mostrarPar(aba);
+            });
+            return aba;
+        }));
+        mostrarPar(containerAbas.children[0]);
+        controlePosicao.addEventListener('input', () => antesDepois.style.setProperty('--pos', `${controlePosicao.value}%`));
     </script>
 </body>
 </html>
