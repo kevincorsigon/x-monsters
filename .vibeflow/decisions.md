@@ -1,34 +1,43 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
-## 2026-10-02 — Combate: instrução (#combat-info) vira hint flutuante na barra central
+## 2026-10-02 — Combate: instrução (#combat-info) vira hint flutuante acima do bloco de stats
 
 Pedido: em telas pequenas o `#combat-info` não devia aparecer; depois, o texto
-justificava/quebrava para não empurrar o layout; por fim, análise de design de
-onde ele realmente pertence.
+justificava/quebrava para não empurrar o layout; depois, análise de design de
+onde ele pertence; por fim, "coloca nesse espaço acima do player 1" (o vão vazio
+da faixa) e "no turno do outro jogador não deve aparecer".
 
 Causa: o `#combat-info` é orientação **efêmera** ("selecione uma carta", "clique
 no alvo"), não status persistente — mas morava na linha do `.hud`
-(Turno · Fase · ⏱), competindo com texto fixo. Todo o atrito (empurrar a
-pílula, sumir em ≤900px, justificar) vinha dessa mistura de linguagens.
+(Turno · Fase · ⏱), competindo com texto fixo e empurrando a pílula central.
+Todo o atrito (empurrar, sumir em ≤900px, justificar) vinha dessa mistura de
+linguagens: status e instrução no mesmo lugar.
 
 Decisão (só apresentação — nenhum dado, regra de jogo ou API mudou):
-- `game.html` / `pvp.html`: o `#combat-info` sai do `.hud` e vira o último filho
-  de `.controls` — a âncora oficial do que pendura (painel de habilidades e gear
-  dropdown já penduram dela).
-- `src/css/game.css`: `#combat-info` é `position: absolute` pendurado
-  `top: calc(100% + var(--gap))` da barra — encostado no topo do campo do
-  jogador, onde a mão vai. Fora do fluxo: **nunca empurra a barra, os campos ou
-  o palco em nenhuma viewport**. Pílula translúcida centrada
-  (`max-width: min(80vw, 420px)`, `text-align: center`, `pointer-events: none`,
-  `z-index: 46`). O hide de ≤900px continua (a faixa cobriria cartas num palco
-  baixo) e agora é a ÚNICA regra responsiva necessária.
-- `src/css/pvp.css`: no assento p2 o palco espelha (campo próprio em cima), então
-  o hint pende para CIMA da barra (`bottom` no lugar de `top`) — sempre colado no
-  campo do jogador local.
-- `src/js/game.js` não muda desde a refatoração anterior: só alterna a classe
-  `visible`, sem style inline.
-- Validação: 276/276 unit.
+- `game.html` / `pvp.html`: o `#combat-info` sai do `.hud` e vira o primeiro
+  filho do bloco de stats local (`.player1-stats`), o vão vazio da faixa.
+- `src/css/game.css`: `.player1-stats, .player2-stats` ganham
+  `position: relative` (âncora) e o hint é `position: absolute`
+  `bottom: calc(100% + 4px)`, centrado no bloco (`left: 50%` +
+  `translateX(-50%)`) — flutua logo acima dele, fora do fluxo: **nunca empurra
+  a faixa, a mão, o campo ou o palco**. Pílula translúcida
+  (`width: max-content; max-width: 100%` — o bloco é o containing block, então
+  a pílula nunca passa da faixa nem sai da tela; `pointer-events: none`,
+  `z-index: 46`), sem `text-align: justify`. O hide de ≤900px continua.
+- `src/js/game.js`: `ancorarHintDeCombate()` remonta o hint no bloco do
+  **assento local** (`assentoLocal()` lê `body[data-seat]`; no PvP a faixa
+  espelha, então a âncora vira `.player2-stats`) — idempotente, sem `style`
+  inline. E ele só ganha `.visible` quando `currentPhase === 'combat'` **e**
+  `ehTurnoDoAssentoLocal()`: instrução é de quem joga; no turno alheio ela não
+  aparece. Sem marca de assento (solo/hotseat) os dois turnos são locais.
+- Validação: 277/277 unit + browser 33/33, com
+  `tests/browser/test_combat_hint.js` em 19/19 checks (âncora e `position:
+  relative`, acima do bloco e abaixo da barra central, dentro da tela e na
+  coluna do bloco, stats/mão/barra sem layout shift, oculto no turno alheio e
+  fora do combate, migração para `.player2-stats` no assento p2, e o hide real
+  em viewport ≤900px — o runner usa 762px, então a geometria de desktop é
+  medida com um override temporário do media query).
 
 ## 2026-09-29 — Galeria: a carta na mão também é só a arte
 

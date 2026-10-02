@@ -5037,6 +5037,7 @@ test('a instrução de combate é um hint flutuante no bloco de stats do assento
     assert.match(hintCss, /position: absolute;/);
     assert.match(hintCss, /bottom: calc\(100% \+ 4px\);/, 'o hint flutua acima do bloco de stats');
     assert.match(hintCss, /pointer-events: none;/, 'o hint nunca bloqueia o clique nas cartas');
+    assert.match(hintCss, /max-width: 100%;/, 'a largura cabe no bloco de stats (nunca sai da tela)');
     assert.match(hintCss, /z-index: 4[6-9];/, 'e pinta acima dos campos e da barra');
     assert.equal(css.includes('.hud #combat-info'), false,
         'nenhuma regra liga o hint ao HUD (ele saiu da linha de status)');

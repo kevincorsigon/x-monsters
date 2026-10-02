@@ -785,7 +785,11 @@
             transform: translateX(-50%);
             display: none;
             width: max-content;
-            max-width: min(70vw, 380px);
+            /* O bloco de stats é o containing block: limitar a 100% dele garante
+               que a pílula centrada nunca passe da faixa — e a faixa nunca passa
+               da tela. Sem isso, em janela estreita o texto centrado num bloco
+               encostado na borda vazava para fora do viewport. */
+            max-width: 100%;
             padding: 3px 14px;
             border-radius: 8px;
             background: rgba(15, 17, 21, 0.85);
