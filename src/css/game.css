@@ -1659,6 +1659,15 @@
             border-radius: inherit;
         }
 
+        /* Pipeline otimizado: o próprio <img> pinta o LQIP (`assets/lqip`) como
+           fundo até o WebP (`assets/webp`) decodificar e cobri-lo — feedback
+           instantâneo, sem layout shift, com `loading="lazy"` no HTML. */
+        .card-image-real.card-lazy {
+            background-color: var(--secondary-color);
+            background-size: cover;
+            background-position: center;
+        }
+
         .attack {
             color: #ff6b6b;
         }

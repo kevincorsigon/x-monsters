@@ -1468,6 +1468,30 @@
         }
 
         // Funções de cartas
+        // Pipeline otimizado de assets: usa o LQIP (`assets/lqip/<nome>.png`)
+        // como fundo do próprio <img> para feedback instantâneo e o WebP
+        // (`assets/webp/<nome>.webp`) como imagem real com `loading="lazy"`.
+        // O nome base é derivado do caminho canônico do catálogo
+        // (`assets/cards/<nome>.png`), fonte de verdade. Sem imagem, devolve o
+        // placeholder (`opts.fallback`) para não quebrar o layout.
+        function montarImagemDaCarta(cardData, opcoes) {
+            const opts = opcoes || {};
+            const fallback = opts.fallback || '<div class="card-image" style="pointer-events: none;"></div>';
+            if (!cardData || !cardData.image) {
+                return fallback;
+            }
+            const base = cardData.image.split('/').pop().replace(/\.[^.]+$/, '');
+            const lqip = `assets/lqip/${base}.png`;
+            const webp = `assets/webp/${base}.webp`;
+            const classes = opts.classes || 'card-image-real';
+            const sizes = opts.sizes || '112px';
+            const estilo = opts.estilo || 'pointer-events: none;';
+            return `<img src="${webp}" srcset="${webp}" sizes="${sizes}" ` +
+                `alt="${cardData.name || ''}" class="${classes} card-lazy" ` +
+                `loading="lazy" decoding="async" ` +
+                `style="background-image: url('${lqip}'); background-size: cover; ` +
+                `background-position: center; ${estilo}">`;
+        }
                 function createCard(cardData, player) {
             const cardInstance = cardData.instanceId && cardData.data
                 ? cardData
@@ -1522,10 +1546,9 @@
             // Criar cópia dos dados da carta para evitar modificação do original
             const cardDataCopy = cardInstance.data;
 
-            // Usar apenas imagem real, sem fallback de ícone
-            const cardImage = cardDataCopy.image ? 
-                `<img src="${cardDataCopy.image}" alt="${cardDataCopy.name}" class="card-image-real" style="pointer-events: none;">` :
-                `<div class="card-image" style="pointer-events: none;"></div>`;
+            // Imagem otimizada (LQIP → WebP, lazy): apenas imagem real, sem
+            // fallback de ícone.
+            const cardImage = montarImagemDaCarta(cardDataCopy);
 
             card.innerHTML = `
                 <div class="card-cost" style="pointer-events: none;">${getEffectiveCardCost(cardId, cardDataCopy)}</div>
@@ -2473,9 +2496,11 @@
             };
             const cssType = typeMapping[cardData.type] || cardData.type;
             
-            const cardImage = cardData.image ? 
-                `<img src="${cardData.image}" alt="${cardData.name}" class="card-image-real" style="width: 100%; height: auto; border-radius: 8px;">` :
-                `<div class="card-image" style="width: 100%; height: 200px; background: var(--secondary-color); border-radius: 8px;"></div>`;
+            const cardImage = montarImagemDaCarta(cardData, {
+                sizes: '300px',
+                estilo: 'width: 100%; height: auto; border-radius: 8px;',
+                fallback: '<div class="card-image" style="width: 100%; height: 200px; background: var(--secondary-color); border-radius: 8px;"></div>'
+            });
 
             // Traits da carta: vêm do catálogo (fonte de verdade) com o mapa do
             // motor como fallback, e são rotuladas em pt-BR pelo seletor de decks.
@@ -3058,9 +3083,9 @@ Cartas restantes:
             
             equipmentCard.setAttribute('data-support-card', JSON.stringify(supportCardData));
             
-            const cardImageClickable = supportCardData.image ? 
-                `<img src="${supportCardData.image}" alt="${supportCardData.name}" class="card-image-real">` :
-                `<div class="card-image"></div>`;
+            const cardImageClickable = montarImagemDaCarta(supportCardData, {
+                fallback: '<div class="card-image"></div>'
+            });
 
             equipmentCard.innerHTML = `
                 <div class="card-cost">${supportCardData.cost}</div>
