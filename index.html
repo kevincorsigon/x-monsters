@@ -39,9 +39,9 @@
         a { color: inherit; text-decoration: none; }
         .shell { width: min(1160px, calc(100% - 48px)); margin: 0 auto; }
         .topbar { display: flex; align-items: center; justify-content: space-between; min-height: 84px; border-bottom: 1px solid rgba(212, 175, 55, .18); }
-        .marca { display: inline-flex; align-items: center; gap: 12px; font: 700 1.18rem Cinzel, serif; letter-spacing: .12em; }
-        .marca-x { display: grid; width: 38px; aspect-ratio: 1; place-items: center; border: 1px solid rgba(212, 175, 55, .55); color: var(--primary-color); transform: rotate(45deg); box-shadow: 0 0 24px rgba(212, 175, 55, .2), inset 0 0 16px rgba(251, 191, 36, .16); }
-        .marca-x span { transform: rotate(-45deg); font: 700 1.25rem Cinzel, serif; }
+        .marca { display: inline-flex; align-items: center; }
+        .marca-banner { height: 44px; width: auto; object-fit: contain; filter: drop-shadow(0 0 10px rgba(212, 175, 55, .25)); transition: transform .2s, filter .2s; }
+        .marca:hover .marca-banner { transform: scale(1.04); filter: drop-shadow(0 0 18px rgba(212, 175, 55, .45)); }
         .toplink { color: var(--muted-color); font-size: .88rem; transition: color .2s; }
         .toplink:hover { color: var(--primary-color); }
         .hero { display: grid; grid-template-columns: 1.08fr .92fr; align-items: center; gap: clamp(32px, 7vw, 96px); min-height: 535px; padding: 42px 0 30px; }
@@ -149,7 +149,7 @@
 </head>
 <body>
     <header class="shell topbar">
-        <a class="marca" href="index.html" aria-label="X Monsters, início"><span class="marca-x"><span>X</span></span><span>MONSTERS</span></a>
+        <a class="marca" href="index.html" aria-label="X Monsters, início"><img class="marca-banner" src="assets/logo_transparent.png" alt="X Monsters" height="44"></a>
         <a class="toplink" href="real-play.html">Contador para cartas físicas <span aria-hidden="true">↗</span></a>
     </header>
 
@@ -189,7 +189,7 @@
                 <div class="origem-copy">
                     <p>Tudo começou em <strong>2003</strong>, aos nove anos de idade e fascinado pelo universo dos jogos de cartas: as primeiras criaturas do X Monsters nasceram desenhadas a lápis <strong>no verso de cartas velhas e folhas de caderno</strong> — o nome da criatura no topo e os números de ataque e defesa na base.</p>
                     <p>O projeto evoluiu rapidamente de rascunhos para um sistema completo. Cada monstro ganhou sua própria <strong>lore</strong> e pertencimento no mundo do jogo. Em seguida nascia a <strong>mecânica de custos</strong>, trazendo cartas de suporte, regras de evolução e custos de energia que transformaram o passatempo em uma batalha tática profunda.</p>
-                    <p>Anos mais tarde veio o grande ponto de virada com a <strong>ajuda da IA</strong>, que organizou as ideias dispersas, afinou as regras e destravou o desenvolvimento visual e estratégico. Na sequência, a parceria com um <strong>designer</strong> reimaginou as ilustrações do caderno em cartas físicas completas: molduras temáticas, tipografia nítida e leitura limpa na mesa.</p>
+                    <p>Anos mais tarde veio o grande ponto de virada com a <strong>ajuda da IA</strong>, que organizou as ideias dispersas, afinou as regras e destravou o desenvolvimento visual e estratégico. Na sequência, a parceria com um amigo <strong>designer</strong> reimaginou as ilustrações do caderno em cartas físicas completas: molduras temáticas, tipografia nítida e leitura limpa na mesa.</p>
                     <p>Hoje, o X Monsters ganha vida no ambiente digital: um jogo completo com deck builder, partidas contra a CPU e PvP online em tempo real no navegador — preservando a alma e a essência daqueles monstros criados em 2003.</p>
                 </div>
                 <figure class="antes-depois" id="antesDepois" style="--pos: 50%">

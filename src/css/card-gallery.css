@@ -73,21 +73,17 @@ body {
     color: var(--galeria-ouro);
 }
 
-/* Losango da marca: mesmo desenho de `index.html`. */
-.marca-x {
-    display: grid;
-    width: 30px;
-    aspect-ratio: 1;
-    place-items: center;
-    border: 1px solid rgba(212, 175, 55, 0.55);
-    color: var(--galeria-ouro);
-    transform: rotate(45deg);
-    box-shadow: 0 0 18px rgba(212, 175, 55, 0.25);
+/* Logo do cabeçalho da galeria: o X recortado do verso oficial. */
+.marca-banner {
+    height: 34px;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.25));
+    transition: transform 0.2s, filter 0.2s;
 }
-
-.marca-x span {
-    transform: rotate(-45deg);
-    font: 700 1rem 'Cinzel', serif;
+.galeria-marca:hover .marca-banner {
+    transform: scale(1.04);
+    filter: drop-shadow(0 0 16px rgba(212, 175, 55, 0.45));
 }
 
 .galeria-topnav {
