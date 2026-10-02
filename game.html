@@ -75,9 +75,6 @@
                     <!-- Botão do painel de habilidades manuais: montado por
                          manual_abilities.js dentro deste slot, ao lado do timer -->
                     <span class="hud-item hud-abilities-slot" id="abilities-slot"></span>
-                    <div id="combat-info">
-                        <div id="combat-instruction">Selecione uma carta para atacar</div>
-                    </div>
                 </div>
 
                 <div class="phases-section">
@@ -131,6 +128,15 @@
                     <span class="stat-label">Energia:</span>
                     <span class="stat-value energy-value" id="energy-p1" style="cursor: default;">6</span>
                     <button class="mini-button dice-button" id="dice-p1" onclick="rollDice('p1')" title="Dado da Sorte (2 energia)">🎲</button>
+                </div>
+
+                <!-- Instrução de combate: hint flutuante ACIMA do bloco de stats do
+                     assento local (o espaço vazio da faixa). Fora do fluxo
+                     (`absolute`), então nunca empurra a faixa nem o palco. O
+                     `game.js` ancora este nó no bloco do assento local (em PvP o
+                     palco espelha) e só alterna a classe `visible`. -->
+                <div id="combat-info">
+                    <div id="combat-instruction">Selecione uma carta para atacar</div>
                 </div>
             </div>
         </section>

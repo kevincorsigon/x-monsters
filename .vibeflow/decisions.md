@@ -1,6 +1,35 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-10-02 — Combate: instrução (#combat-info) vira hint flutuante na barra central
+
+Pedido: em telas pequenas o `#combat-info` não devia aparecer; depois, o texto
+justificava/quebrava para não empurrar o layout; por fim, análise de design de
+onde ele realmente pertence.
+
+Causa: o `#combat-info` é orientação **efêmera** ("selecione uma carta", "clique
+no alvo"), não status persistente — mas morava na linha do `.hud`
+(Turno · Fase · ⏱), competindo com texto fixo. Todo o atrito (empurrar a
+pílula, sumir em ≤900px, justificar) vinha dessa mistura de linguagens.
+
+Decisão (só apresentação — nenhum dado, regra de jogo ou API mudou):
+- `game.html` / `pvp.html`: o `#combat-info` sai do `.hud` e vira o último filho
+  de `.controls` — a âncora oficial do que pendura (painel de habilidades e gear
+  dropdown já penduram dela).
+- `src/css/game.css`: `#combat-info` é `position: absolute` pendurado
+  `top: calc(100% + var(--gap))` da barra — encostado no topo do campo do
+  jogador, onde a mão vai. Fora do fluxo: **nunca empurra a barra, os campos ou
+  o palco em nenhuma viewport**. Pílula translúcida centrada
+  (`max-width: min(80vw, 420px)`, `text-align: center`, `pointer-events: none`,
+  `z-index: 46`). O hide de ≤900px continua (a faixa cobriria cartas num palco
+  baixo) e agora é a ÚNICA regra responsiva necessária.
+- `src/css/pvp.css`: no assento p2 o palco espelha (campo próprio em cima), então
+  o hint pende para CIMA da barra (`bottom` no lugar de `top`) — sempre colado no
+  campo do jogador local.
+- `src/js/game.js` não muda desde a refatoração anterior: só alterna a classe
+  `visible`, sem style inline.
+- Validação: 276/276 unit.
+
 ## 2026-09-29 — Galeria: a carta na mão também é só a arte
 
 Pedido: "do modo de carta na mão temos que tirar o badge de custo e rótulo tbm,

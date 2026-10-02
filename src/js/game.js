@@ -783,15 +783,27 @@
             // Controlar visibilidade das mãos baseado no turno
             updateHandVisibility();
 
-            // Mostrar/ocultar informações de combate e botão de ataque direto
+            // Mostrar/ocultar informações de combate e botão de ataque direto.
+            // Sem style inline: só alterna a classe `visible` — o CSS decide
+            // onde ela aparece (em telas pequenas o media query a esconde).
             const combatInfo = document.getElementById('combat-info');
 
+            if (combatInfo) {
+                // O hint vive no bloco de stats do ASSENTO LOCAL: em PvP o palco
+                // espelha, então a âncora certa depende do data-seat.
+                ancorarHintDeCombate(combatInfo);
+                // Instrução é do jogador da vez: no turno do outro ela não aparece.
+                if (gameState.currentPhase === 'combat' && ehTurnoDoAssentoLocal()) {
+                    combatInfo.classList.add('visible');
+                } else {
+                    combatInfo.classList.remove('visible');
+                }
+            }
+
             if (gameState.currentPhase === 'combat') {
-                if (combatInfo) combatInfo.style.display = 'block';
                 exibirAtaqueDireto(true, campoDoAdversarioVazio(gameState.currentPlayer));
                 updateCombatInstructions();
             } else {
-                if (combatInfo) combatInfo.style.display = 'none';
                 exibirAtaqueDireto(false);
             }
 
@@ -808,6 +820,24 @@
             // Contadores de zona entram em qualquer repaint: uma carta que puxa do
             // deck para a mão (Zol) muda o saldo sem passar pelos renderers.
             ['p1', 'p2'].forEach(player => updateDeckCounter(player));
+        }
+
+        // O turno é do assento local? PvM/PvP marcam o assento em
+        // `body[data-seat]`; sem marca (hotseat) os dois assentos são locais.
+        function ehTurnoDoAssentoLocal() {
+            const assento = assentoLocal();
+            if (assento !== 'p1' && assento !== 'p2') return true;
+            return gameState.currentPlayer === assento;
+        }
+
+        // Hint de combate: mora no bloco de stats do assento local (a faixa
+        // espelha no PvP, então `.player2-stats` é o bloco do jogador no assento
+        // p2). Idempotente: só move quando o pai está errado.
+        function ancorarHintDeCombate(hint) {
+            const bloco = document.querySelector(
+                (assentoLocal() || 'p1') === 'p2' ? '.player2-stats' : '.player1-stats'
+            );
+            if (bloco && hint.parentElement !== bloco) bloco.appendChild(hint);
         }
 
         function updatePhaseInstructions() {

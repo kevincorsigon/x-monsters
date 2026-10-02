@@ -31,6 +31,7 @@ const CONSOLE_SCRIPTS = [
     'tests/browser/test_pvm_machine.js',
     'tests/browser/test_defeat_sound.js',
     'tests/browser/test_toasts_and_direct_attack.js',
+    'tests/browser/test_combat_hint.js',
     'tests/browser/test_optimized_images.js',
 ];
 

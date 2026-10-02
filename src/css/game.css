@@ -501,8 +501,10 @@
         }
 
         /* Bloco de stats: avatar · nome · PV · energia numa linha só, no canto da
-           faixa (antes era uma coluna alta que empurrava o campo para o lado). */
+           faixa (antes era uma coluna alta que empurrava o campo para o lado).
+           `position: relative` é a âncora do hint de combate, que flutua acima. */
         .player2-stats, .player1-stats {
+            position: relative;
             display: flex;
             flex-direction: row;
             align-items: center;
@@ -771,16 +773,38 @@
             text-shadow: 0 0 5px rgba(201, 165, 103, 0.5);
         }
 
-        /* Instrução de combate: entra na mesma linha do HUD quando existe */
-        .hud #combat-info {
+        /* Instrução de combate: hint flutuante preso ACIMA do bloco de stats do
+           assento local — o espaço vazio da faixa, logo atrás da mão. Fora do
+           fluxo (`absolute`): não empurra a faixa, o palco nem a barra central.
+           O nó é ancorado por `game.js` (a faixa espelha no PvP) e a visibilidade
+           é por classe: só na fase de combate E no SEU turno. */
+        #combat-info {
+            position: absolute;
+            bottom: calc(100% + 4px);
+            left: 50%;
+            transform: translateX(-50%);
             display: none;
+            width: max-content;
+            max-width: min(70vw, 380px);
+            padding: 3px 14px;
+            border-radius: 8px;
+            background: rgba(15, 17, 21, 0.85);
+            border: 1px solid rgba(255, 107, 107, 0.35);
             color: var(--pv-zero-color);
             font-size: 11px;
             text-shadow: 0 0 3px rgba(255, 107, 107, 0.5);
+            /* Pílula flutuante: centrado lê melhor que justificado em bloco
+               curto; a linha quebra dentro do max-width. */
+            text-align: center;
+            line-height: 1.3;
+            pointer-events: none;
+            /* Acima dos campos (o board pinta antes da faixa em só um dos
+               assentos) e da barra central (`z-index: 45`). */
+            z-index: 46;
         }
 
-        .hud #combat-info[style*="display: block"] {
-            display: block !important;
+        #combat-info.visible {
+            display: block;
         }
 
         /* Animação para campo ativo */
@@ -902,6 +926,14 @@
                declara `display: flex` e vence este `none` por especificidade,
                não por ordem. */
             .hand-title {
+                display: none;
+            }
+
+            /* Tela estreita: a instrução de combate some — a faixa flutuante
+               cobriria cartas num palco tão baixo. Mesma especificidade da regra
+               base `#combat-info.visible`, mas posterior na fonte — dentro do
+               media query ela vence. */
+            #combat-info.visible {
                 display: none;
             }
         }

@@ -5010,6 +5010,50 @@ test('o botão de habilidades manuais fica no HUD, ao lado do timer', () => {
     assert.equal(js.includes('abilities-float'), false, 'o JS não cria mais o container flutuante');
 });
 
+test('a instrução de combate é um hint flutuante no bloco de stats do assento local', () => {
+    ['game.html', 'pvp.html'].forEach(pagina => {
+        const html = readSourceText(pagina);
+        const statsP1 = html.indexOf('<div class="player1-stats stats-block">');
+        const hint = html.indexOf('<div id="combat-info">');
+        assert.ok(statsP1 !== -1 && hint > statsP1,
+            `o hint nasce dentro do bloco de stats em ${pagina}`);
+        assert.ok(html.slice(statsP1, html.indexOf('</section>', statsP1)).includes('id="combat-info"'),
+            `e é filho dele (o bloco é a âncora do flutuante) em ${pagina}`);
+        const barra = html.slice(html.indexOf('<div class="controls">'), hint);
+        assert.equal(barra.includes('id="combat-info"'), false,
+            `a barra de comando não hospeda mais o hint em ${pagina}`);
+        assert.equal(html.slice(hint, hint + 60).includes('collect'),
+            false, 'o hint é o nó real, não um comentário');
+    });
+
+    // CSS: o hint é `absolute` preso ACIMA do bloco (o espaço vazio da faixa) —
+    // fora do fluxo, não empurra faixa, palco nem barra central.
+    const css = readSourceText('src/css/game.css');
+    const stats = css.slice(css.indexOf('.player2-stats, .player1-stats {'),
+        css.indexOf('/* Campo de batalha'));
+    assert.match(stats, /position: relative;/, 'o bloco de stats é a âncora do hint');
+
+    const hintCss = css.slice(css.indexOf('#combat-info {'), css.indexOf('#combat-info.visible {'));
+    assert.match(hintCss, /position: absolute;/);
+    assert.match(hintCss, /bottom: calc\(100% \+ 4px\);/, 'o hint flutua acima do bloco de stats');
+    assert.match(hintCss, /pointer-events: none;/, 'o hint nunca bloqueia o clique nas cartas');
+    assert.match(hintCss, /z-index: 4[6-9];/, 'e pinta acima dos campos e da barra');
+    assert.equal(css.includes('.hud #combat-info'), false,
+        'nenhuma regra liga o hint ao HUD (ele saiu da linha de status)');
+
+    // JS: visibilidade por classe, presa a DUAS condições — fase de combate e
+    // turno do assento local (a instrução é do jogador da vez, não do oponente).
+    const js = readSourceText('src/js/game.js');
+    assert.match(js, /function ehTurnoDoAssentoLocal\(\)/, 'o turno local tem um predicado próprio');
+    assert.match(js,
+        /if \(gameState\.currentPhase === 'combat' && ehTurnoDoAssentoLocal\(\)\) \{\s*combatInfo\.classList\.add\('visible'\);/,
+        'o hint só acende na fase de combate E no turno do assento local');
+    assert.match(js, /ancorarHintDeCombate\(combatInfo\);/,
+        'o hint é reancorado no bloco do assento local a cada repaint');
+    assert.match(js, /'\.player2-stats' : '\.player1-stats'/,
+        'no assento p2 a âncora é o bloco do p2 (a faixa espelha)');
+});
+
 test('a mão do oponente é um painel de largura fixa, com o degradê e a contagem no canto', () => {
     const css = readSourceText('src/css/game.css');
 
