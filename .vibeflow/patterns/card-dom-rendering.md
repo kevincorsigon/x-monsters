@@ -110,6 +110,15 @@ function dropCard(e) {
   hand. Styling/selecting by zone would give the local hand `pointer-events: none`
   and tiny cards. Map it: opponent hand is `.player2-hand` in PvM and hotseat p1,
   `.player1-hand` in hotseat p2; with no seat set, markup default (top strip).
+- Mobile/touch overrides live in `src/css/mobile.css`, loaded by `media` on the
+  `<link>` of `game.html`/`pvp.html` after the board stylesheets (desktop never
+  downloads it). It compacts both strips and turns the LOCAL hand into a straight
+  scrolling row / full-width second line, using the same seat→hand-class mapping.
+  Pitfall: the browser runner's headless window is 762x484, which matches the
+  low-landscape clause — the mobile layer is active during the whole desktop
+  suite, so anything it changes on the opponent title (`::after` must stay
+  `absolute`/`right: 10px`) or on the toast column (right corner, `left >
+  innerWidth/2`) has to keep those encodings.
 - The opponent hand is a compact STRIP, not an arc/fan: `flex-direction: row`,
   fixed width via the `--opp-hand-w` token (`max-width: 100%`), centered in its
   column with `justify-self: center`. No `:nth-child` rotation — the arc said

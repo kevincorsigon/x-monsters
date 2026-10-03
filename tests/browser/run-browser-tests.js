@@ -65,6 +65,14 @@ const BUILDER_CONSOLE_SCRIPTS = [
     'tests/browser/test_deck_builder_images.js',
 ];
 
+// Scripts de console de CELULAR (precisam de game.html + janela 390x844): o
+// runner aplica `Emulation.setDeviceMetricsOverride` antes de navegar, porque a
+// camada src/css/mobile.css só entra por media query de tela estreita.
+const VIEWPORT_CELULAR = { width: 390, height: 844, deviceScaleFactor: 2 };
+const MOBILE_CONSOLE_SCRIPTS = [
+    'tests/browser/test_mobile_layout.js',
+];
+
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 /**
@@ -116,7 +124,7 @@ function cdp(ws, method, params = {}) {
     });
 }
 
-async function runPage(wsUrl, label, scriptToInject, pageUrl = 'game.html') {
+async function runPage(wsUrl, label, scriptToInject, pageUrl = 'game.html', viewport = null) {
     const logs = [];
     const ws = new WebSocket(wsUrl);
     await new Promise((res, rej) => {
@@ -134,6 +142,22 @@ async function runPage(wsUrl, label, scriptToInject, pageUrl = 'game.html') {
 
     await cdp(ws, 'Runtime.enable');
     await cdp(ws, 'Page.enable');
+
+    // Métrica de celular (testes de layout de toque): a janela precisa estar
+    // definida ANTES da navegação, senão as media queries do <link> já
+    // resolveram como desktop e a página carrega sem a camada mobile.
+    if (viewport) {
+        await cdp(ws, 'Emulation.setDeviceMetricsOverride', {
+            width: viewport.width,
+            height: viewport.height,
+            deviceScaleFactor: viewport.deviceScaleFactor || 1,
+            mobile: true
+        });
+        await cdp(ws, 'Emulation.setTouchEmulationEnabled', {
+            enabled: true,
+            maxTouchPoints: 5
+        });
+    }
 
     let domLog = null;
 
@@ -308,8 +332,8 @@ async function main() {
         pass ? passed++ : failed++;
     }
 
-    async function runConsoleAndReport(scriptPath, wsUrl, pageUrl = 'game.html') {
-        const { logs } = await runPage(wsUrl, null, scriptPath, pageUrl);
+    async function runConsoleAndReport(scriptPath, wsUrl, pageUrl = 'game.html', viewport = null) {
+        const { logs } = await runPage(wsUrl, null, scriptPath, pageUrl, viewport);
         const errors = logs.filter(l => l.type === 'error');
         console.log(`\n=== ${scriptPath} (via ${pageUrl}) ===`);
         printLogs(logs);
@@ -352,6 +376,12 @@ async function main() {
     for (const script of BUILDER_CONSOLE_SCRIPTS) {
         const wsUrl = await openNewTab();
         await runConsoleAndReport(script, wsUrl, 'deck-builder.html');
+    }
+
+    // Rodar scripts de console de celular contra game.html (390x844)
+    for (const script of MOBILE_CONSOLE_SCRIPTS) {
+        const wsUrl = await openNewTab();
+        await runConsoleAndReport(script, wsUrl, 'game.html', VIEWPORT_CELULAR);
     }
 
     chrome.kill();

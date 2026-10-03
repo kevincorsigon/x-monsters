@@ -7411,6 +7411,89 @@ test('a carta na mao gira em 3D com limites, mostra o verso e nao usa lib de til
 
 
 
+// Camada de celular: um arquivo próprio, carregado por media query no <link>.
+// O palco de 3 faixas do game.css tem largura mínima de mesa (~480px: faixa da
+// mão alheia + stats + pilhas). Em 390px o body (`overflow: hidden`) recortava a
+// direita e a barra central — que é `justify-self: center` — nascia fora de
+// centro, deixando "Combate" e "Fim Turno" fora de alcance. Estes testes prendem
+// o arquivo, o gate de media query nos dois HTMLs e as regras que resolvem o
+// estouro, sem mexer no game.css/pvp.css.
+test('mobile.css entra por media query nas duas telas de partida', () => {
+    const gate = /<link rel="stylesheet" href="src\/css\/mobile\.css" media="\(max-width: 760px\), \(orientation: landscape\) and \(max-height: 520px\)">/;
+
+    ['game.html', 'pvp.html'].forEach(pagina => {
+        const html = readSourceText(pagina);
+        assert.match(html, gate, `${pagina}: o link da camada mobile tem o gate de tela estreita`);
+        assert.match(html, /viewport-fit=cover/, `${pagina}: a viewport reserva a safe area do aparelho`);
+        // A camada precisa vir DEPOIS das folhas da mesa: ela vence por ordem.
+        assert.ok(html.indexOf('src/css/game.css') < html.indexOf('src/css/mobile.css'),
+            `${pagina}: mobile.css depois de game.css`);
+        assert.ok(html.indexOf('src/css/deck-select.css') < html.indexOf('src/css/mobile.css'),
+            `${pagina}: mobile.css depois de deck-select.css`);
+    });
+});
+
+test('mobile.css zera a largura mínima do palco e encolhe as faixas', () => {
+    const css = readSourceText('src/css/mobile.css');
+
+    assert.match(css, /grid-template-columns: minmax\(0, 1fr\);/,
+        'a coluna do palco nao pode herdar o min-content dos filhos');
+    assert.match(css, /--hand-card-w: clamp\(44px, min\(13\.5vw, 11vh\), 68px\);/,
+        'a carta da mao encolhe com a largura e com a altura (tela deitada)');
+    assert.match(css, /--field-slot-w: clamp\(66px, min\(22vw, 19vh\), 104px\);/,
+        'o slot do campo tem teto de celular');
+    assert.match(css, /\.zone,\n\.board,[\s\S]{0,160}?min-width: 0;/,
+        'zonas, campos e barra perdem o piso de min-content');
+    assert.match(css, /\.pile-rail \{[\s\S]{0,120}?flex-direction: row;/,
+        'as pilhas viram duas pilulas lado a lado');
+});
+
+test('mobile.css separa mao local e mao alheia pela classe da mao, nao pela faixa', () => {
+    const css = readSourceText('src/css/mobile.css');
+
+    // O assento p2 do PvP troca as AREAS do grid: `.zone-opponent` passa a ser a
+    // faixa local. Quem decide e a classe da mao por assento.
+    assert.match(css, /body\[data-seat="p1"\] \.player1-hand #hand-p1,/,
+        'mao local do assento p1');
+    assert.match(css, /body:not\(\[data-seat\]\) \.player1-hand #hand-p1,/,
+        'mao local do PvM/hotseat (sem assento)');
+    assert.match(css, /body\[data-seat="p2"\] \.player2-hand #hand-p2 \{[\s\S]{0,220}?overflow-x: auto;/,
+        'mao local do assento p2 rola de lado');
+    assert.match(css, /body\[data-seat="p2"\] \.player1-hand \.hand-title \{/,
+        'mao alheia do assento p2 vira pilula');
+    assert.match(css, /body:not\(\[data-seat\]\) \.player2-hand #hand-p2,[\s\S]{0,220}?overflow: hidden;/,
+        'a mao alheia encolhe em vez de empurrar o grid');
+    assert.match(css, /--hand-card-w: 20px;/,
+        'os versos do oponente viram textura');
+});
+
+test('mobile.css entrega a barra de comando inteira com alvo de toque', () => {
+    const css = readSourceText('src/css/mobile.css');
+
+    assert.match(css, /\.controls \{[\s\S]{0,400}?justify-self: stretch;[\s\S]{0,400}?width: 100%;/,
+        'a barra deixa de depender de sobra lateral');
+    assert.match(css, /\.phases-section \.phase-button \{[\s\S]{0,200}?min-height: 44px;/,
+        'as fases ganham alvo de toque de 44px');
+    assert.match(css, /\.controls \.action-button \{[\s\S]{0,200}?min-height: 44px;/,
+        'o Fim Turno ganha alvo de toque de 44px');
+    assert.match(css, /backdrop-filter: none;/, 'a barra fica opaca (sem blur de GPU no celular)');
+});
+
+test('mobile.css respeita safe area, altura dinamica e o toque sem hover', () => {
+    const css = readSourceText('src/css/mobile.css');
+
+    assert.match(css, /height: 100dvh;/, 'altura dinamica (barra do navegador movel)');
+    assert.match(css, /padding: max\(var\(--gap\), env\(safe-area-inset-top\)\)/,
+        'respiro das bordas respeita o notch');
+    assert.match(css, /@media \(orientation: portrait\) \{[\s\S]{0,2000}?grid-area: 2 \/ 1 \/ 3 \/ -1;/,
+        'em retrato a mao local ganha a largura inteira numa segunda linha');
+    assert.match(css, /@media \(hover: none\) \{[\s\S]{0,600}?transform: none;/,
+        'o hover do desktop nao fica preso no toque');
+    assert.match(css, /\.peek-hand-btn \{\n    display: none;/, 'o botao de espiar nao ocupa a faixa baixa');
+});
+
+
+
 let failures = 0;
 
 tests.forEach(({ name, callback }) => {

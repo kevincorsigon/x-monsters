@@ -1,6 +1,62 @@
 # Decision Log
 > Newest first. Updated by the architect during specs and audits.
 
+## 2026-10-02 — Celular: `src/css/mobile.css` entra por media query no `<link>`
+
+Relato: em 390x844 o palco não cabia — o campo aparecia, mas "Combate" e "Fim
+Turno" ficavam fora de alcance e a mão quase sumia.
+
+Causa: `.game-container` declara só `grid-template-rows`; a coluna implícita é
+`auto`, então ela assumia o MIN-CONTENT dos filhos. A faixa do oponente
+(`--opp-hand-w` com piso de 280px + `.pile-rail` de 62–84px + stats) somava
+~480px, mais que os 390px da tela; como `html/body` tem `overflow: hidden`, a
+sobra era recortada à direita e `.controls` (`justify-self: center`) nascia fora
+de centro — o botão existia, o toque é que não chegava nele. De quebra, o leque
+da mão (`rotate()` + `margin` negativa + `scale(1.7)` no `:hover`) prendia o
+estado de hover no toque.
+
+Decisão (apresentação apenas — nenhum dado, regra de jogo ou API mudou):
+- **Arquivo novo, gated no `<link>`**: `mobile.css` carregado por
+  `media="(max-width: 760px), (orientation: landscape) and (max-height: 520px)"`
+  DEPOIS de `game.css`/`pvp.css`/`deck-select.css`, nos dois HTMLs. O desktop não
+  baixa o arquivo; onde ele entra, vence por ordem de cascata, com um único
+  `!important` (o `transform` da fila da mão).
+- **Coluna única + `min-width: 0`** em zonas/campos/pilhas/barra: o grid nunca
+  fica mais largo que a janela. Tokens de celular para a carta da mão
+  (`clamp(44px, min(13.5vw, 11vh), 68px)` — o `vh` é o que faz a tela deitada
+  caber) e para o slot do campo.
+- **Quem decide mão local/mão alheia é a CLASSE da mão por assento**
+  (`body:not([data-seat]) .player1-hand`, `body[data-seat="p2"] .player2-hand` …),
+  nunca `.zone-*`: no assento p2 o `pvp.css` troca as áreas do grid e
+  `.zone-opponent` passa a carregar a mão do próprio jogador — estilizar por
+  faixa entregava mão minúscula e sem toque a quem joga.
+- **Barra de comando**: `justify-self: stretch` + `width: 100%` com `flex-wrap` —
+  `[gear · HUD]` numa linha e `[fases][Ataque Direto · Fim Turno]` na seguinte em
+  retrato; em tela deitada tudo entra numa linha e a altura sobra para o board.
+  Fases e Fim Turno com `min-height: 44px` (alvo de toque), HUD em `nowrap` e
+  fundo opaco (`backdrop-filter: none`).
+- **Mão local**: tira reta (`transform: none !important`, `margin: 0`,
+  `overflow-x: auto` + `scroll-snap`) e, em retrato, faixa de duas linhas com a
+  mão na largura inteira (as 6–7 cartas do deck inicial sem rolar). **Mão
+  alheia**: pílula com a contagem e os versos como textura de 20px, encolhendo
+  até zero em vez de empurrar o grid.
+- `100dvh`, `env(safe-area-inset-*)`, `touch-action: manipulation` e um bloco
+  `@media (hover: none)` que mata `scale`/`brightness`/`translateY` de hover.
+- `tests/browser/test_mobile_layout.js` + `VIEWPORT_CELULAR` no runner (que
+  aplica `Emulation.setDeviceMetricsOverride` antes de navegar) mede o palco em
+  390x844: nada além da janela, fases/Fim Turno dentro com 44px e recebendo o
+  ponto do toque, mão contida e campos com altura útil. O unit contra CRLF
+  (`tests/unit/run-tests.js`) prende o gate de media query e as regras-chave.
+
+Pitfall para quem for mexer: o Chrome headless do runner abre em **762x484**, o
+que casa a cláusula de paisagem baixa — ou seja, a camada mobile está ativa
+durante TODA a suíte de browser. Ela precisa seguir compatível com o que aqueles
+testes prendem: `.hand-title::after` continua `absolute` + `right: 10px` (badge
+da contagem da mão alheia) e `.message-toasts` continua no canto direito com
+`left > innerWidth/2` (por isso o container apenas ENCOLHE, não é esticado). Foi
+exatamente o que quebrou `test_ui_state.js` e `test_toasts_and_direct_attack.js`
+na primeira versão do arquivo.
+
 ## 2026-10-02 — Combate: instrução (#combat-info) vira hint flutuante acima do bloco de stats
 
 Pedido: em telas pequenas o `#combat-info` não devia aparecer; depois, o texto

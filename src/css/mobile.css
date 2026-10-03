@@ -1,0 +1,580 @@
+/* mobile.css — camada de celular/touch do palco (game.html e pvp.html).
+   Entra por `<link media="(max-width: 760px), (orientation: landscape) and
+   (max-height: 520px)">`, DEPOIS de game.css / pvp.css / deck-select.css: em
+   desktop o arquivo nem é baixado, e onde entra ele vence por ordem de cascata
+   (sem `!important` na maior parte das regras).
+
+   Por que existe: o palco de 3 faixas do game.css assume largura mínima de
+   mesa — a tira fixa da mão alheia (`--opp-hand-w`, piso de 280px) mais stats e
+   pilhas somam ~480px. Em 390px o grid ficava MAIS LARGO que a janela e o
+   `overflow: hidden` do body recortava a direita; como `.controls` é
+   `justify-self: center`, ele nascia fora de centro e "Combate" / "Fim Turno"
+   ficavam inalcançáveis. Aqui a largura mínima é zerada (`minmax(0, 1fr)` +
+   `min-width: 0`), a mão vira tira com rolagem horizontal e a barra de comando
+   passa a ocupar 100% da largura, quebrando em linhas.
+
+   Regra de ouro desta camada: quem decide "mão local" e "mão alheia" é a
+   CLASSE da mão por assento, NUNCA `.zone-*`. No assento p2 do PvP o pvp.css
+   troca as ÁREAS do grid e `.zone-opponent` passa a carregar a mão do PRÓPRIO
+   jogador — estilizar por faixa entregaria mão minúscula e sem toque ao
+   jogador local (a armadilha documentada em .vibeflow/decisions.md). */
+
+/* ══ 1. Viewport: nada de rolagem de página, nada de estouro lateral ══════ */
+
+html,
+body {
+    height: 100dvh;
+    width: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.game-container {
+    /* A coluna implícita do grid era `auto`: ela assumia o min-content dos
+       filhos e crescia além da tela. Com uma coluna `minmax(0, 1fr)` o palco
+       nunca fica mais largo que a janela. */
+    grid-template-columns: minmax(0, 1fr);
+    /* Faixa do oponente pelo conteúdo (pílula), board com toda a sobra e mão
+       local pelo conteúdo: em retrato sobra altura, em tela deitada o board
+       continua sendo o dono do meio. */
+    grid-template-rows: minmax(40px, auto) minmax(0, 1fr) auto;
+    height: 100dvh;
+    gap: var(--gap);
+    /* Notch / barra de gestos: o respiro das bordas é o maior entre o gap da
+       mesa e a safe area do aparelho. */
+    padding: max(var(--gap), env(safe-area-inset-top))
+        max(var(--gap), env(safe-area-inset-right))
+        max(var(--gap), env(safe-area-inset-bottom))
+        max(var(--gap), env(safe-area-inset-left));
+}
+
+.zone,
+.board,
+.pile-rail,
+.player1-hand,
+.player2-hand,
+.player1-field,
+.player2-field,
+.stats-block,
+.controls {
+    min-width: 0;
+}
+
+/* ══ 2. Tokens do celular ═════════════════════════════════════════════════ */
+
+:root {
+    --gap: 4px;
+    /* Carta da mão: menor e com piso baixo (o antigo era 68px, que com 6 cartas
+       já estourava os 390px). O `vh` no meio do clamp é o que faz a carta
+       encolher em tela deitada, onde a altura é o recurso escasso. */
+    --hand-card-w: clamp(44px, min(13.5vw, 11vh), 68px);
+    --hand-card-h: calc(var(--hand-card-w) * 1.42);
+    /* Slot do campo: o teto da carta em campo é `slot × 1.4`, então ele cabe no
+       board que sobra depois da barra de comando. */
+    --field-slot-w: clamp(66px, min(22vw, 19vh), 104px);
+    /* Sem hover no toque: o levantamento do leque só existe no desktop. */
+    --fan-lift: 0px;
+}
+
+/* ══ 3. Faixas: a mão (coluna do meio) é quem absorve a sobra ═════════════
+   As duas faixas ficam com `auto | 1fr | auto`: a coluna da mão é flexível e,
+   como ela é `overflow: hidden` / `auto`, encolhe até zero em vez de empurrar
+   o grid para fora da tela. O seletor de 3 partes é o mesmo da regra
+   espelhada do game.css (mesma especificidade, vence por ordem). */
+
+body[data-seat="p1"] .zone-opponent,
+body:not([data-seat]) .zone-opponent,
+body[data-seat="p2"] .zone-player {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: var(--gap);
+}
+
+/* Stats: some o que não é número. Avatar e nome do oponente saem (a faixa
+   inteira tem ~40px de altura); os chips ficam com fonte de celular. */
+.stats-block {
+    gap: 4px;
+    padding: 3px 5px;
+    font-size: 10px;
+}
+
+.player-avatar {
+    /* Some por completo: o assento é evidente pela faixa, e a pílula de 26px
+       custa largura que a mão precisa. */
+    display: none;
+    width: 26px;
+    height: 26px;
+    font-size: 0.72em;
+}
+
+.player-name {
+    /* Mesmo caso: "Jogador 1"/"Computador" longos empurravam a mão para fora. */
+    display: none;
+    font-size: 10px;
+}
+
+.stat {
+    gap: 2px;
+    padding: 1px 5px;
+    border-radius: 10px;
+}
+
+.stat-label {
+    font-size: 9px;
+    opacity: 0.7;
+}
+
+.stat-value {
+    font-size: 12px;
+}
+
+/* O dado da sorte continua com alvo de toque razoável mesmo na faixa baixa. */
+.stat-energy > .dice-button {
+    width: 26px;
+    height: 26px;
+}
+
+/* Pilhas: as duas pílulas lado a lado (o trilho vertical não caberia em 390px
+   ao lado dos stats). Sacar e ver o descarte continuam a um toque. */
+.pile-rail {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--gap);
+}
+
+.player2-deck,
+.player1-deck,
+.player2-discard,
+.player1-discard {
+    min-width: 0;
+    padding: 2px 5px;
+    font-size: 8px;
+}
+
+.pile-hint {
+    display: none;
+}
+
+.pile-label {
+    font-size: 8px;
+}
+
+.deck-count {
+    margin-top: 1px;
+    font-size: 10px;
+}
+
+/* ══ 4. Mão alheia: pílula com a contagem, versos como textura ════════════
+   Seletor por CLASSE da mão + assento (no assento p2 a mão do p1 vive em
+   `.zone-player`, que sobe para a faixa de cima). */
+
+body[data-seat="p1"] .player2-hand,
+body:not([data-seat]) .player2-hand,
+body[data-seat="p2"] .player1-hand {
+    padding: 3px 5px;
+    gap: 2px;
+}
+
+/* O título já cede por reticências no desktop (o badge `::after` fica absoluto em
+   `right: 10px`, ancorado na caixa). Aqui ele só encolhe: a pílula reserva o
+   espaço do chip à direita em vez de reescrever a posição dele — o mesmo canto
+   direito do desktop, preso pelo test_ui_state.js. */
+body[data-seat="p1"] .player2-hand .hand-title,
+body:not([data-seat]) .player2-hand .hand-title,
+body[data-seat="p2"] .player1-hand .hand-title {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-size: 10px;
+    line-height: 1.15;
+    padding: 2px 58px 2px 8px;
+}
+
+/* Só o tamanho do chip: `position: absolute` + `right: 10px` (game.css) seguem
+   valendo, e o `font-size: 0.75em` do desktop ficaria ilegível no celular. */
+body[data-seat="p1"] .player2-hand .hand-title::after,
+body:not([data-seat]) .player2-hand .hand-title::after,
+body[data-seat="p2"] .player1-hand .hand-title::after {
+    font-size: 9px;
+    padding: 1px 5px;
+}
+
+/* A fila de versos: encolhe até desaparecer sem quebrar a faixa. */
+body[data-seat="p1"] .player2-hand #hand-p2,
+body:not([data-seat]) .player2-hand #hand-p2,
+body[data-seat="p2"] .player1-hand #hand-p1 {
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: flex-end;
+    overflow: hidden;
+    padding: 0 2px;
+}
+
+body[data-seat="p1"] .player2-hand .card,
+body:not([data-seat]) .player2-hand .card,
+body[data-seat="p2"] .player1-hand .card {
+    /* Textura, não leitura: 20px de largura basta para dar a noção de quanto o
+       oponente ainda tem na mão, e some sem drama quando faltar espaço. */
+    --hand-card-w: 20px;
+    --hand-card-h: calc(var(--hand-card-w) * 1.42);
+    margin: 0 -2px;
+    transform: none;
+    opacity: 0.85;
+}
+
+body[data-seat="p1"] .player2-hand .card-back,
+body:not([data-seat]) .player2-hand .card-back,
+body[data-seat="p2"] .player1-hand .card-back {
+    /* O piso 70×100 do `.card-back` (game.css) venceria o token acima. */
+    min-width: 0;
+    min-height: 0;
+    border-width: 1px;
+}
+
+/* O botão de espiar não cabe numa faixa de 40px (e no PvP já não existe). */
+.peek-hand-btn {
+    display: none;
+}
+
+/* ══ 5. Mão local: tira reta com rolagem horizontal ═══════════════════════
+   O leque em arco do desktop custa altura (`rotate` + `--fan-lift` + `scale` no
+   hover, que no toque fica preso) e vaza da faixa. Aqui a mão é uma fila reta
+   que rola de lado: 6 cartas cabem em 390px e a sétima entra por arrasto, com
+   snap no centro. Ao arrastar uma carta o navegador rola a TIRA (`overflow-x`),
+   não a página: por isso `touch-action` fica com o rolar no container e cada
+   carta é um alvo de toque (o `selectCard`/`invocarPorToque` do game.js já cobre
+   o toque). */
+
+body[data-seat="p1"] .player1-hand,
+body:not([data-seat]) .player1-hand,
+body[data-seat="p2"] .player2-hand {
+    padding: 3px 4px;
+    border-radius: 10px;
+}
+
+body[data-seat="p1"] .player1-hand #hand-p1,
+body:not([data-seat]) .player1-hand #hand-p1,
+body[data-seat="p2"] .player2-hand #hand-p2 {
+    justify-content: flex-start;
+    align-items: center;
+    gap: 4px;
+    padding: 0 2px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+body[data-seat="p1"] .player1-hand #hand-p1::-webkit-scrollbar,
+body:not([data-seat]) .player1-hand #hand-p1::-webkit-scrollbar,
+body[data-seat="p2"] .player2-hand #hand-p2::-webkit-scrollbar {
+    display: none;
+}
+
+body[data-seat="p1"] .player1-hand .card,
+body:not([data-seat]) .player1-hand .card,
+body[data-seat="p2"] .player2-hand .card {
+    /* Fila reta: `transform: none` desliga o arco; o `!important` é preciso
+       porque a mesma carta recebe `rotate()` das regras do leque e do estado
+       `player-hand-hidden` — aqui não há arco nenhum para espelhar. */
+    transform: none !important;
+    margin: 0;
+    flex: 0 0 auto;
+    scroll-snap-align: center;
+    cursor: pointer;
+    -webkit-user-drag: none;
+}
+
+body[data-seat="p1"] .player1-hand .card-back,
+body:not([data-seat]) .player1-hand .card-back,
+body[data-seat="p2"] .player2-hand .card-back {
+    min-width: 0;
+    min-height: 0;
+}
+
+/* Retrato: a faixa local ganha DUAS linhas — pilhas e stats em cima, mão
+   ocupando a largura inteira embaixo. Numa linha só a mão ficava com ~96px em
+   390px (2 cartas de cada vez, o resto escondido na rolagem); assim cabem as 6–7
+   cartas do deck inicial sem rolar. Em tela deitada (landscape) a faixa segue
+   numa linha só, porque ali a altura é o recurso escasso. */
+@media (orientation: portrait) {
+    body[data-seat="p1"] .zone-player,
+    body:not([data-seat]) .zone-player,
+    body[data-seat="p2"] .zone-opponent {
+        grid-template-rows: auto auto;
+    }
+
+    body[data-seat="p1"] .zone-player > .pile-rail,
+    body:not([data-seat]) .zone-player > .pile-rail {
+        grid-area: 1 / 1;
+    }
+
+    body[data-seat="p1"] .zone-player > .player1-stats,
+    body:not([data-seat]) .zone-player > .player1-stats {
+        grid-area: 1 / 3;
+    }
+
+    /* Assento p2: a faixa local é `.zone-opponent` e a ordem do markup é
+       stats · mão · pilhas. */
+    body[data-seat="p2"] .zone-opponent > .player2-stats {
+        grid-area: 1 / 1;
+        justify-self: start;
+    }
+
+    body[data-seat="p2"] .zone-opponent > .pile-rail {
+        grid-area: 1 / 3;
+        justify-self: end;
+    }
+
+    body[data-seat="p1"] .zone-player > .player1-hand,
+    body:not([data-seat]) .zone-player > .player1-hand,
+    body[data-seat="p2"] .zone-opponent > .player2-hand {
+        grid-area: 2 / 1 / 3 / -1;
+    }
+}
+
+/* ══ 6. Barra de comando: 100% da largura, quebrando em linhas ════════════
+   Antes ela era uma pílula central que dependia de sobra lateral — justamente o
+   que não existe em 390px. Agora ela é uma faixa de largura total, e os três
+   grupos se acomodam: `[gear · HUD]` e `[fases][Ataque Direto · Fim Turno]`.
+   Em tela deitada (844px) tudo entra numa linha só, e o board fica com a
+   altura. */
+
+.controls {
+    justify-self: stretch;
+    width: 100%;
+    max-width: 100%;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 12px;
+    /* Fundo opaco: `backdrop-filter` em barra de largura total é caro na GPU do
+       celular e não acrescenta nada aqui. */
+    background: rgba(15, 17, 21, 0.96);
+    backdrop-filter: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.gear-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 17px;
+}
+
+.gear-dropdown {
+    left: 0;
+    min-width: 168px;
+    max-height: calc(100dvh - 150px);
+}
+
+.gear-dropdown button {
+    min-height: 44px;
+    font-size: 13px;
+}
+
+/* HUD numa linha só: rótulo curto + valor, sem quebrar e sem empurrar as fases
+   para fora da faixa (o que não couber fica no `overflow: hidden` da barra). */
+.hud {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    gap: 5px;
+    padding-right: 5px;
+    font-size: 10px;
+    overflow: hidden;
+}
+
+.hud-item {
+    font-size: 10px;
+}
+
+.hud-toggle {
+    /* Mesma altura do `.gear-btn` (o test_ui_state.js prende a igualdade): a
+       pílula de habilidades manuais é irmã da engrenagem na linha do HUD. */
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+}
+
+/* Fases: os três botões dividem a largura disponível e ganham alvo de toque de
+   44px (o mínimo recomendado). */
+.phases-section {
+    flex: 1 1 180px;
+}
+
+.phases-section .phase-button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 4px;
+    font-size: 11px;
+    line-height: 1.05;
+    white-space: normal;
+}
+
+.control-section {
+    flex: 1 1 160px;
+    gap: 4px;
+}
+
+.controls .action-button {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 6px;
+    font-size: 12px;
+}
+
+.manual-abilities-panel {
+    left: 0;
+    right: 0;
+    width: auto;
+    max-height: calc(100dvh - 230px);
+}
+/* ══ 7. Campos: slots menores, sem hover de levantamento ══════════════════ */
+
+.player2-field,
+.player1-field {
+    padding: 4px;
+    gap: 4px;
+    min-height: 0;
+    background-size: 14px 14px;
+}
+
+/* ══ 8. Avisos e modais: nada largura fixa de desktop ═════════════════════ */
+
+.message-toasts {
+    /* Sem tocar no `right` (o canto direito é comportamento preso pelo
+       test_toasts_and_direct_attack.js): a coluna só encolhe e continua na
+       direita, com o teto de altura para não tomar a tela retrato inteira. */
+    width: min(300px, 44vw);
+    max-height: 42dvh;
+}
+
+.message-toast {
+    width: auto;
+    padding: 6px 9px;
+    font-size: 11px;
+}
+
+.card-modal,
+.game-dialog-modal,
+.discard-modal {
+    padding: 8px;
+}
+
+.modal-card,
+.game-dialog-card,
+.discard-modal-content {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92dvh;
+    overflow-y: auto;
+}
+
+.modal-card,
+.game-dialog-card {
+    padding: 14px;
+    border-radius: 14px;
+}
+
+.modal-close {
+    top: 6px;
+    right: 6px;
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+}
+
+.discard-cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+    gap: 8px;
+    max-height: 62dvh;
+    padding-right: 4px;
+}
+
+/* Seletor de decks: abre no boot de game.html e na entrada da sala do PvP, então
+   precisa caber (e confirmar) num polegar. Grade de 2 colunas e CTA de 44px. */
+.deck-select-modal {
+    padding: 8px 6px;
+}
+
+.deck-select-card {
+    padding: 12px;
+    border-radius: 14px;
+}
+
+.deck-select-head h2 {
+    font-size: 1.05rem;
+}
+
+.deck-select-subtitle {
+    font-size: 0.82rem;
+}
+
+.deck-select-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+}
+
+.deck-select-detail,
+#deckSelectDetail {
+    margin-top: 10px;
+    padding: 10px;
+}
+
+.deck-select-actions {
+    position: sticky;
+    bottom: 0;
+    margin-top: 10px;
+    padding-top: 8px;
+    background: linear-gradient(180deg, rgba(16, 19, 28, 0) 0%, rgba(16, 19, 28, 0.96) 45%);
+}
+
+.deck-select-confirm {
+    width: 100%;
+    min-height: 46px;
+    padding: 10px 18px;
+}
+
+/* ══ 9. Toque: sem herança de hover ══════════════════════════════════════
+   O `:hover` do CSS fica pegajoso no toque (a carta levantada/ampliada ficava
+   presa depois do tap). Este bloco desliga os efeitos que dependem de ponteiro
+   — sem mexer no `#combat-info`, que aqui é escondido pela regra de tela
+   estreita do game.css. */
+
+@media (hover: none) {
+    .player1-hand .card:hover,
+    .player2-hand .card:hover {
+        /* No leque alheio o hover é só decoração; na mão local a fila reta já
+           anulou o `transform` — aqui a escala/borda do hover também sai. */
+        transform: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+        filter: none;
+    }
+
+    .player2-field > .card:hover,
+    .player1-field > .card:hover {
+        transform: none;
+    }
+
+    .player1-hand:hover .card:not(:hover),
+    .player2-hand:hover .card:not(:hover) {
+        filter: none;
+    }
+
+    /* Alvos de toque sem atraso de 300ms e sem highlight azul do navegador. */
+    button,
+    .card,
+    .pile-deck,
+    .pile-discard {
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    /* A carta em campo pode ser arrastada para o lado quando o campo enche. */
+    .player1-field,
+    .player2-field {
+        touch-action: pan-x;
+    }
+}

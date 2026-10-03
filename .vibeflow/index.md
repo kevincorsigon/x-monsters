@@ -54,6 +54,12 @@ and `pvp-lobby.html` (`/pvp`) creates rooms via `POST /api/matches`.
 - **`pvp.html` / `pvp-lobby.html`** — online board and lobby (o lobby traz o
   botão + modal "Regras do Jogo", conteúdo igual ao do `real-play.html`);
   **`src/css/pvp.css`** — PvP-only styles (`body[data-seat]`).
+- **`src/css/mobile.css`** — camada de celular/touch do palco, carregada por
+  `media` no `<link>` de `game.html`/`pvp.html` (`max-width: 760px` ou paisagem
+  baixa): coluna única, mão em tira com rolagem, barra de comando de largura
+  total com alvos de 44px, safe areas e `@media (hover: none)`. Mão local/alheia
+  é escolhida pela classe da mão por assento, nunca por `.zone-*`. Ver
+  `.vibeflow/decisions.md` (2026-10-02).
 - **`server.py`** — statics + lobby API + WebSocket relay, per-room ledger,
   server-side RNG, `matches/<roomId>.json` mirror; resolve o preset de deck
   escolhido no lobby (`data/decks.json`) por assento.
@@ -192,6 +198,10 @@ patterns:
 - `tests/browser/test_deck_select.js` — seletor de decks do hotseat: modal no
   boot, pilha de versos com a cor de cada deck, detalhe com curva e cartas, traits
   no modal de detalhes, "Trocar deck" remontando a mesa com o preset escolhido.
+- `tests/browser/test_mobile_layout.js` — palco no viewport de celular
+  (`VIEWPORT_CELULAR`, que aplica `Emulation.setDeviceMetricsOverride` antes de
+  navegar): nada além da janela, fases e Fim Turno dentro dela com 44px de alvo e
+  recebendo o ponto do toque, mão local em tira contida e campos com altura útil.
 - `tests/browser/test_turn_timer.js` — relógio de turno (45s) no hotseat: o
   contador decrementa, avisa nos últimos 10s, zera e passa a vez sozinho, e o
   limite desligado (0) neutraliza o contador.
