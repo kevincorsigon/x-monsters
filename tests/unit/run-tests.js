@@ -7492,6 +7492,39 @@ test('mobile.css respeita safe area, altura dinamica e o toque sem hover', () =>
     assert.match(css, /\.peek-hand-btn \{\n    display: none;/, 'o botao de espiar nao ocupa a faixa baixa');
 });
 
+test('mobile.css nao apresenta a coluna de avisos (toasts) no celular', () => {
+    const css = readSourceText('src/css/mobile.css');
+
+    // O veto e de apresentacao, nao do nucleo: o container continua no HTML e
+    // `mostrarToast` (game.js) continua criando o aviso — o teste do core acima
+    // segue prendendo esse caminho, e nada aqui pode virar remocao de funcionalidade.
+    assert.match(css, /\.message-toasts \{\n    display: none;\n\}/,
+        'a coluna de avisos sai do layout do celular por completo');
+    assert.equal(/\.message-toasts \{[\s\S]{0,300}?width: min\(300px, 44vw\);/.test(css), false,
+        'nao basta encolher a coluna: ela nao deve ser apresentada');
+    assert.match(readSourceText('game.html'), /id="message-toasts"/,
+        'game.html segue declarando o container (o aviso nasce, so nao e pintado)');
+    assert.match(readSourceText('pvp.html'), /id="message-toasts"/,
+        'pvp.html segue declarando o container');
+});
+
+test('runner de browser roda a suite de desktop fora da faixa de celular', () => {
+    const runner = readSourceText('tests/browser/run-browser-tests.js');
+
+    // O Chrome headless abre em 762x484, que casa `(orientation: landscape) and
+    // (max-height: 520px)`: sem metrica fixa, a camada de celular entrava na suite
+    // inteira e os testes de layout mediam telefone (foi assim que o veto aos
+    // toasts derrubou test_toasts_and_direct_attack.js).
+    assert.match(runner, /const VIEWPORT_DESKTOP = \{ width: 1366, height: 600, deviceScaleFactor: 1, mobile: false \};/,
+        'o desktop tem metrica fixa, fora das duas clausulas do gate');
+    assert.match(runner, /viewport = VIEWPORT_DESKTOP\)/,
+        'a metrica de desktop e o padrao dos scripts de console');
+    assert.match(runner, /runPage\(wsUrl, label, null, 'game\.html', VIEWPORT_DESKTOP\)/,
+        'as paginas standalone tambem rodam com a metrica de desktop');
+    assert.match(runner, /const VIEWPORT_CELULAR = \{ width: 390, height: 844, deviceScaleFactor: 2, mobile: true \};/,
+        'so o teste de celular pede a metrica de celular');
+});
+
 
 
 let failures = 0;

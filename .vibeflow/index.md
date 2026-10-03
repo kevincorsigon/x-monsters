@@ -57,9 +57,10 @@ and `pvp-lobby.html` (`/pvp`) creates rooms via `POST /api/matches`.
 - **`src/css/mobile.css`** — camada de celular/touch do palco, carregada por
   `media` no `<link>` de `game.html`/`pvp.html` (`max-width: 760px` ou paisagem
   baixa): coluna única, mão em tira com rolagem, barra de comando de largura
-  total com alvos de 44px, safe areas e `@media (hover: none)`. Mão local/alheia
-  é escolhida pela classe da mão por assento, nunca por `.zone-*`. Ver
-  `.vibeflow/decisions.md` (2026-10-02).
+  total com alvos de 44px, safe areas, `@media (hover: none)` e a coluna de
+  avisos (`#message-toasts`) vetada (`display: none` — o toast continua nascendo
+  no DOM, só não é pintado). Mão local/alheia é escolhida pela classe da mão por
+  assento, nunca por `.zone-*`. Ver `.vibeflow/decisions.md` (2026-10-02).
 - **`server.py`** — statics + lobby API + WebSocket relay, per-room ledger,
   server-side RNG, `matches/<roomId>.json` mirror; resolve o preset de deck
   escolhido no lobby (`data/decks.json`) por assento.
@@ -201,7 +202,10 @@ patterns:
 - `tests/browser/test_mobile_layout.js` — palco no viewport de celular
   (`VIEWPORT_CELULAR`, que aplica `Emulation.setDeviceMetricsOverride` antes de
   navegar): nada além da janela, fases e Fim Turno dentro dela com 44px de alvo e
-  recebendo o ponto do toque, mão local em tira contida e campos com altura útil.
+  recebendo o ponto do toque, mão local em tira contida, a armadilha do assento p2
+  (mão local por classe, não por faixa) e os avisos vetados (`display: none`, com
+  o aviso ainda nascendo no DOM). A suíte de desktop usa `VIEWPORT_DESKTOP`
+  (1366×600): fora das duas cláusulas do gate mobile.
 - `tests/browser/test_turn_timer.js` — relógio de turno (45s) no hotseat: o
   contador decrementa, avisa nos últimos 10s, zera e passa a vez sozinho, e o
   limite desligado (0) neutraliza o contador.

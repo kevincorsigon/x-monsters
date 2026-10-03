@@ -65,10 +65,29 @@ const BUILDER_CONSOLE_SCRIPTS = [
     'tests/browser/test_deck_builder_images.js',
 ];
 
-// Scripts de console de CELULAR (precisam de game.html + janela 390x844): o
+// Métrica fixa da suíte de DESKTOP. Não é decoração: o Chrome headless abre em
+// 762x484, que casa a cláusula `(orientation: landscape) and (max-height: 520px)`
+// do gate de src/css/mobile.css — a camada de celular entrava na suíte INTEIRA e
+// os testes passavam medindo o layout de telefone. Isso ficou insustentável
+// quando o celular passou a vetar os toasts: test_toasts_and_direct_attack.js
+// mede a pilha no canto direito e recebia `display: none`.
+//
+// 1366x600 é a janela de notebook maximizada típica (a largura lógica do painel
+// mais comum, com a altura que sobra do navegador). Os dois tamanhos importam:
+//  - 1366 de largura > 760 e 600 > 520: FORA das duas cláusulas do gate, então a
+//    camada de celular fica de fora — o desktop testa desktop;
+//  - 600 <= 620: dentro da faixa "janelas baixas" que o game.css declara para si
+//    (`max-height: 620px`), que é a mesma família de janela em que a suíte sempre
+//    rodou (762x484). Fora dela, com o token base do leque
+//    (`--hand-card-w: clamp(68px, min(6.8vw, 11vh), 112px)`), as cartas das pontas
+//    vazam a faixa da mão em ~10-20px de 720 a 900 de altura — defeito
+//    pré-existente do desktop, medido, que não é deste runner (ver decisions.md).
+const VIEWPORT_DESKTOP = { width: 1366, height: 600, deviceScaleFactor: 1, mobile: false };
+
+// Scripts de console de CELULAR (precisam de game.html + janela 390x844). O
 // runner aplica `Emulation.setDeviceMetricsOverride` antes de navegar, porque a
 // camada src/css/mobile.css só entra por media query de tela estreita.
-const VIEWPORT_CELULAR = { width: 390, height: 844, deviceScaleFactor: 2 };
+const VIEWPORT_CELULAR = { width: 390, height: 844, deviceScaleFactor: 2, mobile: true };
 const MOBILE_CONSOLE_SCRIPTS = [
     'tests/browser/test_mobile_layout.js',
 ];
@@ -143,20 +162,24 @@ async function runPage(wsUrl, label, scriptToInject, pageUrl = 'game.html', view
     await cdp(ws, 'Runtime.enable');
     await cdp(ws, 'Page.enable');
 
-    // Métrica de celular (testes de layout de toque): a janela precisa estar
-    // definida ANTES da navegação, senão as media queries do <link> já
-    // resolveram como desktop e a página carrega sem a camada mobile.
+    // Métrica explícita na aba ANTES da navegação: as duas telas de partida
+    // carregam o `<link>` de mobile.css por media query, então sem a métrica já
+    // definida a camada (ou a ausência dela) sai errada. Desktop roda sem toque
+    // emulado, para o `@media (hover: none)` ficar de fora como no mouse real.
     if (viewport) {
+        const ehCelular = viewport.mobile !== false;
         await cdp(ws, 'Emulation.setDeviceMetricsOverride', {
             width: viewport.width,
             height: viewport.height,
             deviceScaleFactor: viewport.deviceScaleFactor || 1,
-            mobile: true
+            mobile: ehCelular
         });
-        await cdp(ws, 'Emulation.setTouchEmulationEnabled', {
-            enabled: true,
-            maxTouchPoints: 5
-        });
+        if (ehCelular) {
+            await cdp(ws, 'Emulation.setTouchEmulationEnabled', {
+                enabled: true,
+                maxTouchPoints: 5
+            });
+        }
     }
 
     let domLog = null;
@@ -317,7 +340,7 @@ async function main() {
     }
 
     async function runAndReport(label, wsUrl) {
-        const { logs, domLog } = await runPage(wsUrl, label, null);
+        const { logs, domLog } = await runPage(wsUrl, label, null, 'game.html', VIEWPORT_DESKTOP);
         const errors = logs.filter(l => l.type === 'error');
         console.log(`\n=== ${label} ===`);
         printLogs(logs);
@@ -332,7 +355,8 @@ async function main() {
         pass ? passed++ : failed++;
     }
 
-    async function runConsoleAndReport(scriptPath, wsUrl, pageUrl = 'game.html', viewport = null) {
+    // O padrão é a métrica de DESKTOP: só a suíte de celular pede outra coisa.
+    async function runConsoleAndReport(scriptPath, wsUrl, pageUrl = 'game.html', viewport = VIEWPORT_DESKTOP) {
         const { logs } = await runPage(wsUrl, null, scriptPath, pageUrl, viewport);
         const errors = logs.filter(l => l.type === 'error');
         console.log(`\n=== ${scriptPath} (via ${pageUrl}) ===`);

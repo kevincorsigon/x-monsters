@@ -13,6 +13,13 @@
    `min-width: 0`), a mão vira tira com rolagem horizontal e a barra de comando
    passa a ocupar 100% da largura, quebrando em linhas.
 
+   Regra de apresentação que veio depois: os AVISOS de acontecimento (toasts) NÃO
+   são apresentados no celular. A coluna do canto direito comia ~1/3 de uma tela
+   retrato e ficava por cima das cartas justamente na hora de decidir a jogada.
+   O veto é de CSS: o container continua no HTML e `mostrarToast` continua criando
+   o toast (o núcleo do jogo não sabe de layout), então nada em game.js mudou e
+   um aviso futuro no celular pode reusar o mesmo caminho, só com outro container.
+
    Regra de ouro desta camada: quem decide "mão local" e "mão alheia" é a
    CLASSE da mão por assento, NUNCA `.zone-*`. No assento p2 do PvP o pvp.css
    troca as ÁREAS do grid e `.zone-opponent` passa a carregar a mão do PRÓPRIO
@@ -440,20 +447,18 @@ body[data-seat="p2"] .player2-hand .card-back {
     background-size: 14px 14px;
 }
 
-/* ══ 8. Avisos e modais: nada largura fixa de desktop ═════════════════════ */
+/* ══ 8. Avisos e modais: sem toasts, sem largura fixa de desktop ══════════ */
 
+/* Os avisos de acontecimento do jogo não são apresentados no celular. Antes eles
+   só encolhiam (min(300px, 44vw) num canto), mas ainda assim cobriam a coluna da
+   mão e o canto do tabuleiro em 390px — e o aviso é informativo, então quem
+   perde ao escondê-lo é só o ruído, não a regra. O veto é de APRESENTAÇÃO: o
+   container continua declarado no HTML e `mostrarToast` (game.js) segue criando o
+   nó normalmente; ele apenas não é pintado. Nada foi removido do núcleo — é o
+   que mantém a suíte de desktop (que confere a pilha no canto direito) válida.
+   O fim de jogo tem overlay próprio (`#game-over-overlay`) e não depende daqui. */
 .message-toasts {
-    /* Sem tocar no `right` (o canto direito é comportamento preso pelo
-       test_toasts_and_direct_attack.js): a coluna só encolhe e continua na
-       direita, com o teto de altura para não tomar a tela retrato inteira. */
-    width: min(300px, 44vw);
-    max-height: 42dvh;
-}
-
-.message-toast {
-    width: auto;
-    padding: 6px 9px;
-    font-size: 11px;
+    display: none;
 }
 
 .card-modal,

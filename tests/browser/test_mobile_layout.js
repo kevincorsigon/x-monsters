@@ -155,6 +155,34 @@
     assert('o botão "Espiar Mão" não ocupa a faixa do celular',
         [...document.querySelectorAll('.peek-hand-btn')].every(b => getComputedStyle(b).display === 'none'));
 
+    // ── Toasts vetados no celular ────────────────────────────────────────
+    // A coluna de avisos do canto direito comia ~1/3 da tela retrato e cobria a
+    // mão. O veto é de APRESENTAÇÃO, não do núcleo: o container continua no HTML e
+    // `mostrarToast` continua criando o toast (só não é pintado). É esse contrato
+    // que permite reexibir avisos no celular depois, com outro container, sem
+    // tocar em game.js.
+    const avisos = document.getElementById('message-toasts');
+    assert('a tela continua declarando o container de avisos (núcleo intacto)',
+        Boolean(avisos));
+    assert('o container de avisos não é apresentado no celular',
+        Boolean(avisos) && getComputedStyle(avisos).display === 'none');
+
+    if (avisos && typeof window.showMessage === 'function') {
+        const antes = avisos.querySelectorAll('.message-toast').length;
+        window.showMessage('Aviso de teste do celular');
+        const criados = avisos.querySelectorAll('.message-toast');
+        assert('o aviso continua entrando no container (só não é pintado)',
+            criados.length === antes + 1);
+        const novo = criados[criados.length - 1];
+        const caixaNovo = novo.getBoundingClientRect();
+        assert('o aviso criado no celular não ocupa pixel nenhum',
+            Boolean(novo) && caixaNovo.width === 0 && caixaNovo.height === 0);
+        assert('o aviso não intercepta toque nem com o container vetado',
+            getComputedStyle(avisos).pointerEvents === 'none' ||
+            getComputedStyle(avisos).display === 'none');
+        criados.forEach(el => el.remove());
+    }
+
     console.log(`\n🧪 Resultado layout de celular: ${passed}/${passed + failed} checks`);
     console.log(failed === 0 ? '✅ o palco é jogável em 390x844' : `❌ ${failed} falhas\n`);
 })();

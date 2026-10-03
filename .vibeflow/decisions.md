@@ -48,14 +48,46 @@ Decisão (apresentação apenas — nenhum dado, regra de jogo ou API mudou):
   ponto do toque, mão contida e campos com altura útil. O unit contra CRLF
   (`tests/unit/run-tests.js`) prende o gate de media query e as regras-chave.
 
-Pitfall para quem for mexer: o Chrome headless do runner abre em **762x484**, o
-que casa a cláusula de paisagem baixa — ou seja, a camada mobile está ativa
-durante TODA a suíte de browser. Ela precisa seguir compatível com o que aqueles
-testes prendem: `.hand-title::after` continua `absolute` + `right: 10px` (badge
-da contagem da mão alheia) e `.message-toasts` continua no canto direito com
-`left > innerWidth/2` (por isso o container apenas ENCOLHE, não é esticado). Foi
-exatamente o que quebrou `test_ui_state.js` e `test_toasts_and_direct_attack.js`
-na primeira versão do arquivo.
+Pitfall corrigido em seguida: o Chrome headless do runner abria em **762x484**,
+que casa a cláusula de paisagem baixa — a camada mobile estava ativa durante TODA
+a suíte de browser. Os testes passavam medindo o layout de telefone, e as duas
+regras que eles prendem no desktop (`.hand-title::after` `absolute`/`right: 10px`
+e `.message-toasts` no canto direito) tinham virado reféns disso (por isso o
+container apenas ENCOLHIA). Ver a decisão seguinte.
+
+## 2026-10-02 — Celular: toasts vetados e o runner de browser finalmente em desktop
+
+Relato: no celular os avisos de acontecimento (toasts) não devem ser
+apresentados. Eles comiam ~1/3 de uma tela retrato no canto direito e ficavam por
+cima das cartas justamente na hora de decidir a jogada.
+
+Decisão: `mobile.css` traz `.message-toasts { display: none; }`. É veto de
+APRESENTAÇÃO, não de núcleo: o container segue declarado nos dois HTMLs,
+`mostrarToast` (game.js) segue criando o nó e o empilhamento/expiração continuam
+iguais — nada em game.js/pvp.js mudou. O fim de jogo tem overlay próprio
+(`#game-over-overlay`) e não dependia daqui. O que se perde é só o canal de aviso
+de regra no celular (ex.: "Energia insuficiente"); quem quiser reabrir isso depois
+reusa `mostrarToast` com outro container, sem tocar no núcleo.
+
+Consequência para o runner (obrigatória, não cosmética): `tests/browser/run-browser-tests.js`
+passou a fixar a métrica de DESKTOP em **1366x600** (`VIEWPORT_DESKTOP`,
+aplicada com `Emulation.setDeviceMetricsOverride` antes de navegar, sem emulação
+de toque) e só a suíte de celular pede `VIEWPORT_CELULAR` (390x844, com toque).
+Sem isso o veto derrubava `test_toasts_and_direct_attack.js` — ele mede a pilha no
+canto direito e recebia `display: none`, porque a janela padrão do headless
+(762x484) casa o gate de paisagem baixa do mobile.css. 1366x600 satisfaz as duas
+condições de uma vez: 1366 > 760 e 600 > 520 (FORA das duas cláusulas do gate →
+camada mobile de fora) e 600 <= 620 (dentro da faixa "janelas baixas" que o
+game.css declara para si, a mesma família de janela em que a suíte sempre rodou).
+
+Achado colateral, medido e NÃO corrigido (fora do escopo desta tarefa): com o
+token base do leque (`--hand-card-w: clamp(68px, min(6.8vw, 11vh), 112px)`), as
+cartas das pontas da mão vazam a faixa para baixo em ~10-20px de 720 a 900 de
+altura de janela (1366x600: -3px, ou seja dentro; 1280x720: +18px; 1366x768:
++16px; 1440x900: +8px; 1920x1080: 0). É o motivo de a suíte não rodar em 1280x800:
+lá `test_ui_state.js` reprova em "O leque cabe dentro da faixa da mão". Candidato
+a correção futura: usar o termo de altura da própria faixa baixa no token base
+(`min(6.8vw, 8.9vh)`) — é mudança visual de desktop, decidir com o dono antes.
 
 ## 2026-10-02 — Combate: instrução (#combat-info) vira hint flutuante acima do bloco de stats
 
